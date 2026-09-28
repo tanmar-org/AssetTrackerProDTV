@@ -591,7 +591,52 @@ function openDeactivationList(){
   openModal("deactivationListModal");
 }
 
+function accountCapacitySummary(accountList,receiverList,assignmentList){
+  const receiverMap=new Map(receiverList.map(receiver=>[receiver.id,receiver]));
+  const rows=new Map(accountList.map(account=>[account.id,{active:0,onRent:0,offRent:0,unknown:0,empty:20}]));
+  const seen=new Set();
+  let invalid=0;
+  for(const assignment of assignmentList){
+    const row=rows.get(assignment.accountId),receiver=receiverMap.get(assignment.assetId);
+    if(!row||!receiver||seen.has(assignment.assetId)){invalid++;continue}
+    seen.add(assignment.assetId);row.active++;
+    if(receiver.rentState==="On Rent")row.onRent++;
+    else if(receiver.rentState==="Off Rent")row.offRent++;
+    else row.unknown++;
+  }
+  const total={accounts:rows.size,spaces:rows.size*20,active:0,onRent:0,offRent:0,empty:0,unknown:0,overCapacity:0,invalid,rows};
+  for(const row of rows.values()){
+    row.empty=Math.max(0,20-row.active);
+    for(const key of ["active","onRent","offRent","empty","unknown"])total[key]+=row[key];
+    if(row.active>20)total.overCapacity++;
+  }
+  total.canEstimate=!(total.invalid||total.unknown||total.overCapacity);
+  total.accountsNeeded=total.canEstimate?Math.ceil(total.onRent/20):null;
+  total.accountsToClose=total.canEstimate?Math.max(0,total.accounts-total.accountsNeeded):null;
+  total.emptyAfterDeactivation=total.canEstimate?total.spaces-total.onRent:null;
+  return total;
+}
+
+function renderAccountCapacity(){
+  const totals=accountCapacitySummary(accounts,master,assignments);
+  $("accountPaidSpaces").textContent=totals.spaces;
+  $("accountPaidCount").textContent=`${totals.accounts} account${totals.accounts===1?"":"s"} × 20`;
+  $("accountActiveReceivers").textContent=totals.active;
+  $("accountOnRentReceivers").textContent=totals.onRent;
+  $("accountOffRentReceivers").textContent=totals.offRent;
+  $("accountEmptySpaces").textContent=totals.empty;
+  const warnings=[];
+  if(totals.invalid)warnings.push(`${totals.invalid} missing or duplicate assignment${totals.invalid===1?"":"s"}`);
+  if(totals.unknown)warnings.push(`${totals.unknown} receiver${totals.unknown===1?"":"s"} with an unknown rent status`);
+  if(totals.overCapacity)warnings.push(`${totals.overCapacity} account${totals.overCapacity===1?"":"s"} above 20 receivers`);
+  $("accountCapacityWarning").hidden=!warnings.length;
+  $("accountCapacityWarning").textContent=warnings.length?`Review ${warnings.join("; ")} before using the consolidation estimate.`:"";
+  $("accountConsolidationTitle").textContent=!totals.canEstimate?"Review records to estimate account savings":!totals.accounts?"Add accounts to track available spaces":totals.accountsToClose?`${totals.accountsToClose} account${totals.accountsToClose===1?"":"s"} could be closed after consolidation`:"No whole account can be freed at current on-rent demand";
+  $("accountConsolidationDetail").textContent=totals.canEstimate&&totals.accounts?`${totals.onRent} on-rent receiver${totals.onRent===1?"":"s"} need at least ${totals.accountsNeeded} account${totals.accountsNeeded===1?"":"s"} (${totals.accountsNeeded*20} spaces). Deactivating the ${totals.offRent} active Off Rent receiver${totals.offRent===1?"":"s"} would leave ${totals.emptyAfterDeactivation} empty spaces across your current accounts, before consolidation.`:"Active means assigned to an account. Unassigned receivers do not occupy account spaces.";
+}
+
 function renderAccounts(){
+renderAccountCapacity();
 const q=$("accountSearch").value.trim().toLowerCase();
 
 const filtered=accounts.filter(a=>{
@@ -664,6 +709,10 @@ $("accountCardGrid").innerHTML=filtered.map(account=>{
       <span class="account-sheet-metric off-rent">
         <strong>${offRent}</strong>
         <span>Off Rent</span>
+      </span>
+      <span class="account-sheet-metric empty-spaces">
+        <strong>${Math.max(0,20-receivers.length)}</strong>
+        <span>Empty Spaces</span>
       </span>
     </button>
 

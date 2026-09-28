@@ -1,11 +1,12 @@
 # TanMar Receiver Control — AssetTrackerPro
 
-Source handoff for TanMar's DIRECTV asset tracker and QR service-request application, updated September 24, 2026.
+Source handoff for TanMar's DIRECTV asset tracker and QR service-request application, updated September 27, 2026.
 
-The tracker comes from published **version 57**; the companion service app comes from **version 8**. This handoff branch replaces the old three-file prototype; the previous version remains in Git history.
+The tracker comes from published **version 58**; the companion service app comes from **version 8**. This handoff branch replaces the old three-file prototype; the previous version remains in Git history.
 
 ## Included
 
+- Account capacity totals, per-account empty spaces and consolidation estimates.
 - Accounts, Master Registry, activations, history, rental stock, audits/imports, reports, backup/restore and user administration.
 - Brother QL-820NWB receiver/service and barcode labels, including select/deselect visible.
 - Server APIs, schemas, SQL migrations, graphics, QR/barcode libraries and dependency lockfiles.

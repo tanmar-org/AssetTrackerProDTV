@@ -7,6 +7,7 @@
   <title>TanMar Receiver Control</title>
   <link rel="stylesheet" href="app.css?v=55">
   <link rel="stylesheet" href="reskin.css?v=51">
+  <link rel="stylesheet" href="capacity.css?v=1">
   <link rel="stylesheet" href="labels.css?v=55">
 </head>
 <body class="auth-locked">
@@ -144,6 +145,19 @@
           </div>
           <button class="primary-button" id="accountsNewButton">+ Add Account</button>
         </div>
+
+        <section class="capacity-panel" aria-labelledby="capacityTitle">
+          <div class="capacity-heading"><h3 id="capacityTitle">Receiver spaces</h3><p>All accounts · 20 paid spaces per account · totals stay visible when searching</p></div>
+          <div class="capacity-metrics">
+            <article><span>Paid spaces</span><strong id="accountPaidSpaces">0</strong><small id="accountPaidCount">0 accounts × 20</small></article>
+            <article><span>Active receivers</span><strong id="accountActiveReceivers">0</strong><small>Assigned to accounts</small></article>
+            <article class="capacity-on"><span>On rent</span><strong id="accountOnRentReceivers">0</strong><small>Active and earning rent</small></article>
+            <article class="capacity-off"><span>Active, off rent</span><strong id="accountOffRentReceivers">0</strong><small>Review for deactivation</small></article>
+            <article><span>Empty spaces now</span><strong id="accountEmptySpaces">0</strong><small>Unused paid capacity</small></article>
+          </div>
+          <div class="capacity-projection"><h4 id="accountConsolidationTitle">Account consolidation</h4><p id="accountConsolidationDetail"></p><p class="capacity-assumption">Estimate assumes all active Off Rent receivers are deactivated and the remaining receivers can be consolidated. Confirm account, location and service requirements before closing accounts.</p></div>
+          <p class="capacity-warning" id="accountCapacityWarning" role="status" hidden></p>
+        </section>
 
         <div class="account-toolbar account-toolbar-row">
           <div class="account-search-wrap">
@@ -906,6 +920,6 @@
   <script src="vendor/qrcode.js"></script>
   <script src="vendor/jsbarcode.min.js"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=55"></script>
+  <script src="app.js?v=58"></script>
 </body>
 </html>
