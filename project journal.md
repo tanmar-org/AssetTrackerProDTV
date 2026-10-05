@@ -22,7 +22,8 @@
   and concurrency corrections in
   [PR #17](https://github.com/tanmar-org/AssetTrackerProDTV/pull/17) are also merged
   by the owner. Inventory permissions/schemas are implemented on
-  `Dev/inventory-permissions` for review.
+  `Dev/inventory-permissions` in
+  [PR #19](https://github.com/tanmar-org/AssetTrackerProDTV/pull/19) for owner review.
   Production deployment has not started.
 - Next task: SEC-04 legacy injection, remaining dependency/QR security work,
   and AUTH-01/DATA-01/DATA-04 access/conflict/cache requirements. Production domains/services/backups/data cutover remain
@@ -577,3 +578,8 @@ owner review/merge remains pending. DATA-01/DATA-03 remain open for durable conf
 handling and complete database backups/restoration. Next priorities include SEC-04
 legacy-page injection, DEP-01/DEP-02 dependencies, SEC-05 public QR controls, company
 access/cache policy, and authorized source-data reconciliation before deployment.
+
+Pushed `Dev/inventory-permissions` and opened
+[PR #19](https://github.com/tanmar-org/AssetTrackerProDTV/pull/19), targeting `main`.
+Implementation, regression tests, and documentation share this PR. The owner
+performs final review and merging; no production deployment was performed.

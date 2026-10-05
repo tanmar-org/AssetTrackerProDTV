@@ -68,8 +68,9 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   deletion; ordinary PATCH checks actual account/receiver/service/stock changes.
   Typed/bounded records, stock links/counts, unique assignments, 20-receiver capacity,
   and safe identifiers/Maps URLs are enforced on reads/saves/recovery. See
-  [the implemented permission policy](docs/INVENTORY-PERMISSIONS.md). Owner PR
-  review/merge is pending; initial import requires reconciled data under MIG-01.
+  [the implemented permission policy](docs/INVENTORY-PERMISSIONS.md).
+  [PR #19](https://github.com/tanmar-org/AssetTrackerProDTV/pull/19) awaits owner
+  review/merge; initial import requires reconciled data under MIG-01.
 - [ ] SEC-04 — Retire or safely rebuild the legacy static service form. URL and
   stored values must render as safe text/validated attributes; test HTML injection
   and unsafe links on both public and authenticated pages.
