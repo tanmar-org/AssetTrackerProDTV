@@ -2,6 +2,8 @@ import { env } from "cloudflare:workers";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "./schema";
 
+// Template Drizzle adapter. Active tracker APIs use raw D1 through runtime
+// bindings instead, so editing only this adapter cannot complete HOST-02.
 export function getDb() {
   if (!env.DB) {
     throw new Error(

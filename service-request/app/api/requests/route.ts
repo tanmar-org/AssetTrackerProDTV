@@ -49,6 +49,8 @@ function database() {
   return active.DB;
 }
 
+// Staff read/update/delete requests use the server-to-server shared secret.
+// Public POST intentionally does not call this guard so a scanned label can submit.
 function authorized(request: Request) {
   const active = runtime();
   const token = request.headers.get("authorization");
@@ -58,6 +60,8 @@ function authorized(request: Request) {
   );
 }
 
+// CORS only controls browser access, not authorization. This inherited Sites
+// origin must be reviewed with the new domains during HOST-03.
 function dashboardOrigin(request: Request) {
   return request.headers.get("origin") ===
     "https://directv-asset-tracker-eric.evo3453.chatgpt.site"
@@ -134,6 +138,8 @@ function mapRow(row: RequestRow) {
   };
 }
 
+// Receiver/account metadata and GPS are caller supplied, not verified against the
+// tracker. Asset lookup, input bounds, and abuse controls are required (SEC-05/QR-01).
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
@@ -191,6 +197,8 @@ export async function POST(request: Request) {
       );
 
     const db = database();
+    // A separate SELECT cannot prevent concurrent duplicate inserts. Enforce the
+    // pending-request rule atomically when implementing SEC-05.
     const duplicate = await db
       .prepare(
         "SELECT id FROM service_requests WHERE asset_number = ? AND status = 'Pending' AND deleted_at IS NULL LIMIT 1",
@@ -261,6 +269,8 @@ export async function POST(request: Request) {
   }
 }
 
+// The newest 500 non-deleted rows are returned, including completed requests.
+// Older pending rows can fall outside this window; pagination is DATA-06.
 export async function GET(request: Request) {
   if (!authorized(request))
     return dashboardJson(request, { error: "Unauthorized" }, { status: 401 });
@@ -324,6 +334,8 @@ export async function PATCH(request: Request) {
   }
 }
 
+// Deletion is a tombstone: retained rows disappear from list/update queries.
+// A retention/backup policy must handle them separately from this UI action.
 export async function DELETE(request: Request) {
   if (!authorized(request))
     return dashboardJson(request, { error: "Unauthorized" }, { status: 401 });

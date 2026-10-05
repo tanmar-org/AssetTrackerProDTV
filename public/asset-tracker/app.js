@@ -1,3 +1,5 @@
+// Browser caches bootstrap the UI before the authenticated shared-state read.
+// They are device-wide and currently survive sign-out (DATA-04), not full backups.
 const KEYS={
   master:"atp.master.v5",
   accounts:"atp.accounts.v5",
@@ -18,6 +20,8 @@ const DEACTIVATION_BATCH_SIZE=10;
 let selectedOverdueIds=new Set();
 let deactivationBatches=[];
 
+// Demonstration records only; source checkout does not contain production data.
+// Live migration must use separately authorized exports (MIG-01).
 const seedMaster=[
 {id:makeId(),assetNumber:"43MTX5033HD",model:"HR54-700",accessCard:"001234567890",rid:"0349583945",serial:"A1B2C3D4",type:"Genie",rentState:"On Rent"},
 {id:makeId(),assetNumber:"43MTX1168HD",model:"H25-500",accessCard:"001234567893",rid:"0391172840",serial:"MTX11680",type:"HD",rentState:"Off Rent"},
@@ -72,6 +76,8 @@ function load(key,fallback){
     return fallback;
   }
 }
+// Undo snapshots read the last cached version rather than current in-memory edits.
+// auditState is absent here, and restoreUndoEntry omits rentalStock (DATA-03).
 function persistedState(){
   return {
     master:load(KEYS.master,[]),
@@ -103,6 +109,8 @@ function recordUndo(label="Data change",force=false){
   persistUndoHistory();
 }
 
+// Cache first, then enqueue the shared save. Storage quota errors currently stop
+// execution before scheduling persistence; preserve edits when fixing DATA-01.
 function save(label="Data change",{skipUndo=false}={}){
   if(!skipUndo)recordUndo(label);
   localStorage.setItem(KEYS.master,JSON.stringify(master));
@@ -115,6 +123,8 @@ function save(label="Data change",{skipUndo=false}={}){
   scheduleCloudSave(label);
 }
 
+// This is the full operational payload sent to the tracker API; users, sessions,
+// server logs/history, and QR service requests live outside this browser object.
 function cloudState(){
   return {
     master,
@@ -221,6 +231,8 @@ function scheduleCloudSave(action="Data change"){
   cloudSaveTimer=setTimeout(()=>flushCloudSave(),450);
 }
 
+// Debounce/coalesce local edits and send the last known server revision. Current
+// conflict handling replaces unsaved edits with the server copy (DATA-01).
 async function flushCloudSave(){
   if(!cloudReady||cloudSaving||!cloudQueued)return;
   cloudQueued=false;
@@ -412,6 +424,8 @@ function updateUndoControls(){
   $("undoHistoryEmpty").hidden=available;
 }
 
+// Local Undo becomes another shared save; it is not a database point-in-time
+// restore. Its incomplete audit/stock coverage is tracked in DATA-03.
 function restoreUndoEntry(index=0){
   const entry=undoHistory[index];
   if(!entry)return;
@@ -1068,6 +1082,8 @@ function serviceQrMarkup(value,assetNumber){
   }catch{return ""}
 }
 
+// Printed links freeze private receiver/account metadata in a public URL. QR-01
+// replaces this with a stable identifier and server lookup of current details.
 function serviceRequestLink(receiver,account=null){
   const requestUrl=new URL(PUBLIC_SERVICE_REQUEST_URL);
   const requestData={
@@ -2552,6 +2568,8 @@ function renderReports(){
   $("reportOffRentEmpty").hidden=offRentRows.length!==0;
 }
 
+// CSV quoting preserves separators/newlines but does not neutralize spreadsheet
+// formulas in untrusted values; formula-safe export is tracked in DATA-05.
 function csvCell(value){
   const text=String(value??"");
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g,'""')}"` : text;
@@ -2619,6 +2637,8 @@ function exportReportCsv(){
 $("exportReportCsvButton").addEventListener("click",exportReportCsv);
 $("printReportButton").addEventListener("click",()=>window.print());
 
+// This browser export omits rentalStock and both databases' users/logs/history/
+// service requests. The UI's complete-backup claim needs correction (DATA-03).
 function downloadBackup(){
   const backup={
     app:"TanMar Receiver Control",
@@ -2704,6 +2724,8 @@ function importValue(row,names){
   return "";
 }
 
+// XLSX is provided by the externally loaded spreadsheet library; replace its
+// vulnerable CDN version with a verified local reader under DEP-02.
 async function readExcelBook(file){
   if(typeof XLSX==="undefined")throw new Error("Excel reader did not load. Refresh while connected to the internet.");
   return XLSX.read(await file.arrayBuffer(),{type:"array"});
@@ -2978,6 +3000,8 @@ async function prepareTqImport(file){
   }
 }
 
+// Import previews are applied to in-memory collections then saved as one payload.
+// Count processed versus actually assigned rows accurately when fixing DATA-05.
 function applyDataImport(){
   if(!pendingDataImport)return;
   let processed=0;
@@ -3207,6 +3231,8 @@ function userInitials(name){
   return String(name||"").trim().slice(0,2).toUpperCase()||"--";
 }
 
+// Hiding controls is a UI convenience. API authorization must independently
+// enforce permissions and must never trust these client restrictions (SEC-03).
 function applyUserAccess(user){
   currentUser=user;
   $("profileButton").textContent=userInitials(user.name);

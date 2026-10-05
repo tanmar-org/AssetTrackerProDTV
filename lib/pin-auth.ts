@@ -9,6 +9,8 @@ export type SessionUser = {
 const SESSION_COOKIE = "tanmar_session";
 const encoder = new TextEncoder();
 
+// The Worker entry point supplies this binding; these helpers cannot use an
+// ordinary Node database connection until the hosting migration (HOST-02).
 export function db() {
   const runtime = (
     globalThis as typeof globalThis & { __ASSET_TRACKER_ENV__?: RuntimeEnv }
@@ -17,6 +19,8 @@ export function db() {
   return runtime.DB;
 }
 
+// Compatibility setup runs during requests. CREATE IF NOT EXISTS does not add
+// missing constraints to existing tables; migrations must also match (AUTH-01).
 export async function ensureAuthSchema() {
   const d1 = db();
   await d1.batch([
@@ -70,6 +74,8 @@ async function sha256(value: string) {
   return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value))));
 }
 
+// Salted PBKDF2 protects stored PINs; the small PIN space still requires effective
+// login throttling. Never log the supplied PIN or derived hash.
 export async function hashPin(pin: string, salt: string) {
   const key = await crypto.subtle.importKey("raw", encoder.encode(pin), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
@@ -113,6 +119,8 @@ function cookieValue(request: Request, name: string) {
   return "";
 }
 
+// Only the token hash is stored. Join against the current user record so account
+// deactivation and role changes apply to existing sessions on their next request.
 export async function getSessionUser(request: Request): Promise<SessionUser | null> {
   await ensureAuthSchema();
   const token = cookieValue(request, SESSION_COOKIE);
@@ -144,6 +152,8 @@ export async function requireUser(request: Request, role?: "admin") {
   return { user, response: null };
 }
 
+// The browser receives a 12-hour bearer cookie; HttpOnly keeps it out of client
+// JavaScript and Secure requires HTTPS outside localhost development handling.
 export async function createSession(userId: string) {
   const token = randomHex(32);
   const now = new Date();

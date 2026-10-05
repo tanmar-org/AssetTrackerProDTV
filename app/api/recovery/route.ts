@@ -28,6 +28,8 @@ export async function GET(request: Request) {
   return Response.json({ snapshots: rows.results }, { headers: { "cache-control": "no-store" } });
 }
 
+// Recovery keeps a pre-restore snapshot, but its UPDATE has no expected-revision
+// predicate. A concurrent save can be overwritten; address this under DATA-02.
 export async function POST(request: Request) {
   const auth = await requireUser(request, "admin");
   if (auth.response) return auth.response;

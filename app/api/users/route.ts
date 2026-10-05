@@ -36,6 +36,8 @@ export async function POST(request: Request) {
   }
 }
 
+// Administrative account updates currently preserve issued sessions after a PIN
+// reset and permit demotion of the last administrator; track both under AUTH-01.
 export async function PATCH(request: Request) {
   const auth = await requireUser(request, "admin");
   if (auth.response) return auth.response;

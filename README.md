@@ -1,5 +1,11 @@
 # TanMar Receiver Control — AssetTrackerPro
 
+For current development work, start with [AGENTS.md](AGENTS.md),
+[the project journal](<project journal.md>), [TODO.md](TODO.md), and
+[the development guide](docs/DEVELOPMENT.md). Work on `Dev/` branches and submit
+pull requests for owner review and merging. The following sections describe the
+original Worker/D1 handoff; the VM-hosting migration is tracked in the TODO list.
+
 Source handoff for TanMar's DIRECTV asset tracker and QR service-request application, updated September 27, 2026.
 
 The tracker comes from published **version 58**; the companion service app comes from **version 8**. This handoff branch replaces the old three-file prototype; the previous version remains in Git history.
@@ -30,9 +36,9 @@ Read [the IT handoff guide](docs/IT-HANDOFF.md) for architecture, hosting, migra
 Use **Node.js 22.13 or newer** on Linux, or Windows with **WSL2**. Both applications use Vinext/Vite and Cloudflare D1. Opening `index.html` directly does not supply the backend.
 
 ```bash
-git clone --branch it-handoff/2026-09-23 https://github.com/eam42079-pixel/AssetTrackerPro.git
-cd AssetTrackerPro
-npm ci
+git clone --branch main https://github.com/tanmar-org/AssetTrackerProDTV.git
+cd AssetTrackerProDTV
+npm run install:ci
 cp .dev.vars.example .dev.vars
 ```
 
@@ -48,8 +54,8 @@ npm run dev -- --host 127.0.0.1 --port 5173
 In a second terminal:
 
 ```bash
-cd AssetTrackerPro/service-request
-npm ci
+cd AssetTrackerProDTV/service-request
+npm run install:ci
 cp .dev.vars.example .dev.vars
 # Set ADMIN_SHARED_SECRET to the same local value used by the tracker.
 npx wrangler d1 migrations apply DB --local --config wrangler.local.json --persist-to .wrangler/state
