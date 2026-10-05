@@ -51,17 +51,16 @@ test("Node/PostgreSQL integration", async (t) => {
 
   await t.test("migrations are repeatable, checksummed, and cannot mix applications", async () => {
     await migrate(tracker.database, "tracker");
-    assert.equal(Number((await tracker.database.prepare("SELECT COUNT(*) AS total FROM schema_migrations").first()).total), 1);
+    assert.equal(Number((await tracker.database.prepare("SELECT COUNT(*) AS total FROM schema_migrations").first()).total), 2);
     await assert.rejects(migrate(tracker.database, "requests"), /other application/);
-    await tracker.database.prepare("UPDATE schema_migrations SET checksum = 'synthetic-changed-checksum'").run();
+    await tracker.database.prepare("UPDATE schema_migrations SET checksum = 'synthetic-changed-checksum' WHERE name = 'tracker/0001_initial.sql'").run();
     await assert.rejects(migrate(tracker.database, "tracker"), /has changed/);
-    await tracker.database.prepare("DELETE FROM schema_migrations").run();
-    // Restore only the test migration record without running DDL again.
+    // Restore only the changed test checksum without discarding migration history.
     const { createHash } = await import("node:crypto");
     const { readFile } = await import("node:fs/promises");
     const sql = await readFile(new URL("../../migrations/tracker/0001_initial.sql", import.meta.url));
-    await tracker.database.prepare("INSERT INTO schema_migrations VALUES ($1, $2, $3)")
-      .bind("tracker/0001_initial.sql", createHash("sha256").update(sql).digest("hex"), new Date().toISOString()).run();
+    await tracker.database.prepare("UPDATE schema_migrations SET checksum = $1 WHERE name = $2")
+      .bind(createHash("sha256").update(sql).digest("hex"), "tracker/0001_initial.sql").run();
   });
 
   await t.test("restricted web roles cannot create tables, edit migration history, or read the other app", async () => {

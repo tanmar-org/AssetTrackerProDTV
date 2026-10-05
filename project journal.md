@@ -4,8 +4,8 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/node-postgresql`, based on merged
-  `main` at `13467e6`.
+- Development branch: `Dev/account-security`, based on merged
+  `main` at `93ed64c`.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -17,11 +17,12 @@
 - Active working copy on the hosting VM:
   `/home/itadmin/projects/AssetTrackerProDTV-security-cleanup`.
 - Owner reviews and merges all PRs. Agents may push `Dev/` branches and open PRs.
-- Current phase: native Node/PostgreSQL migration implemented and verified in
-  [PR #11](https://github.com/tanmar-org/AssetTrackerProDTV/pull/11), awaiting owner
-  review/merge. Production deployment has not started.
-- Next task: complete SEC-03 server permissions, AUTH-01 account lifecycle, and
-  remaining dependencies. Production domains/services/backups/data cutover remain
+- Current phase: the owner merged the native Node/PostgreSQL migration in
+  [PR #11](https://github.com/tanmar-org/AssetTrackerProDTV/pull/11). Account lifecycle
+  and concurrency corrections are implemented on `Dev/account-security` for review.
+  Production deployment has not started.
+- Next task: complete SEC-03 inventory permissions/schemas, remaining AUTH-01
+  company access/shared-device requirements, and dependencies. Production domains/services/backups/data cutover remain
   under HOST-03/HOST-04/MIG-01. SEC-01-OWNER still needs owner confirmation.
 
 ## 2026-10-05 — Repository access and read-only review
@@ -412,3 +413,68 @@ Pushed `Dev/node-postgresql` and opened
 [PR #11](https://github.com/tanmar-org/AssetTrackerProDTV/pull/11), targeting `main`.
 The implementation, regression tests, and related documentation are together in
 this PR. The owner performs final review and merging; no deployment was performed.
+
+## 2026-10-05 17:14 CDT — AUTH-01 account lifecycle and concurrent access
+
+The owner merged PR #11 and authorized continued correction. Created
+`Dev/account-security` from merged main `93ed64c`. This PR focuses on account
+security; inventory permissions/schemas remain SEC-03. The original checkout's
+unrelated authentication-comment edit remains preserved.
+
+Login now locks its PostgreSQL user row through PIN verification, failure-counter
+updates, and session insertion. Twelve concurrent wrong-PIN requests across two
+separate Node servers produce exactly five failures and seven locked responses;
+valid PINs cannot bypass the active 15-minute lockout. Successful login clears the
+counter/lock and prunes that account's expired sessions. Hash comparisons use
+Node's constant-time primitive. Legacy display-name aliases remain available when
+unambiguous, without failed/successful login silently renaming accounts or reading
+all accounts' hashes. Ambiguous aliases require administrator correction.
+
+User administration now serializes mutations with transaction advisory lock
+`728303`, revalidates the actor's session after waiting, and preserves at least one
+active administrator. Account writes, session revocation, and their audit inserts
+commit together; failed audit writes roll everything back. PIN resets, role
+changes, and activation changes revoke all target sessions. Reactivation does not
+revive old sessions. Self PIN/role changes clear the cookie and reload the sign-in
+gate. Unlock alone retains sessions. Omitted PATCH fields preserve existing values;
+invalid role/boolean/PIN types are rejected rather than silently coerced.
+
+Access APIs require small JSON objects, with a streaming 4-KiB byte limit even
+without Content-Length. Malformed JSON/types/cookies receive controlled denials;
+raw PostgreSQL errors and submitted secrets are not returned. Actual uniqueness
+violations produce conflicts; unrelated database failures return unavailable.
+
+Added tracker migration `0002_access_constraints.sql` for PIN hash/salt/session
+hash format, the 0–4 failure-counter bound, and a session-user index. The previous
+checksummed migration is unchanged. Apply root `npm run db:migrate` with the schema
+owner before running this version. Incompatible existing/imported rows fail the
+whole migration and require explicit operator reconciliation; credentials are
+never automatically rewritten. No new table grants or QR schema changes are needed.
+
+Validation:
+
+- Tracker native build and **9 unit/HTTP regression tests passed**. QR native build
+  and **1 HTTP regression test passed**. Both TypeScript checks passed.
+- **32 PostgreSQL integration checks passed**, including the existing 16 runtime
+  scenarios and 14 account scenarios, plus their two parent tests. New coverage
+  includes cross-process lockout, reset/login races, multi-session revocation,
+  active-admin retention under competing demotions, stale queued authorization,
+  account/audit/session rollback, expired-session cleanup, strict input/permissions,
+  legacy aliases, hash/counter constraints, and existing-row migration failure/retry.
+- Changed server/helper/test files pass focused ESLint; browser syntax and diff
+  whitespace checks pass. Inherited full-lint failures remain recorded under QA-02;
+  no unrelated suppression or dependency upgrade was introduced.
+- Refreshed the QR application's 369 installed packages to match the owner's
+  already-merged PRs #8/#9/#10. Its lockfile remains unchanged by this task; advisory
+  submission was disabled. Both apps' shared database package source is unchanged.
+
+AUTH-01-ACCOUNTS, AUTH-01-LOCKOUT, and AUTH-01-CONSTRAINTS implementation checks are
+complete. AUTH-01 itself remains open for company SSO/outer access decisions,
+broader traffic/unknown-account abuse controls, and shared-device sign-out/cache
+policy (DATA-04). These changes retain the existing 4–8 digit PIN/12-hour session
+policy; they do not complete inventory permissions, public QR abuse controls,
+dependency remediation, or deployment readiness. SEC-03 is the next correction.
+
+All disposable integration databases and runtime roles were removed (remaining
+counts: 0 and 0); the private PostgreSQL test cluster is stopped. No production
+service, account, database, or deployment was changed.

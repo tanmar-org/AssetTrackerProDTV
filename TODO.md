@@ -70,9 +70,23 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 - [ ] SEC-05 — Add public-request abuse controls, size/field limits, asset lookup,
   valid coordinate/time bounds, and atomic duplicate prevention. Test malformed,
   oversized, repeated, unknown-asset, and concurrent submissions.
-- [ ] AUTH-01 — Decide company authentication requirements; revoke sessions on PIN
-  reset, preserve at least one active admin, bound login attempts, and align migration
-  constraints with runtime rules. Test account lifecycle and shared-device sign-out.
+- [ ] AUTH-01 — Decide company authentication requirements (existing PINs versus
+  company SSO/outer access policy) and complete shared-device sign-out/cache policy.
+  Per-account lockout is enforced below; broader login traffic/unknown-account abuse
+  controls remain a deployment requirement. Inventory permissions remain SEC-03.
+- [x] AUTH-01-ACCOUNTS — Account updates, session revocation, and audit writes commit
+  together. PIN resets, role changes, and activation changes revoke all target
+  sessions. Recheck administrator access inside the serialized mutation; retain at
+  least one active admin under concurrent demotions. Implemented/tested on
+  `Dev/account-security`; owner review/merge pending.
+- [x] AUTH-01-LOCKOUT — Serialize login attempts with a PostgreSQL row lock through
+  session issuance. Five concurrent failures trigger the existing 15-minute
+  lockout; login/reset races cannot leave an old-PIN session valid. Bound access
+  JSON to 4 KiB and reject malformed input/cookies; prune expired account sessions.
+- [x] AUTH-01-CONSTRAINTS — Add tracker migration `0002_access_constraints.sql`
+  for hash/salt/token format and failure counters, plus a session-user index.
+  Existing-row migration and rollback tests pass. Incompatible imports require
+  explicit reconciliation, not automatic credential rewrites.
 
 ## Data preservation and correctness
 
@@ -109,7 +123,7 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   port the trusted operator provisioning command; run both apps on the VM without
   Cloudflare application/database bindings. Never restore public bootstrap as a shortcut.
   Implemented/tested on `Dev/node-postgresql` in
-  [PR #11](https://github.com/tanmar-org/AssetTrackerProDTV/pull/11); owner review/merge pending.
+  [PR #11](https://github.com/tanmar-org/AssetTrackerProDTV/pull/11), merged by the owner.
 - [ ] HOST-03 — Configure domains, HTTPS, internal request endpoint, new shared
   credential or replacement auth, public QR destination, CORS, and local fonts.
   Remove localhost/old-host assumptions; verify generated URLs and font assets.

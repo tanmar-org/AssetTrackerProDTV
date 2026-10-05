@@ -55,6 +55,11 @@ The journal records current evidence; older handoff statements may be stale.
   then run `npm run admin:provision` in a terminal. Never reintroduce public HTTP
   bootstrap or pass PINs as command arguments. PostgreSQL bootstrap takes a table
   lock before checking for any existing user; a conditional INSERT alone can race.
+- Account mutations use transaction advisory lock `728303`, recheck the actor's
+  session in that transaction, retain an active administrator, and commit account,
+  session revocation, and audit changes together. Login locks the target user row
+  through PIN verification/session issuance. Preserve those lock boundaries;
+  a PIN reset must invalidate sessions even when a login races it.
 - Current QR links and mail drafts carry receiver/account metadata. Automatic
   server email and a Monday reporting job are not implemented.
 - An account-password value was removed from a public template under SEC-01.
