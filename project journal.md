@@ -19,7 +19,8 @@
 - Owner reviews and merges all PRs. Agents may push `Dev/` branches and open PRs.
 - Current phase: the owner merged the native Node/PostgreSQL migration in
   [PR #11](https://github.com/tanmar-org/AssetTrackerProDTV/pull/11). Account lifecycle
-  and concurrency corrections are implemented on `Dev/account-security` for review.
+  and concurrency corrections are implemented on `Dev/account-security` in
+  [PR #17](https://github.com/tanmar-org/AssetTrackerProDTV/pull/17) for owner review.
   Production deployment has not started.
 - Next task: complete SEC-03 inventory permissions/schemas, remaining AUTH-01
   company access/shared-device requirements, and dependencies. Production domains/services/backups/data cutover remain
@@ -478,3 +479,8 @@ dependency remediation, or deployment readiness. SEC-03 is the next correction.
 All disposable integration databases and runtime roles were removed (remaining
 counts: 0 and 0); the private PostgreSQL test cluster is stopped. No production
 service, account, database, or deployment was changed.
+
+Pushed `Dev/account-security` and opened
+[PR #17](https://github.com/tanmar-org/AssetTrackerProDTV/pull/17), targeting `main`.
+Implementation, regression tests, and documentation share this PR. The owner
+performs final review and merging.

@@ -78,7 +78,8 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   together. PIN resets, role changes, and activation changes revoke all target
   sessions. Recheck administrator access inside the serialized mutation; retain at
   least one active admin under concurrent demotions. Implemented/tested on
-  `Dev/account-security`; owner review/merge pending.
+  `Dev/account-security` in
+  [PR #17](https://github.com/tanmar-org/AssetTrackerProDTV/pull/17); owner review/merge pending.
 - [x] AUTH-01-LOCKOUT — Serialize login attempts with a PostgreSQL row lock through
   session issuance. Five concurrent failures trigger the existing 15-minute
   lockout; login/reset races cannot leave an old-PIN session valid. Bound access
