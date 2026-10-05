@@ -54,8 +54,10 @@ npm test
 ```
 
 This builds, validates the exported Worker/Sites artifact, and runs the existing
-Node tests. If a build already passed and no code changed, the existing test can
-be run separately with `node --test tests/rendered-html.test.mjs`.
+Node tests. The tracker suite also checks deactivation drafts and the built public
+JavaScript for the removed account-password field. After a successful unchanged
+build, run the tracker tests with `node --test tests/*.test.mjs`; the QR smoke test
+can be run separately with `node --test tests/rendered-html.test.mjs`.
 
 Additional checks as appropriate:
 
@@ -64,8 +66,10 @@ npm run lint
 npx tsc --noEmit --incremental false
 ```
 
-The inherited tests verify a root redirect and service-page metadata, not application
-security or data correctness. Record exact results, including existing failures.
+The inherited smoke tests verify a root redirect and service-page metadata. The
+tracker's SEC-01 tests additionally cover credential-field removal and retained
+receiver details; broader security/data behavior still needs QA-01 coverage.
+Record exact results, including existing failures.
 On 2026-10-05 both builds/tests passed; lint and TypeScript checks failed on inherited
 issues. See [the baseline validation](reviews/2026-10-05-validation.md) and QA-02.
 The build uses workerd/Miniflare; a restricted execution sandbox may prevent runtime

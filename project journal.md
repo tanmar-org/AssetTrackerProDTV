@@ -4,18 +4,20 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/project-foundation`.
-- Publication status: owner explicitly approved public publication; the branch is
-  pushed. [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3) is open
-  for owner review and merging.
-- Working copy on the hosting VM: `/home/itadmin/projects/AssetTrackerProDTV`.
+- Development branch: `Dev/remove-public-account-password`, based on merged
+  `main` at `0c0a6f3`.
+- Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
+  and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
+  were merged by the owner. Credential-removal
+  [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4) is open for review.
+- Active working copy on the hosting VM:
+  `/home/itadmin/projects/AssetTrackerProDTV-security-cleanup`.
 - Owner reviews and merges all PRs. Agents may push `Dev/` branches and open PRs.
-- Current phase: documentation, explanatory comments, and developer setup completed;
-  foundation PR awaits owner review. Project corrections and production deployment
-  have not started.
-- Next task: after owner review, agree on the hosting architecture and work through
-  the prioritized [TODO list](TODO.md). Start with exposed credentials, repository
-  visibility, dependency remediation, and server-side permission boundaries.
+- Current phase: first corrective change, SEC-01 credential removal. Developer
+  foundation is complete; production deployment has not started.
+- Next task: owner reviews the corrective PR and resolves SEC-01-OWNER; continue
+  dependency/security remediation and agree on the hosting architecture using
+  the prioritized [TODO list](TODO.md).
 
 ## 2026-10-05 — Repository access and read-only review
 
@@ -195,3 +197,44 @@ Cloudflare type diagnostics as the earlier baseline. No application code changed
 Recommendation: owner may merge PR #2 as a limited dependency update. DEP-01 remains
 open because the tracker and other affected dependencies still need remediation.
 This smoke coverage does not establish production readiness. No merge was performed.
+
+## 2026-10-05 — Merged baseline and SEC-01 code correction
+
+The owner confirmed PRs #2 and #3 were merged. Fetched `origin/main` and verified
+both merge commits; current baseline is `0c0a6f3`. The QR service now uses Next.js
+16.3.8; the root tracker remains at 16.2.6. OWNER-01 is complete and DEP-01 remains
+open for broader updates.
+
+Created `Dev/remove-public-account-password` in a separate worktree so the existing
+unstaged authentication-comment edit in the foundation checkout is preserved.
+Removed the account-password field from the public deactivation-email formatter.
+The draft retains its request text, address, receiver/card/serial/RID and account
+identifiers. Added a comment explaining the public-code/email trust boundary.
+No credential value was copied into this journal, fixtures, or PR text.
+
+Added `tests/deactivation-email.test.mjs` and expanded the root test command to run
+all tracker test files after the build. The tests exercise the actual formatter
+with synthetic receiver data, preserve required identifiers, reject the credential
+field in source, and check the generated public asset. Failure assertions use
+booleans rather than printing drafts. The first two regression checks failed on
+the baseline and passed after removal.
+
+Validation: locked install passed (503 packages, lockfiles unchanged); `npm test`
+passed its build, Worker artifact validation, and all four tests. Browser syntax,
+new-test ESLint, and diff whitespace checks passed. A one-time in-memory comparison
+against the old credential confirmed it absent from all 72 public source/build
+assets; its value was neither printed nor saved. The QR application is unchanged
+by this correction and was already built/tested in the PR #2 review. Baseline
+lint/type issues remain tracked under QA-02.
+
+SEC-01-CODE is complete. Asked the owner whether the historical value was real,
+already rotated, or only a test value; confirmation is pending. SEC-01 and
+SEC-01-OWNER remain open until credential exposure and the provider authentication
+workflow are resolved. Git history and previously deployed copies are not erased
+by this code change; production deployment remains outside this task.
+
+Pushed the branch and opened
+[PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4), targeting `main`.
+Owner review/merge and SEC-01-OWNER confirmation remain pending. The next corrective
+priorities are controlled administrator provisioning and explicit server permissions,
+alongside the remaining dependency work. No production deployment was performed.
