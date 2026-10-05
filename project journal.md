@@ -4,20 +4,20 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/remove-public-account-password`, based on merged
-  `main` at `0c0a6f3`.
+- Development branch: `Dev/controlled-admin-provisioning`, based on merged
+  `main` at `7063cdb`.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
-  were merged by the owner. Credential-removal
-  [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4) is open for review.
+  and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
+  were merged by the owner. The SEC-02 provisioning PR is being prepared.
 - Active working copy on the hosting VM:
   `/home/itadmin/projects/AssetTrackerProDTV-security-cleanup`.
 - Owner reviews and merges all PRs. Agents may push `Dev/` branches and open PRs.
-- Current phase: first corrective change, SEC-01 credential removal. Developer
-  foundation is complete; production deployment has not started.
-- Next task: owner reviews the corrective PR and resolves SEC-01-OWNER; continue
-  dependency/security remediation and agree on the hosting architecture using
-  the prioritized [TODO list](TODO.md).
+- Current phase: SEC-02 controlled administrator provisioning implemented/tested;
+  owner review is pending. Production deployment has not started.
+- Next task: owner reviews the corrective PR; continue SEC-03 server permissions
+  and remaining dependency remediation. SEC-01-OWNER and hosting architecture
+  remain unresolved in the prioritized [TODO list](TODO.md).
 
 ## 2026-10-05 — Repository access and read-only review
 
@@ -238,3 +238,54 @@ Pushed the branch and opened
 Owner review/merge and SEC-01-OWNER confirmation remain pending. The next corrective
 priorities are controlled administrator provisioning and explicit server permissions,
 alongside the remaining dependency work. No production deployment was performed.
+
+## 2026-10-05 — SEC-02 controlled administrator provisioning
+
+The owner merged PR #4 and authorized continued correction. Fetched merged main
+at `7063cdb` and created `Dev/controlled-admin-provisioning` in the clean correction
+worktree. The original checkout's unrelated authentication-comment edit remains intact.
+
+Removed initial administrator creation from HTTP entirely. `/api/auth` rejects
+`action: "setup"` with 403 before database work and only permits explicit login.
+GET reports `needsProvisioning`; the public UI shows a contact-administrator message
+and hides its form while users are absent. Existing account login/session behavior
+is preserved. Added a CSS rule so the form's grid styling does not override `hidden`.
+
+Added `npm run admin:provision` and operator helper scripts. The command is local-D1
+only, prompts for username/PIN/confirmation, hides PIN echo, and shares the existing
+PIN validation/PBKDF2 implementation. Only salted hashes reach a mode-0600 temporary
+SQL file, which is removed afterward. Credentials are not passed as arguments or
+environment variables. Wrangler logs and raw error details are suppressed.
+
+The conditional INSERT creates a user only when no user exists, so concurrent
+attempts cannot both bootstrap. A following lookup of the attempt's random user ID
+reports success. The real local Wrangler check showed metadata lacks affected-row
+counts; the command and a regression test now use ID-based confirmation instead.
+Existing users, including inactive/regular users, prevent repeat provisioning.
+No web setup token or alternate public creation route was introduced.
+
+Validation:
+
+- Tracker build and Worker artifact checks passed; all **14 tests** passed. New
+  coverage includes rejected setup on fresh/initialized databases, normal login
+  and session resolution, inactive-user bootstrap refusal, invalid actions/PINs,
+  UI gating, Wrangler result handling, and two simultaneous threads using separate
+  SQLite connections to confirm exactly one initial administrator.
+- All four migrations applied to temporary local D1 databases. Interactive CLI
+  creation succeeded with synthetic credentials and hidden PIN input; a second
+  run refused without changes, and a read confirmed one original test administrator.
+  Noninteractive input and `--remote` were rejected; temporary SQL files were removed.
+- Changed route/scripts/tests passed ESLint; browser/CLI syntax and diff whitespace
+  checks passed. TypeScript still reports the same 11 inherited diagnostics under
+  QA-02. Lockfiles and QR application code are unchanged.
+
+README, the development guide, IT handoff, agent instructions, and TODO list now
+describe operator provisioning. CLI/test commands explicitly enable TypeScript
+stripping so the shared helper works with the declared Node 22.13+ minimum.
+No live database or production account was created or altered. The production
+provisioning adapter must be ported with the selected backend under HOST-02.
+
+SEC-02 implementation is complete. Pending: push/open the owner-reviewed PR, then
+continue explicit server permissions (SEC-03), account lifecycle hardening (AUTH-01),
+and dependency cleanup. Credential rotation/validity under SEC-01-OWNER still awaits
+owner confirmation.

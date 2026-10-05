@@ -6,7 +6,6 @@ import {
   ensureAuthSchema,
   getSessionUser,
   hashPin,
-  newSalt,
   normalizeUsername,
   validatePin,
   validateUsername,
@@ -17,7 +16,7 @@ export async function GET(request: Request) {
     await ensureAuthSchema();
     const count = await db().prepare("SELECT COUNT(*) AS count FROM app_users").first<{ count: number }>();
     const user = await getSessionUser(request);
-    return Response.json({ needsSetup: Number(count?.count || 0) === 0, user }, { headers: { "cache-control": "no-store" } });
+    return Response.json({ needsProvisioning: Number(count?.count || 0) === 0, user }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Access service unavailable." }, { status: 503 });
   }
@@ -25,29 +24,18 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await ensureAuthSchema();
     const body = await request.json() as { action?: string; name?: string; pin?: string };
+    // HTTP never creates the first administrator, even against an empty DB.
+    // Only the server operator's local provisioning command can bootstrap users.
+    if (body?.action === "setup")
+      return Response.json({ error: "Initial administrator setup requires the server operator." }, { status: 403 });
+    if (body?.action !== "login")
+      return Response.json({ error: "Unsupported authentication action." }, { status: 400 });
+    await ensureAuthSchema();
     const name = normalizeUsername(body.name);
     const pin = String(body.pin || "");
     if (!validateUsername(name) || !validatePin(pin))
       return Response.json({ error: "Enter a username such as jdoe and a 4–8 digit PIN." }, { status: 400 });
-
-    // Current bootstrap is public and the count/insert are separate operations.
-    // Controlled, atomic administrator provisioning is required before deployment
-    // (SEC-02); the empty-table check alone is not an access-control boundary.
-    if (body.action === "setup") {
-      const count = await db().prepare("SELECT COUNT(*) AS count FROM app_users").first<{ count: number }>();
-      if (Number(count?.count || 0) !== 0)
-        return Response.json({ error: "Initial administrator already exists." }, { status: 409 });
-      const id = crypto.randomUUID();
-      const salt = newSalt();
-      const now = new Date().toISOString();
-      await db().prepare(
-        "INSERT INTO app_users (id, name, role, pin_hash, pin_salt, active, last_login_at, created_at, updated_at) VALUES (?, ?, 'admin', ?, ?, 1, ?, ?, ?)",
-      ).bind(id, name, await hashPin(pin, salt), salt, now, now, now).run();
-      const session = await createSession(id);
-      return Response.json({ user: { id, name, role: "admin" } }, { headers: { "set-cookie": session.cookie } });
-    }
 
     let user = await db().prepare(
       "SELECT id, name, role, pin_hash, pin_salt, active, failed_attempts, locked_until FROM app_users WHERE name = ? COLLATE NOCASE",

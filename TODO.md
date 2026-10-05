@@ -51,9 +51,12 @@ decisions. The owner reviews and merges all changes from `Dev/` branches.
 - [ ] DEP-02 — Replace CDN-loaded SheetJS `0.18.5` with a patched, verified local
   asset or maintained alternative. Test XLSX/XLS/CSV imports with representative
   files and bounded malformed input; no spreadsheet-reader runtime CDN dependency.
-- [ ] SEC-02 — Replace public first-admin setup with controlled provisioning.
+- [x] SEC-02 — Replace public first-admin setup with controlled provisioning.
   Admin creation must be atomic and unavailable to unauthenticated users after
   provisioning; test fresh DB, concurrent requests, and already-initialized DB.
+  Implemented on `Dev/controlled-admin-provisioning`: HTTP setup always returns
+  403; the local operator command inserts only into an empty user table. Build and
+  all 14 tests passed, plus fresh/repeated local D1 CLI checks. Owner review pending.
 - [ ] SEC-03 — Enforce explicit server permissions and record schemas. Include
   rental stock, bulk edits, restore/clear operations, assignment uniqueness, account
   capacity, and identifier/link validation. Client action labels must not grant
@@ -95,7 +98,8 @@ decisions. The owner reviews and merges all changes from `Dev/` branches.
   Preserve UI and separate staff/private and customer/public access boundaries.
 - [ ] HOST-02 — Port Worker entry/runtime bindings and direct D1 SQL calls to the
   selected backend. Replace Worker/Sites build validation and static/image serving;
-  run both apps on the VM without Cloudflare application/database bindings.
+  port the trusted operator provisioning command; run both apps on the VM without
+  Cloudflare application/database bindings. Never restore public bootstrap as a shortcut.
 - [ ] HOST-03 — Configure domains, HTTPS, internal request endpoint, new shared
   credential or replacement auth, public QR destination, CORS, and local fonts.
   Remove localhost/old-host assumptions; verify generated URLs and font assets.

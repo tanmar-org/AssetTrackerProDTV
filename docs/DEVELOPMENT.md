@@ -56,7 +56,7 @@ npm test
 This builds, validates the exported Worker/Sites artifact, and runs the existing
 Node tests. The tracker suite also checks deactivation drafts and the built public
 JavaScript for the removed account-password field. After a successful unchanged
-build, run the tracker tests with `node --test tests/*.test.mjs`; the QR smoke test
+build, run the tracker tests with `node --experimental-strip-types --test tests/*.test.mjs`; the QR smoke test
 can be run separately with `node --test tests/rendered-html.test.mjs`.
 
 Additional checks as appropriate:
@@ -68,7 +68,10 @@ npx tsc --noEmit --incremental false
 
 The inherited smoke tests verify a root redirect and service-page metadata. The
 tracker's SEC-01 tests additionally cover credential-field removal and retained
-receiver details; broader security/data behavior still needs QA-01 coverage.
+receiver details. SEC-02 covers rejected HTTP setup, local provisioning, concurrent
+initial creation, and normal login/session behavior. Broader security/data behavior
+still needs QA-01 coverage. The suite uses Node's SQLite module with synthetic data;
+CLI/test commands enable TypeScript stripping for the existing PIN helper on Node 22.13+.
 Record exact results, including existing failures.
 On 2026-10-05 both builds/tests passed; lint and TypeScript checks failed on inherited
 issues. See [the baseline validation](reviews/2026-10-05-validation.md) and QA-02.
@@ -98,6 +101,45 @@ random shared credential, configure the tracker to call the local QR endpoint,
 and keep all credentials/database files ignored. Never copy production data or
 sessions into a development environment. Public deployment must wait for the
 security, runtime, configuration, migration, and acceptance items in TODO.md.
+
+## Initial administrator provisioning
+
+Public `/api/auth` only accepts login; `action: "setup"` returns 403 even against
+an empty database. GET reports `needsProvisioning` so the UI asks users to contact
+their administrator instead of offering public administrator creation.
+
+An operator with shell access provisions the first account after applying tracker
+migrations. Stop the local app while performing maintenance and use the same
+local persistence directory as the dev server:
+
+```bash
+npx wrangler d1 migrations apply DB --local --config wrangler.local.json --persist-to .wrangler/state
+npm run admin:provision
+```
+
+The command prompts for username, PIN, and PIN confirmation. PIN input is hidden;
+never pass it on the command line, in environment variables, or in chat. The shared
+PIN helper creates a salted PBKDF2 hash. Wrangler reads a mode-0600 temporary SQL
+file inside a private temporary directory, which is removed after the operation.
+Wrangler logs/error details are withheld so hashes do not reach routine output.
+
+One conditional SQL INSERT creates an administrator only when **no users exist**.
+Concurrent attempts cannot create multiple initial accounts. A following ID lookup
+reports whether this attempt succeeded; it does not authorize creation. Existing
+users, including inactive/regular users, cause refusal without changing any account.
+Later account management uses the authenticated administrator UI/API. Loss of all
+active administrators requires explicit operator recovery, not public bootstrap.
+
+For an isolated test directory:
+
+```bash
+npm run admin:provision -- --persist-to /absolute/local/test-directory
+```
+
+Apply migrations to that directory first. This tool always passes `--local` and
+does not support remote D1 provisioning. The selected VM production database needs
+a trusted operator provisioning adapter during HOST-02; do not re-enable HTTP setup
+to work around an unprovisioned deployment. No live accounts are created by development tests.
 
 ## Finishing a task
 

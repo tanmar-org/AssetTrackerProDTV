@@ -27,7 +27,7 @@ The current test email retains the original subject (`<asset number> / Service R
 
 | Tracker endpoint | Function |
 | --- | --- |
-| `/api/auth` | First-admin setup, sign in, current session, sign out |
+| `/api/auth` | Sign in, provisioning status, current session, sign out; public setup is rejected |
 | `/api/users` | User administration |
 | `/api/app-state` | Shared state with revision conflict checks |
 | `/api/activity` | Change-log access |
@@ -68,7 +68,10 @@ The tracker keeps operational data as a JSON payload in `app_state`, with a revi
 For IT hosting:
 
 1. Provision test databases, runtime bindings and HTTPS endpoints.
-2. Create a test administrator. Protect the first-admin setup page before exposing an empty production database.
+2. Provision a test administrator with `npm run admin:provision` after local migrations;
+   sign in through the tracker. Public first-admin setup has been removed. Production
+   provisioning must use a trusted operator path for the selected runtime/database;
+   see [the current development guide](DEVELOPMENT.md#initial-administrator-provisioning).
 3. Back up and export original data through an authorized application/database workflow. Transfer data separately from this public code repository.
 4. Restore into test hosting and compare counts, identifier fields and assignments. Use new sessions rather than copying active tokens.
 5. Verify labels, audits/imports, device access and QR submissions before changing production URLs.

@@ -476,6 +476,8 @@ body.auth-locked .app-shell{visibility:hidden}
 .auth-card input,.user-create-form input,.user-create-form select,.user-row input,.user-row select{width:100%;min-height:44px;padding:9px 11px;border:1px solid #4d5357;border-radius:7px;background:#0b0d0e;color:#f2f2f2}
 .auth-error{padding:10px 12px;border:1px solid rgba(255,93,108,.45);background:rgba(255,93,108,.09);color:#ff9ca5;font-size:.75rem}
 .auth-card .primary-button{width:100%}
+/* The login form uses display:grid; honor hidden while operator setup is pending. */
+.auth-card form[hidden]{display:none}
 .profile-menu{position:fixed;right:30px;top:82px;z-index:120;width:220px;padding:16px;border:1px solid #555b5f;background:#111416 url("brushed-gunmetal.png");background-size:500px auto;box-shadow:var(--shadow)}
 .profile-menu[hidden]{display:none}.profile-menu strong,.profile-menu span{display:block}.profile-menu span{margin:4px 0 14px;color:var(--muted);font-size:.72rem}.profile-menu button{width:100%}
 .user-management-panel{margin-top:18px}.user-create-form{display:grid;grid-template-columns:1.2fr .8fr .8fr auto;gap:12px;align-items:end;padding:18px}
