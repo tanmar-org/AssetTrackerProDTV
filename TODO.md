@@ -108,7 +108,8 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   PostgreSQL target. Replace Worker/Sites build validation and static/image serving;
   port the trusted operator provisioning command; run both apps on the VM without
   Cloudflare application/database bindings. Never restore public bootstrap as a shortcut.
-  Implemented/tested on `Dev/node-postgresql`; owner review/merge pending.
+  Implemented/tested on `Dev/node-postgresql` in
+  [PR #11](https://github.com/tanmar-org/AssetTrackerProDTV/pull/11); owner review/merge pending.
 - [ ] HOST-03 — Configure domains, HTTPS, internal request endpoint, new shared
   credential or replacement auth, public QR destination, CORS, and local fonts.
   Remove localhost/old-host assumptions; verify generated URLs and font assets.

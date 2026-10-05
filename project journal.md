@@ -17,8 +17,9 @@
 - Active working copy on the hosting VM:
   `/home/itadmin/projects/AssetTrackerProDTV-security-cleanup`.
 - Owner reviews and merges all PRs. Agents may push `Dev/` branches and open PRs.
-- Current phase: native Node/PostgreSQL migration implemented; final verification
-  and owner PR review pending. Production deployment has not started.
+- Current phase: native Node/PostgreSQL migration implemented and verified in
+  [PR #11](https://github.com/tanmar-org/AssetTrackerProDTV/pull/11), awaiting owner
+  review/merge. Production deployment has not started.
 - Next task: complete SEC-03 server permissions, AUTH-01 account lifecycle, and
   remaining dependencies. Production domains/services/backups/data cutover remain
   under HOST-03/HOST-04/MIG-01. SEC-01-OWNER still needs owner confirmation.
@@ -406,3 +407,8 @@ HOST-01/HOST-02 and DATA-02-TRACKER implementation criteria are met; owner PR re
 and merging remain pending. Physical devices/printing, production data, backup
 restoration, final domains/HTTPS, and production service operation were not tested
 or changed. Continue SEC-03/AUTH-01 and dependency remediation before deployment.
+
+Pushed `Dev/node-postgresql` and opened
+[PR #11](https://github.com/tanmar-org/AssetTrackerProDTV/pull/11), targeting `main`.
+The implementation, regression tests, and related documentation are together in
+this PR. The owner performs final review and merging; no deployment was performed.
