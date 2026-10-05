@@ -86,13 +86,21 @@ npm run test:browser
 
 The suite starts two isolated loopback Node servers with no database connection.
 It supplies synthetic GPS, cache records, and session/API fixtures, blocks external
-requests (including the inherited spreadsheet CDN), and closes servers/browser.
+requests, and closes servers/browser. The spreadsheet reader is now served locally.
 Four scenarios cover malicious legacy QR parameters, React QR text/submission,
 staff cached record IDs/history/audit counts, and unsafe versus valid Maps links.
 These checks prove rendering behavior; PostgreSQL suites separately verify actual
 authentication/authorization. Mobile GPS, email delivery, and physical label scanning
 still require QA-01 acceptance. Five fast rendering/mail-draft/URL unit regressions
 also run in the default tracker suite without Playwright.
+
+The browser suite also uploads synthetic XLSX/XLS/CSV through the actual Master,
+West Texas, account, and audit inputs, and exercises the real local parser worker.
+The default suite verifies vendor digest/SRI/version, leading-zero mappings, parser
+limits, malformed archives and inconsistent deflate output, and worker termination.
+See [the dependency review](DEPENDENCY-REMEDIATION.md) for current advisories,
+import limits, and vendor update instructions. Do not edit or lint the pinned
+third-party minified bytes as application code; keep attribution/license intact.
 
 ## Real PostgreSQL integration tests
 

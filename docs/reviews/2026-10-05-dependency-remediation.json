@@ -1,0 +1,245 @@
+{
+  "checked_at_utc": "2026-10-05T23:45:33.504991+00:00",
+  "baseline_main": "e0a137f",
+  "branch": "Dev/dependency-remediation",
+  "scope": "npm locked dependency advisories; vendored browser libraries reviewed separately",
+  "owner_authorized_advisory_submission": true,
+  "applications": {
+    "tracker": {
+      "before_package_findings": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 5,
+        "critical": 0,
+        "total": 5
+      },
+      "after_package_findings": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 5,
+        "critical": 0,
+        "total": 5
+      },
+      "production_package_findings": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "remaining": [
+        {
+          "name": "@next/eslint-plugin-next",
+          "severity": "high",
+          "dependency_paths": [
+            "node_modules/@next/eslint-plugin-next"
+          ],
+          "versions": [
+            "16.3.8"
+          ],
+          "all_paths_development_only": true,
+          "via": [
+            "fast-glob"
+          ]
+        },
+        {
+          "name": "braces",
+          "severity": "high",
+          "dependency_paths": [
+            "node_modules/braces"
+          ],
+          "versions": [
+            "3.0.3"
+          ],
+          "all_paths_development_only": true,
+          "via": [
+            {
+              "source": 1240992,
+              "name": "braces",
+              "dependency": "braces",
+              "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+              "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+              "severity": "high",
+              "cwe": [
+                "CWE-674"
+              ],
+              "cvss": {
+                "score": 7.5,
+                "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+              },
+              "range": "<=3.0.3"
+            }
+          ]
+        },
+        {
+          "name": "eslint-config-next",
+          "severity": "high",
+          "dependency_paths": [
+            "node_modules/eslint-config-next"
+          ],
+          "versions": [
+            "16.3.8"
+          ],
+          "all_paths_development_only": true,
+          "via": [
+            "@next/eslint-plugin-next"
+          ]
+        },
+        {
+          "name": "fast-glob",
+          "severity": "high",
+          "dependency_paths": [
+            "node_modules/fast-glob"
+          ],
+          "versions": [
+            "3.3.1"
+          ],
+          "all_paths_development_only": true,
+          "via": [
+            "micromatch"
+          ]
+        },
+        {
+          "name": "micromatch",
+          "severity": "high",
+          "dependency_paths": [
+            "node_modules/micromatch"
+          ],
+          "versions": [
+            "4.0.8"
+          ],
+          "all_paths_development_only": true,
+          "via": [
+            "braces"
+          ]
+        }
+      ]
+    },
+    "requests": {
+      "before_package_findings": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 6,
+        "critical": 0,
+        "total": 6
+      },
+      "after_package_findings": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 5,
+        "critical": 0,
+        "total": 5
+      },
+      "production_package_findings": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "remaining": [
+        {
+          "name": "@next/eslint-plugin-next",
+          "severity": "high",
+          "dependency_paths": [
+            "node_modules/@next/eslint-plugin-next"
+          ],
+          "versions": [
+            "16.3.8"
+          ],
+          "all_paths_development_only": true,
+          "via": [
+            "fast-glob"
+          ]
+        },
+        {
+          "name": "braces",
+          "severity": "high",
+          "dependency_paths": [
+            "node_modules/braces"
+          ],
+          "versions": [
+            "3.0.3"
+          ],
+          "all_paths_development_only": true,
+          "via": [
+            {
+              "source": 1240992,
+              "name": "braces",
+              "dependency": "braces",
+              "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+              "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+              "severity": "high",
+              "cwe": [
+                "CWE-674"
+              ],
+              "cvss": {
+                "score": 7.5,
+                "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+              },
+              "range": "<=3.0.3"
+            }
+          ]
+        },
+        {
+          "name": "eslint-config-next",
+          "severity": "high",
+          "dependency_paths": [
+            "node_modules/eslint-config-next"
+          ],
+          "versions": [
+            "16.3.8"
+          ],
+          "all_paths_development_only": true,
+          "via": [
+            "@next/eslint-plugin-next"
+          ]
+        },
+        {
+          "name": "fast-glob",
+          "severity": "high",
+          "dependency_paths": [
+            "node_modules/fast-glob"
+          ],
+          "versions": [
+            "3.3.1"
+          ],
+          "all_paths_development_only": true,
+          "via": [
+            "micromatch"
+          ]
+        },
+        {
+          "name": "micromatch",
+          "severity": "high",
+          "dependency_paths": [
+            "node_modules/micromatch"
+          ],
+          "versions": [
+            "4.0.8"
+          ],
+          "all_paths_development_only": true,
+          "via": [
+            "braces"
+          ]
+        }
+      ]
+    }
+  },
+  "sheetjs": {
+    "version": "0.20.3",
+    "sha256": "cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41",
+    "official_script_equals_archive_member": true,
+    "fixed_advisories": [
+      "https://cdn.sheetjs.com/advisories/CVE-2023-30533",
+      "https://cdn.sheetjs.com/advisories/CVE-2024-22363"
+    ]
+  },
+  "remaining_note": "One underlying braces advisory appears as five affected dependency-chain packages in each app. No published patch; development-only ESLint Next root-directory glob configuration. Production npm audits omit this tooling and do not cover vendored assets."
+}

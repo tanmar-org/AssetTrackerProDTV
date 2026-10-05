@@ -95,3 +95,9 @@ After a build, `npm start` runs the corresponding Node server on its loopback po
 supervision, production domains, HTTPS, backup/restore, and live-data migration
 remain separate tasks. The original hosting handoff and validation documents are
 historical evidence, not current setup instructions.
+
+Spreadsheet reading is served locally from the pinned SheetJS asset. Imports use a
+bounded browser parser worker; no runtime spreadsheet CDN is required. See the
+[dependency review and import limits](docs/DEPENDENCY-REMEDIATION.md). Both current
+production npm audits are clean; an unpatched lint-only dependency remains tracked
+under DEP-01. This is a dependency check, not production acceptance.
