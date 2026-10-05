@@ -12,6 +12,8 @@
   and SEC-02 provisioning
   [PR #6](https://github.com/tanmar-org/AssetTrackerProDTV/pull/6)
   were merged by the owner.
+- PostgreSQL preference documentation
+  [PR #7](https://github.com/tanmar-org/AssetTrackerProDTV/pull/7) is open for owner review.
 - Active working copy on the hosting VM:
   `/home/itadmin/projects/AssetTrackerProDTV-security-cleanup`.
 - Owner reviews and merges all PRs. Agents may push `Dev/` branches and open PRs.
@@ -317,6 +319,10 @@ Updated agent instructions, TODO status, the development guide, and this handoff
 No application code, dependency versions, installed services, or databases changed.
 Validation is documentation diff review and `git diff --check`; no runtime tests
 are required for this documentation-only update. Owner review/merge remains required.
+
+Pushed this documentation update and opened
+[PR #7](https://github.com/tanmar-org/AssetTrackerProDTV/pull/7), targeting `main`.
+No migration implementation or production deployment is included.
 
 References: [PostgreSQL transactions](https://www.postgresql.org/docs/current/tutorial-transactions.html)
 and [JSON/JSONB storage](https://www.postgresql.org/docs/current/datatype-json.html).
