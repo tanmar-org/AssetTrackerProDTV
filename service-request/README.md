@@ -1,9 +1,19 @@
 # TanMar Receiver Service Request
 
-Companion QR service app, updated from published version 8.
+Companion public QR form and request API, running with native Next.js/Node and
+its own PostgreSQL database/runtime role. No Worker/D1 binding is required.
 
-This application needs its own D1 database and an `ADMIN_SHARED_SECRET` matching the tracker. Use `.dev.vars.example` locally. Apply its migrations separately.
+Configure private `.env.local` runtime settings from `.env.example`, and a separate
+`.env.migrate` migration-owner connection. `ADMIN_SHARED_SECRET` must match the
+staff tracker. Run `npm run install:ci`, `npm run db:migrate`, and `npm run dev`.
+Build/test with `npm test`; run the built server with `npm start` (loopback port 5174).
 
-See the [root README](../README.md) for setup and [IT handoff guide](../docs/IT-HANDOFF.md) for configuration, migration and hosting.
+See the [root README](../README.md), [development guide](../docs/DEVELOPMENT.md),
+and [self-hosting setup](../docs/SELF-HOSTING.md) for complete configuration.
 
-The public form displays only the asset number and collects requester contact, work site information, error code and GPS. During testing it saves the complete receiver/request details and opens the original full email draft to `TEST_RECIPIENT`, including serial, card, RID, account and rent status; the tester must tap Send. IT will replace this step with server-side lookup and email sending, preserving the full internal email while keeping account/status off the customer's device.
+The form still collects requester contact, worksite, error code, and GPS, reads
+receiver/account metadata from historical label parameters, and opens the current
+manual test email draft. Private label metadata, authoritative asset lookup,
+public-request abuse controls, and server email delivery remain tracked under
+QR-01/SEC-05/MAIL-01. Printed labels and original live databases are not migrated
+by this code change.

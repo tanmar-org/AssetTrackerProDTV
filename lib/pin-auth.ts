@@ -1,4 +1,4 @@
-type RuntimeEnv = { DB?: D1Database };
+import { database } from "./database.ts";
 
 export type SessionUser = {
   id: string;
@@ -9,56 +9,8 @@ export type SessionUser = {
 const SESSION_COOKIE = "tanmar_session";
 const encoder = new TextEncoder();
 
-// The Worker entry point supplies this binding; these helpers cannot use an
-// ordinary Node database connection until the hosting migration (HOST-02).
-export function db() {
-  const runtime = (
-    globalThis as typeof globalThis & { __ASSET_TRACKER_ENV__?: RuntimeEnv }
-  ).__ASSET_TRACKER_ENV__;
-  if (!runtime?.DB) throw new Error("Cloud database is unavailable.");
-  return runtime.DB;
-}
-
-// Compatibility setup runs during requests. CREATE IF NOT EXISTS does not add
-// missing constraints to existing tables; migrations must also match (AUTH-01).
-export async function ensureAuthSchema() {
-  const d1 = db();
-  await d1.batch([
-    d1.prepare(`CREATE TABLE IF NOT EXISTS app_users (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL COLLATE NOCASE UNIQUE,
-      role TEXT NOT NULL CHECK (role IN ('admin','user')),
-      pin_hash TEXT NOT NULL,
-      pin_salt TEXT NOT NULL,
-      active INTEGER NOT NULL DEFAULT 1,
-      failed_attempts INTEGER NOT NULL DEFAULT 0,
-      locked_until TEXT,
-      last_login_at TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    )`),
-    d1.prepare(`CREATE TABLE IF NOT EXISTS app_sessions (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      token_hash TEXT NOT NULL UNIQUE,
-      expires_at TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    )`),
-    d1.prepare(`CREATE TABLE IF NOT EXISTS app_change_log (
-      id TEXT PRIMARY KEY,
-      user_id TEXT,
-      user_name TEXT NOT NULL,
-      action TEXT NOT NULL,
-      revision INTEGER,
-      created_at TEXT NOT NULL
-    )`),
-    d1.prepare("CREATE INDEX IF NOT EXISTS app_sessions_token_idx ON app_sessions (token_hash)"),
-    d1.prepare("CREATE INDEX IF NOT EXISTS app_change_log_created_idx ON app_change_log (created_at)"),
-  ]);
-  const columns = await d1.prepare("PRAGMA table_info(app_users)").all<{ name: string }>();
-  if (!columns.results.some((column) => column.name === "last_login_at"))
-    await d1.prepare("ALTER TABLE app_users ADD COLUMN last_login_at TEXT").run();
-}
+// Web requests use the restricted PostgreSQL runtime connection; they never run DDL.
+export const db = database;
 
 function hex(bytes: Uint8Array) {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -122,14 +74,13 @@ function cookieValue(request: Request, name: string) {
 // Only the token hash is stored. Join against the current user record so account
 // deactivation and role changes apply to existing sessions on their next request.
 export async function getSessionUser(request: Request): Promise<SessionUser | null> {
-  await ensureAuthSchema();
   const token = cookieValue(request, SESSION_COOKIE);
   if (!token) return null;
   const tokenHash = await sha256(token);
   const row = await db().prepare(
     `SELECT u.id, u.name, u.role
      FROM app_sessions s JOIN app_users u ON u.id = s.user_id
-     WHERE s.token_hash = ? AND s.expires_at > ? AND u.active = 1`,
+     WHERE s.token_hash = $1 AND s.expires_at > $2 AND u.active = 1`,
   ).bind(tokenHash, new Date().toISOString()).first<SessionUser>();
   return row || null;
 }
@@ -139,7 +90,7 @@ export async function requireUser(request: Request, role?: "admin") {
   if (!user) return { user: null, response: Response.json({ error: "Sign in required." }, { status: 401 }) };
   if (role === "admin" && user.role !== "admin") {
     await db().prepare(
-      "INSERT INTO app_change_log (id, user_id, user_name, action, created_at) VALUES (?, ?, ?, ?, ?)",
+      "INSERT INTO app_change_log (id, user_id, user_name, action, created_at) VALUES ($1, $2, $3, $4, $5)",
     ).bind(
       crypto.randomUUID(),
       user.id,
@@ -159,7 +110,7 @@ export async function createSession(userId: string) {
   const now = new Date();
   const expires = new Date(now.getTime() + 12 * 60 * 60 * 1000);
   await db().prepare(
-    "INSERT INTO app_sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO app_sessions (id, user_id, token_hash, expires_at, created_at) VALUES ($1, $2, $3, $4, $5)",
   ).bind(crypto.randomUUID(), userId, await sha256(token), expires.toISOString(), now.toISOString()).run();
   return {
     token,
@@ -169,7 +120,7 @@ export async function createSession(userId: string) {
 
 export async function deleteSession(request: Request) {
   const token = cookieValue(request, SESSION_COOKIE);
-  if (token) await db().prepare("DELETE FROM app_sessions WHERE token_hash = ?").bind(await sha256(token)).run();
+  if (token) await db().prepare("DELETE FROM app_sessions WHERE token_hash = $1").bind(await sha256(token)).run();
 }
 
 export const clearSessionCookie = `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`;

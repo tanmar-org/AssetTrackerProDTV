@@ -1,94 +1,97 @@
 # TanMar Receiver Control — AssetTrackerPro
 
-For current development work, start with [AGENTS.md](AGENTS.md),
-[the project journal](<project journal.md>), [TODO.md](TODO.md), and
-[the development guide](docs/DEVELOPMENT.md). Work on `Dev/` branches and submit
-pull requests for owner review and merging. The following sections describe the
-original Worker/D1 handoff; the VM-hosting migration is tracked in the TODO list.
+Staff inventory/account management and a separate public QR service-request app.
+Both applications now build and run with **Next.js on Node.js and PostgreSQL**.
+Cloudflare Workers, D1, Vinext, Wrangler, and Sites bindings are not required.
 
-Source handoff for TanMar's DIRECTV asset tracker and QR service-request application, updated September 27, 2026.
-
-The tracker comes from published **version 58**; the companion service app comes from **version 8**. This handoff branch replaces the old three-file prototype; the previous version remains in Git history.
+Start with [AGENTS.md](AGENTS.md), [the project journal](<project journal.md>),
+[TODO.md](TODO.md), and [the development guide](docs/DEVELOPMENT.md). Work on `Dev/`
+branches; the owner reviews and merges. Keep documentation updates in the same PR
+as their implementation.
 
 ## Included
 
-- Account capacity totals, per-account empty spaces and consolidation estimates.
-- Accounts, Master Registry, activations, history, rental stock, audits/imports, reports, backup/restore and user administration.
-- Brother QL-820NWB receiver/service and barcode labels, including select/deselect visible.
-- Server APIs, schemas, SQL migrations, graphics, QR/barcode libraries and dependency lockfiles.
-- The separate QR service app in `service-request/`.
+- Accounts, capacity totals, Master Registry, activations, rental stock, history,
+  audits/imports, reports, labels, user administration, and recovery.
+- Brother QL-820NWB receiver/service and barcode label UI.
+- Session-protected staff APIs and a separate public QR form/request API.
+- PostgreSQL migrations, operator-only administrator provisioning, graphics,
+  QR/barcode libraries, and dependency lockfiles.
 
-This is a source-code handoff. Production databases, users, credentials, GPS records and inventory exports are not included. Fresh local setup uses empty databases and the application's existing sample records.
-
-Read [the IT handoff guide](docs/IT-HANDOFF.md) for architecture, hosting, migration and limitations, and [validation results](docs/VALIDATION.md) for checks performed.
+Production records, database credentials, users, and inventory exports are not
+included. Browser sample records remain. A code migration is not a production
+cutover: review the unresolved security, dependency, backup, and acceptance items
+in TODO.md before deployment.
 
 | Location | Purpose |
 | --- | --- |
-| `public/asset-tracker/` | Tracker interface, labels, graphics and QR/barcode libraries |
-| `app/api/`, `lib/pin-auth.ts` | Tracker APIs, PIN authentication and sessions |
-| `db/`, `drizzle/` | Tracker database schema and migrations |
-| `worker/index.ts` | Cloudflare Worker entry point |
-| `service-request/` | Separate QR service form, API, schema and Worker |
-| `.dev.vars.example` | Server settings template without credentials |
+| `public/asset-tracker/` | Staff interface, labels, graphics, QR/barcode libraries |
+| `app/api/`, `lib/` | Staff APIs, PostgreSQL connection, PIN sessions |
+| `service-request/` | Public QR Next.js app and its separate request database |
+| `packages/database/` | Shared native PostgreSQL query/transaction facade |
+| `migrations/` | Current PostgreSQL tracker/request schema migrations |
+| `drizzle/`, `service-request/drizzle/` | Historical D1 migration records |
+| `.env.example` in each app | Non-secret server configuration template |
 
 ## Local setup
 
-Use **Node.js 22.13 or newer** on Linux, or Windows with **WSL2**. Both applications use Vinext/Vite and Cloudflare D1. Opening `index.html` directly does not supply the backend.
+Use Node.js 22.13+ (the reviewed VM uses the version in `.nvmrc`) and PostgreSQL 18.
+Follow [self-hosting setup](docs/SELF-HOSTING.md) to create isolated databases and
+separate migration/runtime roles. Opening `index.html` directly supplies no backend.
+
+From the repository root:
 
 ```bash
-git clone --branch main https://github.com/tanmar-org/AssetTrackerProDTV.git
-cd AssetTrackerProDTV
 npm run install:ci
-cp .dev.vars.example .dev.vars
+cp .env.example .env.local
+cp .env.example .env.migrate
 ```
 
-Generate a random local secret and set `ADMIN_SHARED_SECRET` to the same value in both apps' `.dev.vars` files. Keep it out of Git and browser JavaScript. The tracker template points to the service app at `http://localhost:5174/api/requests`.
-
-Initialize and start the tracker:
+Set `.env.local` `DATABASE_URL` to the tracker runtime connection; set `.env.migrate`
+`DATABASE_URL` to the tracker migration-owner connection. Keep files private and
+ignored. Set a fresh `ADMIN_SHARED_SECRET` matching the QR service, and the tracker
+`SERVICE_REQUEST_API_URL` to the QR server's `/api/requests` endpoint.
 
 ```bash
-npx wrangler d1 migrations apply DB --local --config wrangler.local.json --persist-to .wrangler/state
+npm run db:migrate
 npm run admin:provision
-npm run dev -- --host 127.0.0.1 --port 5173
+npm run dev
 ```
 
-In a second terminal:
+In a second terminal, install and configure the companion app:
 
 ```bash
-cd AssetTrackerProDTV/service-request
+cd service-request
 npm run install:ci
-cp .dev.vars.example .dev.vars
-# Set ADMIN_SHARED_SECRET to the same local value used by the tracker.
-npx wrangler d1 migrations apply DB --local --config wrangler.local.json --persist-to .wrangler/state
-npm run dev -- --host 127.0.0.1 --port 5174
+cp .env.example .env.local
+cp .env.example .env.migrate
+# Configure its separate database URLs and the matching shared secret.
+npm run db:migrate
+npm run dev
 ```
 
-The tracker provisioning command requires an interactive terminal and prompts for
-the initial administrator username and a new test PIN without echoing the PIN.
-It targets local D1 only and refuses to add or change accounts once any user exists.
-For a different local persistence directory, pass `--persist-to DIRECTORY` to both
-the migration command and `npm run admin:provision -- --persist-to DIRECTORY`.
-See [the development guide](docs/DEVELOPMENT.md#initial-administrator-provisioning).
+The provisioning command prompts for username and PIN in a terminal, hides PIN
+input, and refuses if any user already exists. The website only permits login.
+Ports default to 5173 (staff) and 5174 (QR), bound to loopback. Open
+`http://localhost:5173/` and `http://localhost:5174/` with synthetic data. Sessions use
+Secure cookies; phone GPS and real staff access require correctly configured HTTPS.
 
-Open `http://localhost:5173/` and sign in with the provisioned account. The website
-cannot create the first administrator; an empty database displays a setup-required
-message. Use an isolated browser profile. The QR form is at `http://localhost:5174/`;
-it reads the full receiver details from a generated service-label URL for the test
-email, displays only the asset number, and requires location permission. Phone scans
-need a reachable HTTPS service address instead of localhost.
+## Build and verify
 
-## Build
-
-Run in each application directory:
+Run in each app directory:
 
 ```bash
-npx vinext build
+npm test
+npm run typecheck
 ```
 
-The output includes `dist/server/index.js` and client assets. `wrangler.local.json` is for local databases, not production deployment. Logical binding declarations are retained in `.openai/hosting.json` without live project IDs.
+`npm test` builds native Next.js and exercises its production Node server. To run
+both apps against real isolated PostgreSQL databases, follow the integration test
+setup in [the development guide](docs/DEVELOPMENT.md). Lint still has inherited
+failures tracked under QA-02.
 
-## Handoff changes
-
-Removed the embedded browser access token. Tracker request actions now use a signed-in session and a server proxy, configured with `ADMIN_SHARED_SECRET` and `SERVICE_REQUEST_API_URL`. The exported service no longer accepts the old browser token. Set the public QR destination in `public/asset-tracker/config.js`.
-
-This branch does not change the currently hosted applications. Review the IT guide before moving production.
+After a build, `npm start` runs the corresponding Node server on its loopback port.
+`/api/health` checks PostgreSQL connectivity and the application's schema. Process
+supervision, production domains, HTTPS, backup/restore, and live-data migration
+remain separate tasks. The original hosting handoff and validation documents are
+historical evidence, not current setup instructions.

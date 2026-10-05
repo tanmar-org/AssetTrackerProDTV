@@ -59,6 +59,7 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   403; the local operator command inserts only into an empty user table. Build and
   all 14 tests passed, plus fresh/repeated local D1 CLI checks.
   [PR #6](https://github.com/tanmar-org/AssetTrackerProDTV/pull/6) was merged by the owner.
+  The PostgreSQL operator adapter is now ported under HOST-02; HTTP bootstrap stays closed.
 - [ ] SEC-03 — Enforce explicit server permissions and record schemas. Include
   rental stock, bulk edits, restore/clear operations, assignment uniqueness, account
   capacity, and identifier/link validation. Client action labels must not grant
@@ -81,6 +82,10 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 - [ ] DATA-02 — Make state/history/log writes consistent; protect recovery with
   expected revisions and coordinate QR status with tracker updates. Test concurrent
   recovery/save and failures between related writes.
+- [x] DATA-02-TRACKER — PostgreSQL state/history/audit writes share one transaction;
+  recovery uses expected revisions and the same lock. Concurrent save/restore,
+  zero-row update, and audit-failure rollback tests pass. Coordination with the
+  separate QR database remains open under DATA-02.
 - [ ] DATA-03 — Implement complete, restorable database backups for both apps,
   including rental stock, users, requests, logs, and history. Correct export claims
   and fix Undo's audit/rental-stock coverage. Verify restore in an isolated environment.
@@ -95,18 +100,20 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 
 ## Hosting, QR, email, and migration
 
-- [ ] HOST-01 **Architecture decision** — Complete the runtime/database plan.
-  The owner prefers PostgreSQL hosted on this VM (2026-10-05); use it as the database
-  target for migration planning. Node/Next.js is the recommended runtime, with the
-  final application layout and operational design still to be completed. Preserve
-  UI and separate staff/private and customer/public access boundaries.
-- [ ] HOST-02 — Port Worker entry/runtime bindings and direct D1 SQL calls to the
+- [x] HOST-01 **Architecture** — Native Next.js/Node for both apps, preserving the
+  existing UI; separate locally hosted PostgreSQL databases/runtime roles for staff
+  and public QR data. This follows the owner's PostgreSQL preference. Production
+  configuration, services, and cutover remain under HOST-03/HOST-04/MIG-01.
+- [x] HOST-02 — Port Worker entry/runtime bindings and direct D1 SQL calls to the
   PostgreSQL target. Replace Worker/Sites build validation and static/image serving;
   port the trusted operator provisioning command; run both apps on the VM without
   Cloudflare application/database bindings. Never restore public bootstrap as a shortcut.
+  Implemented/tested on `Dev/node-postgresql`; owner review/merge pending.
 - [ ] HOST-03 — Configure domains, HTTPS, internal request endpoint, new shared
   credential or replacement auth, public QR destination, CORS, and local fonts.
   Remove localhost/old-host assumptions; verify generated URLs and font assets.
+  Native static serving/system fonts and removal of the old Sites CORS allowlist
+  are complete. Production domains, HTTPS, secrets, and QR destination remain open.
 - [ ] HOST-04 — Provision production services, least-privilege credentials, startup/
   restart supervision, health checks, monitoring, backup retention, and a documented
   rollback process. VM tools alone do not constitute a production deployment.
@@ -127,6 +134,7 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   staff workflows, production-like deployment, and owner acceptance before cutover.
 - [ ] QA-02 — Repair inherited lint/type-check setup and source errors. Root lint
   must exclude nested generated bundles and use an intentional vendor-file policy;
-  resolve the QR page's effect-state lint errors. Provide Cloudflare runtime types
-  while that runtime remains, remove implicit-any errors, and scope each app's
-  TypeScript project correctly. Pass both checks without suppressing real failures.
+  resolve the QR page's effect-state lint errors. Native runtime types and separate
+  app TypeScript scopes now pass. Root lint has 2 inherited vendor errors/147 warnings;
+  QR lint retains 2 effect errors/3 warnings. Pass both checks without suppressing
+  real application failures.

@@ -1,5 +1,9 @@
 import { db, requireUser } from "../../../lib/pin-auth";
 
+// Server-only PostgreSQL connections require the Node runtime and fresh responses.
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   const auth = await requireUser(request, "admin");
   if (auth.response) return auth.response;

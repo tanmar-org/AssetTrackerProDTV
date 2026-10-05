@@ -3375,7 +3375,7 @@ $("recoveryList").addEventListener("click",async event=>{
   button.disabled=true;
   try{
     const response=await fetch("/api/recovery",{
-      method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:row.dataset.recoveryId})
+      method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:row.dataset.recoveryId,baseRevision:cloudRevision})
     });
     const result=await response.json();
     if(!response.ok)throw new Error(result.error||"Unable to restore recovery point.");

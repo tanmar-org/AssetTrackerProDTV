@@ -1,3 +1,9 @@
+import { db, requireUser } from "../../../lib/pin-auth";
+
+// Server-only PostgreSQL connections require the Node runtime and fresh responses.
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 // Operational collections share one JSON payload and revision, so any edit can
 // conflict with another user's edit to an otherwise unrelated collection.
 type AppState = {
@@ -10,48 +16,6 @@ type AppState = {
 };
 
 const STATE_ID = "tanmar-receiver-control";
-
-function runtime() {
-  return (
-    globalThis as typeof globalThis & {
-      __ASSET_TRACKER_ENV__?: { DB?: D1Database };
-    }
-  ).__ASSET_TRACKER_ENV__;
-}
-
-function db() {
-  const d1 = runtime()?.DB;
-  if (!d1) throw new Error("Cloud storage is unavailable.");
-  return d1;
-}
-
-async function ensureSchema() {
-  const d1 = db();
-  await d1.batch([
-    d1
-      .prepare(
-        `CREATE TABLE IF NOT EXISTS app_state (
-          id TEXT PRIMARY KEY,
-          payload TEXT NOT NULL,
-          revision INTEGER NOT NULL DEFAULT 1,
-          updated_at TEXT NOT NULL,
-          updated_by TEXT
-        )`,
-      ),
-    d1.prepare(
-      "CREATE INDEX IF NOT EXISTS app_state_updated_at_idx ON app_state (updated_at)",
-    ),
-    d1.prepare(`CREATE TABLE IF NOT EXISTS app_state_history (
-      id TEXT PRIMARY KEY,
-      revision INTEGER NOT NULL,
-      payload TEXT NOT NULL,
-      action TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      created_by TEXT NOT NULL
-    )`),
-    d1.prepare("CREATE INDEX IF NOT EXISTS app_state_history_created_idx ON app_state_history (created_at)"),
-  ]);
-}
 
 // This checks only outer shapes. It does not validate individual records, links,
 // business rules, or rentalStock; stronger server validation belongs to SEC-03.
@@ -74,14 +38,24 @@ const ADMIN_ONLY_ACTIONS = [
   "Clear all app data",
 ];
 
+// JSONB can reorder object keys. Compare content canonically so a database
+// round-trip does not count every unchanged record as a regular-user edit.
+function canonicalJson(value: unknown) {
+  return JSON.stringify(value, (_key, item) => {
+    if (item && typeof item === "object" && !Array.isArray(item))
+      return Object.fromEntries(Object.keys(item).sort().map((key) => [key, item[key]]));
+    return item;
+  });
+}
+
 function changedRecordCount(before: unknown[], after: unknown[]) {
   const beforeMap = new Map(before.map((item, index) => {
     const record = item && typeof item === "object" ? item as Record<string, unknown> : null;
-    return [String(record?.id || index), JSON.stringify(item)];
+    return [String(record?.id || index), canonicalJson(item)];
   }));
   const afterMap = new Map(after.map((item, index) => {
     const record = item && typeof item === "object" ? item as Record<string, unknown> : null;
-    return [String(record?.id || index), JSON.stringify(item)];
+    return [String(record?.id || index), canonicalJson(item)];
   }));
   const keys = new Set([...beforeMap.keys(), ...afterMap.keys()]);
   let changed = 0;
@@ -98,7 +72,7 @@ function regularUserCanSave(before: AppState | null, after: AppState, action: st
   const collections: Array<keyof Pick<AppState, "master" | "accounts" | "assignments" | "activations" | "receiverEvents">> = [
     "master", "accounts", "assignments", "activations", "receiverEvents",
   ];
-  let changed = JSON.stringify(before.auditState) === JSON.stringify(after.auditState) ? 0 : 1;
+  let changed = canonicalJson(before.auditState) === canonicalJson(after.auditState) ? 0 : 1;
   for (const key of collections) {
     if (before[key].length - after[key].length > 1) return false;
     changed += changedRecordCount(before[key], after[key]);
@@ -110,10 +84,9 @@ export async function GET(request: Request) {
   try {
     const auth = await requireUser(request);
     if (auth.response) return auth.response;
-    await ensureSchema();
     const row = await db()
       .prepare(
-        "SELECT payload, revision, updated_at, updated_by FROM app_state WHERE id = ?",
+        "SELECT payload::text AS payload, revision, updated_at, updated_by FROM app_state WHERE id = $1",
       )
       .bind(STATE_ID)
       .first<{
@@ -138,9 +111,9 @@ export async function GET(request: Request) {
       },
       { headers: { "cache-control": "no-store" } },
     );
-  } catch (error) {
+  } catch {
     return Response.json(
-      { error: error instanceof Error ? error.message : "Cloud read failed." },
+      { error: "Database read failed." },
       { status: 503 },
     );
   }
@@ -158,107 +131,108 @@ export async function PUT(request: Request) {
     if (!validState(body.state))
       return Response.json({ error: "Invalid app state." }, { status: 400 });
 
+    const state = body.state; // Preserve validation narrowing inside the transaction.
     const baseRevision = Number(body.baseRevision);
     if (!Number.isInteger(baseRevision) || baseRevision < 0)
       return Response.json({ error: "Invalid revision." }, { status: 400 });
 
-    await ensureSchema();
-    const d1 = db();
-    const current = await d1
-      .prepare("SELECT revision, payload FROM app_state WHERE id = ?")
-      .bind(STATE_ID)
-      .first<{ revision: number; payload: string }>();
-    const currentRevision = current?.revision ?? 0;
+    return await db().transaction(async (store) => {
+      // Serialize first inserts and updates, including history/audit writes.
+      await store.prepare("SELECT pg_advisory_xact_lock(728302)").run();
+      const current = await store
+        .prepare("SELECT revision, payload::text AS payload FROM app_state WHERE id = $1")
+        .bind(STATE_ID)
+        .first<{ revision: number; payload: string }>();
+      const currentRevision = current?.revision ?? 0;
 
-    if (currentRevision !== baseRevision)
-      return Response.json(
-        { error: "Cloud data changed.", conflict: true, revision: currentRevision },
-        { status: 409 },
-      );
+      if (currentRevision !== baseRevision)
+        return Response.json(
+          { error: "Cloud data changed.", conflict: true, revision: currentRevision },
+          { status: 409 },
+        );
 
-    const action = String(body.action || "Data change").slice(0, 160);
-    const currentState = current ? JSON.parse(current.payload) as AppState : null;
-    if (auth.user!.role !== "admin" && !regularUserCanSave(currentState, body.state, action)) {
-      await d1.prepare(
-        "INSERT INTO app_change_log (id, user_id, user_name, action, created_at) VALUES (?, ?, ?, ?, ?)",
+      const action = String(body.action || "Data change").slice(0, 160);
+      const currentState = current ? JSON.parse(current.payload) as AppState : null;
+      if (auth.user!.role !== "admin" && !regularUserCanSave(currentState, state, action)) {
+        await store.prepare(
+          "INSERT INTO app_change_log (id, user_id, user_name, action, created_at) VALUES ($1, $2, $3, $4, $5)",
+        ).bind(
+          crypto.randomUUID(),
+          auth.user!.id,
+          auth.user!.name,
+          `Denied: ${action}`,
+          new Date().toISOString(),
+        ).run();
+        return Response.json(
+          { error: "Administrator access is required for bulk, restore, clear, or multi-record changes." },
+          { status: 403 },
+        );
+      }
+
+      const nextRevision = currentRevision + 1;
+      const updatedAt = new Date().toISOString();
+      const updatedBy = auth.user!.name;
+      const payload = JSON.stringify(state);
+
+      // Revision checks and all related writes share one locked transaction.
+      // A failed audit/history write rolls back the state change as well.
+      if (current) {
+        const result = await store
+          .prepare(
+            `UPDATE app_state
+             SET payload = $1, revision = $2, updated_at = $3, updated_by = $4
+             WHERE id = $5 AND revision = $6`,
+          )
+          .bind(
+            payload,
+            nextRevision,
+            updatedAt,
+            updatedBy,
+            STATE_ID,
+            currentRevision,
+          )
+          .run();
+        if (!result.meta.changes)
+          return Response.json(
+            { error: "Cloud data changed.", conflict: true },
+            { status: 409 },
+          );
+        await store.prepare(
+          "INSERT INTO app_state_history (id, revision, payload, action, created_at, created_by) VALUES ($1, $2, $3, $4, $5, $6)",
+        ).bind(
+          crypto.randomUUID(), currentRevision, current.payload, `Before ${action}`, updatedAt, updatedBy,
+        ).run();
+      } else {
+        await store
+          .prepare(
+            `INSERT INTO app_state (id, payload, revision, updated_at, updated_by)
+             VALUES ($1, $2, $3, $4, $5)`,
+          )
+          .bind(STATE_ID, payload, nextRevision, updatedAt, updatedBy)
+          .run();
+      }
+
+      await store.prepare(
+        "INSERT INTO app_change_log (id, user_id, user_name, action, revision, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
       ).bind(
         crypto.randomUUID(),
         auth.user!.id,
         auth.user!.name,
-        `Denied: ${action}`,
-        new Date().toISOString(),
+        action,
+        nextRevision,
+        updatedAt,
       ).run();
-      return Response.json(
-        { error: "Administrator access is required for bulk, restore, clear, or multi-record changes." },
-        { status: 403 },
-      );
-    }
-
-    const nextRevision = currentRevision + 1;
-    const updatedAt = new Date().toISOString();
-    const updatedBy = auth.user!.name;
-    const payload = JSON.stringify(body.state);
-
-    // The revision predicate prevents overwriting a concurrent successful save.
-    // History, state, and change-log writes are separate: a conflict/failure can
-    // leave partial audit records until transaction handling is corrected (DATA-02).
-    if (current) {
-      await d1.prepare(
-        "INSERT INTO app_state_history (id, revision, payload, action, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?)",
-      ).bind(
-        crypto.randomUUID(), currentRevision, current.payload, `Before ${action}`, updatedAt, updatedBy,
+      await store.prepare(
+        `DELETE FROM app_state_history
+         WHERE id NOT IN (SELECT id FROM app_state_history ORDER BY created_at DESC LIMIT 25)`,
       ).run();
-      const result = await d1
-        .prepare(
-          `UPDATE app_state
-           SET payload = ?, revision = ?, updated_at = ?, updated_by = ?
-           WHERE id = ? AND revision = ?`,
-        )
-        .bind(
-          payload,
-          nextRevision,
-          updatedAt,
-          updatedBy,
-          STATE_ID,
-          currentRevision,
-        )
-        .run();
-      if (!result.meta.changes)
-        return Response.json(
-          { error: "Cloud data changed.", conflict: true },
-          { status: 409 },
-        );
-    } else {
-      await d1
-        .prepare(
-          `INSERT INTO app_state (id, payload, revision, updated_at, updated_by)
-           VALUES (?, ?, ?, ?, ?)`,
-        )
-        .bind(STATE_ID, payload, nextRevision, updatedAt, updatedBy)
-        .run();
-    }
 
-    await d1.prepare(
-      "INSERT INTO app_change_log (id, user_id, user_name, action, revision, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-    ).bind(
-      crypto.randomUUID(),
-      auth.user!.id,
-      auth.user!.name,
-      action,
-      nextRevision,
-      updatedAt,
-    ).run();
-    await d1.prepare(
-      `DELETE FROM app_state_history
-       WHERE id NOT IN (SELECT id FROM app_state_history ORDER BY created_at DESC LIMIT 25)`,
-    ).run();
-
-    return Response.json({ revision: nextRevision, updatedAt, updatedBy });
-  } catch (error) {
+      return Response.json({ revision: nextRevision, updatedAt, updatedBy });
+    });
+  } catch {
     return Response.json(
-      { error: error instanceof Error ? error.message : "Cloud save failed." },
+      { error: "Database save failed." },
       { status: 503 },
     );
   }
 }
-import { requireUser } from "../../../lib/pin-auth";

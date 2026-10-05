@@ -1,35 +1,19 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { startNext } from "../../tests/helpers/next-server.mjs";
 
-const developmentPreviewMeta =
-  /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
-
-// Existing smoke coverage checks rendered metadata, not hydration, GPS, request
-// persistence, or email delivery; those acceptance checks remain in QA-01.
-test("renders development preview metadata", async () => {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-
-  const response = await worker.fetch(
-    new Request("http://localhost/", {
-      headers: { accept: "text/html" },
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
-      },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
-  );
-
+// Check the production Node-rendered public form and its local image assets.
+test("Node renders the service form and serves its image assets", async (t) => {
+  const server = await startNext(fileURLToPath(new URL("../", import.meta.url)), { DATABASE_URL: "" });
+  t.after(server.close);
+  const response = await fetch(server.url);
   assert.equal(response.status, 200);
-  assert.match(
-    response.headers.get("content-type") ?? "",
-    /^text\/html\b/i,
-  );
-  assert.match(await response.text(), developmentPreviewMeta);
+  assert.match(response.headers.get("content-type"), /^text\/html/);
+  const html = await response.text();
+  assert.match(html, /Service Request/);
+  assert.equal(html.includes("fonts.googleapis.com"), false);
+  assert.equal(html.includes("fonts.gstatic.com"), false);
+  assert.equal((await fetch(`${server.url}/tanmar-emblem-tight.png`)).status, 200);
+  assert.equal((await fetch(`${server.url}/api/requests`)).status, 401);
 });

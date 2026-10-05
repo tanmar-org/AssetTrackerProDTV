@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+import { startNext } from "./helpers/next-server.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
@@ -43,9 +45,13 @@ test("served tracker JavaScript has no embedded account-password template", () =
   assert.equal(/account\s*password\s*:/i.test(source), false, "Public source must omit the account-password field.");
 });
 
-test("built public tracker asset omits the account-password template", async () => {
-  // The build copies public files into the deployed asset tree. Check that output
-  // as well as source so the deployment artifact is covered by the normal suite.
-  const builtSource = await readFile(new URL("../dist/client/asset-tracker/app.js", import.meta.url), "utf8");
-  assert.equal(/account\s*password\s*:/i.test(builtSource), false, "Built asset must omit the account-password field.");
+test("Node-served public tracker asset omits the account-password template", async (t) => {
+  // Native Next serves public files directly rather than copying them into a
+  // Worker asset tree. Verify the response from the built production server.
+  const server = await startNext(fileURLToPath(new URL("../", import.meta.url)), { DATABASE_URL: "" });
+  t.after(server.close);
+  const response = await fetch(`${server.url}/asset-tracker/app.js`);
+  assert.equal(response.status, 200);
+  const servedSource = await response.text();
+  assert.equal(/account\s*password\s*:/i.test(servedSource), false, "Served asset must omit the account-password field.");
 });
