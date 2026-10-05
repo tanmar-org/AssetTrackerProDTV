@@ -47,9 +47,10 @@ The journal records current evidence; older handoff statements may be stale.
   The QR application stores service requests in a separate database.
 - Current QR links and mail drafts carry receiver/account metadata. Automatic
   server email and a Monday reporting job are not implemented.
-- Existing code contains an account-password value in a public template. Do not
-  copy the value into documentation, logs, test fixtures, issues, or PR bodies.
-  Track remediation using TODO item SEC-01.
+- An account-password value was removed from a public template under SEC-01.
+  Never reintroduce credentials in browser code or email drafts, or copy historical
+  values into documentation, logs, tests, issues, or PR bodies. Removal does not
+  erase Git history or rotate a live credential; track owner rotation under SEC-01.
 - Repository privacy is intended by the owner, but GitHub reported public
   visibility on 2026-10-05. Treat VIS-01 as an owner action; do not silently change
   repository visibility or permissions.
@@ -77,8 +78,8 @@ The journal records current evidence; older handoff statements may be stale.
 - Dependency advisory matches identify affected versions, not proven exploitability
   of every advisory in this application. Review runtime reachability and update
   related packages together. Do not automatically run `npm audit fix --force`.
-- Preserve the lockfiles for installs. The baseline dependency remediation is a
-  separate task; this documentation/comment pass must not upgrade application code.
+- Preserve lockfiles for installs. Keep dependency remediation in focused tasks;
+  do not mix package upgrades into unrelated fixes or documentation/comment work.
 - Add meaningful regression tests when fixing permissions, persistence,
   concurrency, or other consequential behavior. Documentation-only edits do not
   require tests that restate their contents.

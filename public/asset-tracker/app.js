@@ -551,6 +551,9 @@ function updateOverdueSelectionControls(overdue=overdueOffRentRows()){
   $("selectAllOverdue").indeterminate=selectedCount>0&&selectedCount<ids.length;
 }
 
+// This formatter ships in public JavaScript and fills copied/emailed drafts.
+// Include operational identifiers only; account credentials must never be bundled
+// or placed in the draft. Provider authentication needs a separate approved channel.
 function deactivationEmailBody(rows){
   const receiverText=rows.map(({receiver,account})=>[
     "Asset#",
@@ -575,8 +578,6 @@ Address:
 Tanmar Rentals
 4318 S Eunice Hwy
 Hobbs, NM, 88240
-
-Account Password: Compass
 
 Thank you in advance for your prompt assistance in this matter.
 

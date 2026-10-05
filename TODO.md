@@ -19,8 +19,8 @@ decisions. The owner reviews and merges all changes from `Dev/` branches.
   and limitations honestly rather than silently fixing unrelated application code.
 - [x] PR-01 — Commit and push `Dev/project-foundation`; open a PR against `main`.
   Branch is committed and pushed with explicit owner approval of public publication.
-  [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3) is open for owner review.
-- [ ] OWNER-01 — Owner performs final review and merges the foundation PR.
+  [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3) was merged by the owner.
+- [x] OWNER-01 — Owner performs final review and merges the foundation PR.
 
 ## Before public deployment — security and dependency blockers
 
@@ -32,10 +32,20 @@ decisions. The owner reviews and merges all changes from `Dev/` branches.
   value from public JavaScript and coordinate rotation if real. Do not copy the
   value into docs, issues, logs, fixtures, or PR descriptions. Verify the public
   bundle and approved service-request workflow no longer expose it.
+  Browser/draft removal and regression coverage passed on
+  `Dev/remove-public-account-password`; credential validity/rotation awaits owner
+  confirmation. Removal alone does not erase historical exposure.
+- [x] SEC-01-CODE — Remove the embedded credential from the browser/email template;
+  preserve receiver details and pass source, generated-draft, and built-asset checks.
+- [ ] SEC-01-OWNER — Owner confirms whether the exposed credential was real and
+  rotates it if necessary. Confirm an approved provider-authentication channel
+  rather than adding credentials back into public code or email drafts.
 - [ ] DEP-01 — Remediate locked dependency advisory matches in both apps together.
   Review production reachability, pin compatible patched versions, regenerate
   lockfiles intentionally, and pass builds and meaningful regression checks.
   Baseline: 18 package names, 74 unique advisories; see the dated review artifact.
+  Owner merged [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2),
+  upgrading the QR service's Next.js to 16.3.8. Broader remediation remains open.
 - [ ] DEP-02 — Replace CDN-loaded SheetJS `0.18.5` with a patched, verified local
   asset or maintained alternative. Test XLSX/XLS/CSV imports with representative
   files and bounded malformed input; no spreadsheet-reader runtime CDN dependency.
