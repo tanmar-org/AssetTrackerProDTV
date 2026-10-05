@@ -18,15 +18,16 @@ decisions. The owner reviews and merges all changes from `Dev/` branches.
 - [x] QA-00 — Run baseline builds/tests and relevant static checks. Record failures
   and limitations honestly rather than silently fixing unrelated application code.
 - [ ] PR-01 — Commit and push `Dev/project-foundation`; open a PR against `main`.
-  Prepared and committed locally. Push blocked by automatic approval review pending
-  private repository visibility or explicit owner approval of public publication.
+  Prepared and committed locally. Owner explicitly approved public publication
+  after automatic approval review identified the visibility mismatch.
 - [ ] OWNER-01 — Owner performs final review and merges the foundation PR.
 
 ## Before public deployment — security and dependency blockers
 
 - [ ] VIS-01 **Owner action** — Make repository visibility match the stated private
   intent. GitHub reported public visibility on 2026-10-05. Confirm the desired
-  setting explicitly before changing repository access.
+  setting explicitly before changing repository access. The owner separately
+  approved publishing this foundation PR publicly; that does not change visibility.
 - [ ] SEC-01 **Credential owner + development** — Remove the account-password
   value from public JavaScript and coordinate rotation if real. Do not copy the
   value into docs, issues, logs, fixtures, or PR descriptions. Verify the public
