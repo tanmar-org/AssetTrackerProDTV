@@ -1,4 +1,4 @@
-/** Cloudflare Worker entry point for the vinext-starter template. */
+/** Public QR Worker: bridges its separate D1 database and service credential. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 
@@ -28,9 +28,12 @@ interface ExecutionContext {
 
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // The requests route reads this binding bridge; plain Node hosting must
+    // replace both this entry point and its direct D1 operations (HOST-02).
     (globalThis as typeof globalThis & { __TANMAR_SERVICE_ENV__?: Env }).__TANMAR_SERVICE_ENV__ = env;
     const url = new URL(request.url);
 
+    // Retained framework optimizer; normal <img> elements bypass this endpoint.
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
       return handleImageOptimization(request, {

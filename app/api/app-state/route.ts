@@ -1,3 +1,5 @@
+// Operational collections share one JSON payload and revision, so any edit can
+// conflict with another user's edit to an otherwise unrelated collection.
 type AppState = {
   master: unknown[];
   accounts: unknown[];
@@ -51,6 +53,8 @@ async function ensureSchema() {
   ]);
 }
 
+// This checks only outer shapes. It does not validate individual records, links,
+// business rules, or rentalStock; stronger server validation belongs to SEC-03.
 function validState(value: unknown): value is AppState {
   if (!value || typeof value !== "object") return false;
   const state = value as Record<string, unknown>;
@@ -85,6 +89,8 @@ function changedRecordCount(before: unknown[], after: unknown[]) {
   return changed;
 }
 
+// This inherited heuristic trusts client action labels and counts changed records.
+// It omits rentalStock and cannot express operation-specific permissions (SEC-03).
 function regularUserCanSave(before: AppState | null, after: AppState, action: string) {
   if (ADMIN_ONLY_ACTIONS.includes(action) || action.startsWith("Apply ")) return false;
   if (!before) return false;
@@ -193,6 +199,9 @@ export async function PUT(request: Request) {
     const updatedBy = auth.user!.name;
     const payload = JSON.stringify(body.state);
 
+    // The revision predicate prevents overwriting a concurrent successful save.
+    // History, state, and change-log writes are separate: a conflict/failure can
+    // leave partial audit records until transaction handling is corrected (DATA-02).
     if (current) {
       await d1.prepare(
         "INSERT INTO app_state_history (id, revision, payload, action, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?)",

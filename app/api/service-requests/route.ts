@@ -13,6 +13,9 @@ function runtime() {
   ).__ASSET_TRACKER_ENV__;
 }
 
+// Keep the shared service credential on the server. This proxy currently permits
+// any signed-in staff user for all three methods; explicit policy is part of SEC-03.
+// The QR database remains separate from tracker state, so updates are not atomic.
 async function forward(request: Request, method: "GET" | "PATCH" | "DELETE") {
   const auth = await requireUser(request);
   if (auth.response) return auth.response;

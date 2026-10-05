@@ -1,3 +1,5 @@
+// Legacy static form retained alongside the React QR app. It creates only a
+// local mail draft and does not persist a service request (MAIL-01/SEC-04).
 const TEST_RECIPIENT="earrieta@tanmarcompanies.com";
 const params=new URLSearchParams(location.search);
 const data={
@@ -31,6 +33,8 @@ const details=[
 ];
 
 byId("assetNumber").textContent=clean(data.asset);
+// URL parameters are untrusted. This inherited HTML interpolation is unsafe;
+// retire the page or render values as text when implementing SEC-04.
 byId("receiverDetails").innerHTML=details
   .filter(([,value])=>value)
   .map(([label,value])=>`<dt>${label}</dt><dd>${clean(value)}</dd>`)
@@ -48,6 +52,8 @@ function updateReadyState(){
   byId("emailButton").disabled=!(gps&&byId("errorCode").value.trim());
 }
 
+// GPS depends on browser permission and a secure context; it is not independent
+// proof of a receiver's location. Validate mobile behavior during QR-01/QA-01.
 function requestLocation(){
   byId("formError").hidden=true;
   if(!navigator.geolocation){
@@ -78,6 +84,7 @@ function requestLocation(){
   },{enableHighAccuracy:true,timeout:15000,maximumAge:0});
 }
 
+// mailto opens the user's configured email client; it cannot confirm delivery.
 function createEmail(){
   const errorCode=byId("errorCode").value.trim();
   if(!errorCode){

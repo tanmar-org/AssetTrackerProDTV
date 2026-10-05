@@ -59,6 +59,8 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  // Label parameters are an untrusted historical snapshot. React renders them
+  // as text, but a stable ID/server lookup must replace private URL data (QR-01).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setReceiver({
@@ -76,6 +78,8 @@ export default function Home() {
     });
   }, []);
 
+  // A fresh high-accuracy browser reading requires HTTPS/localhost and permission;
+  // availability and accuracy are device dependent, not server verified.
   const requestLocation = useCallback(() => {
     setFormError("");
     if (!navigator.geolocation) {
@@ -116,6 +120,8 @@ export default function Home() {
     requestLocation();
   }, [requestLocation]);
 
+  // Saving the request and opening a mail draft are separate actions. mailto
+  // supplies no delivery confirmation and still targets a test recipient (MAIL-01).
   function openEmail(trimmedError: string, location: GpsPing) {
     const mapsLink = `https://maps.google.com/?q=${location.latitude},${location.longitude}`;
     const body = [
@@ -154,6 +160,8 @@ export default function Home() {
     window.location.href = `mailto:${TEST_RECIPIENT}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
+  // Client checks help form completion but can be bypassed with a direct POST.
+  // The API must own validation and abuse prevention (SEC-05).
   async function submitRequest() {
     const trimmedError = errorCode.trim();
     const trimmedOperator = operatorName.trim();

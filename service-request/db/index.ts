@@ -2,6 +2,8 @@ import { env } from "cloudflare:workers";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "./schema";
 
+// Template Drizzle adapter; the requests route performs raw D1 operations.
+// A database migration must cover those calls as well as this helper (HOST-02).
 export function getDb() {
   if (!env.DB) {
     throw new Error(

@@ -1,4 +1,4 @@
-/** Cloudflare Worker entry point for the vinext-starter template. */
+/** Tracker Worker: supplies D1/secrets to routes and delegates app/static serving. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 
@@ -29,6 +29,8 @@ interface ExecutionContext {
 
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // Routes read this runtime bridge instead of a Node process environment.
+    // A VM port must replace the bridge and every direct D1 call (HOST-02).
     (
       globalThis as typeof globalThis & {
         __ASSET_TRACKER_ENV__?: Env;
@@ -36,6 +38,8 @@ const worker = {
     ).__ASSET_TRACKER_ENV__ = env;
     const url = new URL(request.url);
 
+    // Framework image requests need the IMAGES binding. Ordinary <img> assets
+    // use static serving and do not call this optimizer.
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
       return handleImageOptimization(request, {

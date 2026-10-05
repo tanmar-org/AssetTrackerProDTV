@@ -32,6 +32,9 @@ export async function POST(request: Request) {
     if (!validateUsername(name) || !validatePin(pin))
       return Response.json({ error: "Enter a username such as jdoe and a 4–8 digit PIN." }, { status: 400 });
 
+    // Current bootstrap is public and the count/insert are separate operations.
+    // Controlled, atomic administrator provisioning is required before deployment
+    // (SEC-02); the empty-table check alone is not an access-control boundary.
     if (body.action === "setup") {
       const count = await db().prepare("SELECT COUNT(*) AS count FROM app_users").first<{ count: number }>();
       if (Number(count?.count || 0) !== 0)
@@ -52,6 +55,8 @@ export async function POST(request: Request) {
       id: string; name: string; role: "admin" | "user"; pin_hash: string; pin_salt: string;
       active: number; failed_attempts: number; locked_until: string | null;
     }>();
+    // Older accounts may use display names. Resolve their normalized username
+    // and rename only when it would not collide with another account.
     if (!user) {
       const users = await db().prepare(
         "SELECT id, name, role, pin_hash, pin_salt, active, failed_attempts, locked_until FROM app_users",
