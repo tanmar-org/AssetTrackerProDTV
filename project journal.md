@@ -4,8 +4,8 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/inventory-permissions`, based on merged
-  `main` at `8f25043`.
+- Development branch: `Dev/safe-service-rendering`, based on merged
+  `main` at `68e74ab`.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -21,11 +21,12 @@
   [PR #11](https://github.com/tanmar-org/AssetTrackerProDTV/pull/11). Account lifecycle
   and concurrency corrections in
   [PR #17](https://github.com/tanmar-org/AssetTrackerProDTV/pull/17) are also merged
-  by the owner. Inventory permissions/schemas are implemented on
-  `Dev/inventory-permissions` in
-  [PR #19](https://github.com/tanmar-org/AssetTrackerProDTV/pull/19) for owner review.
+  by the owner. Inventory permissions/schemas in
+  [PR #19](https://github.com/tanmar-org/AssetTrackerProDTV/pull/19) are also merged.
+  SEC-04 safe service rendering is implemented on `Dev/safe-service-rendering`
+  in [PR #20](https://github.com/tanmar-org/AssetTrackerProDTV/pull/20) for owner review.
   Production deployment has not started.
-- Next task: SEC-04 legacy injection, remaining dependency/QR security work,
+- Next task: remaining dependency/QR security work,
   and AUTH-01/DATA-01/DATA-04 access/conflict/cache requirements. Production domains/services/backups/data cutover remain
   under HOST-03/HOST-04/MIG-01. SEC-01-OWNER still needs owner confirmation.
 
@@ -583,3 +584,71 @@ Pushed `Dev/inventory-permissions` and opened
 [PR #19](https://github.com/tanmar-org/AssetTrackerProDTV/pull/19), targeting `main`.
 Implementation, regression tests, and documentation share this PR. The owner
 performs final review and merging; no production deployment was performed.
+
+## 2026-10-05 18:24 CDT — SEC-04 safe public and staff rendering
+
+The owner merged PR #19 and authorized continued corrections. Confirmed GitHub
+merge, fetched main `68e74ab` (also includes the owner's merged Dependabot PR #18),
+and created `Dev/safe-service-rendering`. Refreshed the root install to the merged
+lockfile; no dependency versions/lockfiles or security-advisory submissions changed.
+The original checkout's unrelated authentication-comment edit remains intact.
+
+Preserved the legacy static form URL for printed-label continuity. Replaced its
+URL-to-innerHTML interpolation with fixed `dt`/`dd` elements and textContent.
+Receiver/account values, leading-zero identifiers, GPS controls, and encoded mail
+drafts remain available. This form still does not persist requests; silently
+redirecting it to the separate QR form would change its workflow. No credential
+was added to any draft. Private URL metadata remains QR-01 work.
+
+Reviewed staff renderers beyond current server schemas because browser caches,
+old imports, and the separate QR response can contain older unchecked values.
+Escaped record IDs in dashboard/account/master/service/label/move controls,
+status/history attributes, and cached audit count values. Added safeMapsLink with
+the server's bounded HTTPS Google Maps destination policy before service/event
+anchors; unsafe destinations receive no anchor while valid GPS links remain.
+Validated configured QR destinations as HTTP/HTTPS without credentials; invalid
+settings use the existing label-generation error. Updated the script/entry URL
+versions for staff reloads. Added focused trust-boundary comments.
+
+Added five default-suite regressions executing the actual legacy script and staff
+functions, including a strict DOM that rejects HTML sinks, valid mail drafts with
+encoded delimiter-like text, leading-zero identifiers, malicious fields, map
+allowlists, and configured QR destination safety. Added an optional reusable
+`npm run test:browser` suite for both actual Node-served pages in Chromium.
+
+Installed Playwright 1.58.2 / Chromium 145.0.7632.6 as user-local development tools.
+The VM's Ubuntu 26.04 name required the matching Ubuntu 24.04 browser platform
+override. Downloaded missing browser libraries/fonts from configured Ubuntu
+repositories, verified each SHA-256 against package metadata, and extracted them
+under user-local tools. Initial browser checks failed because the minimal VM had
+no font configuration; a private font configuration resolved the browser crash.
+No system package installation, service, production configuration, or live database
+was changed. Development instructions record the exact local test environment.
+
+Validation:
+
+- Both native builds and TypeScript checks passed; **26 tracker unit/HTTP checks**
+  and **1 QR HTTP check** passed.
+- **5 Chromium checks passed** (four scenarios plus parent): malicious legacy
+  label parameters/GPS controls, React QR text/submission, cached staff IDs/history/
+  audit counts, and rejected versus valid service Maps links. Synthetic sessions,
+  API responses, and GPS isolate rendering; no production data, external app API,
+  CDN script, real device GPS, or email delivery was used. Actual database permissions
+  remain covered by the existing integration suite, which this browser-only change
+  did not rerun. Physical mobile/printing/email acceptance remains QA-01.
+- Changed tests/legacy script/entry component pass focused ESLint. Staff app.js
+  retains four inherited warnings and no errors. JavaScript syntax and whitespace
+  checks passed; inherited full-lint failures remain QA-02.
+
+SEC-04 implementation criteria are met; owner review/merge remains pending.
+SEC-05/QR-01/MAIL-01 still require public request validation/abuse controls,
+server receiver lookup, private metadata removal, and server email. Next priorities
+are DEP-01/DEP-02 dependencies and public-request security. No deployment performed.
+
+Pushed `Dev/safe-service-rendering` and opened
+[PR #20](https://github.com/tanmar-org/AssetTrackerProDTV/pull/20) against `main`.
+Implementation, regression tests, and documentation share this PR. GitHub's push
+notice reports four default-branch advisory matches (two high/two moderate);
+no fresh advisory/reachability assessment was performed during this rendering task.
+DEP-01/DEP-02 remain open. All temporary rendering-test servers/browser processes,
+including the failed font-diagnostic runner, were stopped. Owner reviews/merges.

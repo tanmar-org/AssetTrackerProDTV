@@ -61,6 +61,39 @@ On 2026-10-05 both builds/type checks passed. Inherited lint issues remain under
 QA-02: root vendor errors/browser warnings and QR effect-state errors/image warnings.
 Changed server/helper code passes focused lint checks.
 
+## Optional real-browser rendering checks
+
+Build both apps first, then run `npm run test:browser` from the root. The suite
+requires a separately installed Playwright/Chromium; it is intentionally outside
+application dependencies and the default unit-test command. Set `PLAYWRIGHT_MODULE`
+to its absolute `index.mjs` path if it is not locally resolvable. Do not rebuild
+`.next/` while tests are serving those builds.
+
+This VM has user-local Playwright 1.58.2 / Chromium 145.0.7632.6 under
+`~/.local/share/assettracker-tools/browser-testing/` and `~/.cache/ms-playwright/`.
+Its minimal Ubuntu 26.04 install needed libraries/fonts extracted from Ubuntu
+packages after matching their SHA-256 hashes to repository metadata. No system
+packages or service were installed. The matching Chromium Ubuntu 24.04 build
+runs with the following environment on this VM:
+
+```bash
+PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64 \
+LD_LIBRARY_PATH="$HOME/.local/share/assettracker-tools/browser-libs/usr/lib/x86_64-linux-gnu" \
+FONTCONFIG_FILE="$HOME/.local/share/assettracker-tools/browser-libs/fonts.conf" \
+PLAYWRIGHT_MODULE="$HOME/.local/share/assettracker-tools/browser-testing/node_modules/playwright/index.mjs" \
+npm run test:browser
+```
+
+The suite starts two isolated loopback Node servers with no database connection.
+It supplies synthetic GPS, cache records, and session/API fixtures, blocks external
+requests (including the inherited spreadsheet CDN), and closes servers/browser.
+Four scenarios cover malicious legacy QR parameters, React QR text/submission,
+staff cached record IDs/history/audit counts, and unsafe versus valid Maps links.
+These checks prove rendering behavior; PostgreSQL suites separately verify actual
+authentication/authorization. Mobile GPS, email delivery, and physical label scanning
+still require QA-01 acceptance. Five fast rendering/mail-draft/URL unit regressions
+also run in the default tracker suite without Playwright.
+
 ## Real PostgreSQL integration tests
 
 `npm run test:integration` at the root runs both built Node servers using separate,

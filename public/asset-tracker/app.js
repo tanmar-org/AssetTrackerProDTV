@@ -359,7 +359,24 @@ function assignedFor(accountId){return assignments.filter(a=>a.accountId===accou
 function assignmentForAsset(assetId){return assignments.find(a=>a.assetId===assetId)}
 function assetById(id){return master.find(a=>a.id===id)}
 function accountById(id){return accounts.find(a=>a.id===id)}
+// Cached/imported/API strings remain untrusted before and after server validation.
+// Escape text and quoted attributes; validate URL destinations separately.
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+// HTML escaping protects text/quoted attributes, but cannot make an href safe.
+// Cached inventory and older QR responses can bypass today's server schema;
+// keep the same HTTPS Maps allowlist here before any anchor is constructed.
+function safeMapsLink(value){
+  if(typeof value!=="string"||!value||value.length>512)return "";
+  try{
+    const url=new URL(value);
+    if(url.protocol!=="https:"||url.username||url.password||url.port)return "";
+    if(url.hostname!=="maps.google.com"&&!(
+      ["google.com","www.google.com"].includes(url.hostname)&&url.pathname.startsWith("/maps")
+    ))return "";
+    return url.href;
+  }catch{return "";}
+}
+
 function highlightMatch(value,query=""){
   const text=String(value??"");
   const needle=String(query||"").trim();
@@ -499,7 +516,7 @@ $("auditResearchStat").textContent=(dashboardAudit?.results||[]).reduce((sum,res
   [...(result.missingFromAudit||[]),...(result.missingFromApp||[])].filter(issue=>!["corrected","ignored"].includes(issue.status||"needs-research")).length,0);
 $("dashboardAccounts").innerHTML=accounts.slice(0,6).map(a=>{
 const count=assignedFor(a.id).length;
-return `<button class="dashboard-account-row" data-open-account="${a.id}">
+return `<button class="dashboard-account-row" data-open-account="${esc(a.id)}">
 <div><strong>${esc(a.number)}</strong><span>${esc(a.name)}</span></div>
 <div><strong>${count}/20</strong><span>Receivers</span></div>
 <div class="capacity-mini"><i style="width:${Math.min(count/20*100,100)}%"></i></div>
@@ -725,14 +742,14 @@ $("accountCardGrid").innerHTML=filtered.map(account=>{
       <td><span class="rent-badge ${receiver.rentState==="On Rent"?"rent-on":"rent-off"}">${esc(receiver.rentState)}</span></td>
       <td>
         <div class="row-actions">
-          <button class="small-button" data-inline-move="${receiver.id}" data-account-id="${account.id}">Move</button>
-          <button class="small-button danger" data-inline-remove="${receiver.id}" data-account-id="${account.id}">Remove</button>
+          <button class="small-button" data-inline-move="${esc(receiver.id)}" data-account-id="${esc(account.id)}">Move</button>
+          <button class="small-button danger" data-inline-remove="${esc(receiver.id)}" data-account-id="${esc(account.id)}">Remove</button>
         </div>
       </td>
     </tr>`}).join("");
 
-  return `<section class="account-sheet-row ${isExpanded?"expanded":""} ${receivers.length>=20?"full":""} ${accountMatch?"search-return-card":""}" data-account-row="${account.id}">
-    <button class="account-sheet-header" type="button" data-toggle-account="${account.id}">
+  return `<section class="account-sheet-row ${isExpanded?"expanded":""} ${receivers.length>=20?"full":""} ${accountMatch?"search-return-card":""}" data-account-row="${esc(account.id)}">
+    <button class="account-sheet-header" type="button" data-toggle-account="${esc(account.id)}">
       <span class="account-chevron">›</span>
       <span class="account-main">
         <strong>${highlightMatch(account.number,q)}</strong>
@@ -772,10 +789,10 @@ $("accountCardGrid").innerHTML=filtered.map(account=>{
             : `${20-receivers.length} receiver slot${20-receivers.length===1?"":"s"} available.`}
         </div>
         <div class="account-inline-buttons">
-          <button class="small-button" data-inline-edit-account="${account.id}">Edit Account</button>
-          ${currentUser?.role==="admin"?`<button class="small-button" data-inline-import="${account.id}">Import Receivers</button>`:""}
-          <button class="small-button" data-inline-add="${account.id}" ${receivers.length>=20?"disabled":""}>+ Add Receiver</button>
-          <button class="small-button" data-open-account="${account.id}">Full Account View</button>
+          <button class="small-button" data-inline-edit-account="${esc(account.id)}">Edit Account</button>
+          ${currentUser?.role==="admin"?`<button class="small-button" data-inline-import="${esc(account.id)}">Import Receivers</button>`:""}
+          <button class="small-button" data-inline-add="${esc(account.id)}" ${receivers.length>=20?"disabled":""}>+ Add Receiver</button>
+          <button class="small-button" data-open-account="${esc(account.id)}">Full Account View</button>
         </div>
       </div>
 
@@ -821,7 +838,7 @@ $("addReceiverButton").disabled=assets.length>=20;
 $("receiverRows").innerHTML=filtered.map(x=>`<tr class="${q?"search-return":""}">
 <td>${receiverInfoButton(x,q)}</td><td>${highlightMatch(x.model||"—",q)}</td><td>${highlightMatch(x.accessCard||"—",q)}</td><td>${highlightMatch(x.rid||"—",q)}</td><td>${highlightMatch(x.serial||"—",q)}</td>
 <td><span class="rent-badge ${x.rentState==="On Rent"?"rent-on":"rent-off"}">${esc(x.rentState)}</span></td>
-<td><div class="row-actions"><button class="small-button" data-move="${x.id}">Move</button><button class="small-button danger" data-remove="${x.id}">Remove</button></div></td>
+<td><div class="row-actions"><button class="small-button" data-move="${esc(x.id)}">Move</button><button class="small-button danger" data-remove="${esc(x.id)}">Remove</button></div></td>
 </tr>`).join("");
 $("receiverEmpty").hidden=filtered.length!==0;
 }
@@ -831,7 +848,7 @@ const q=$("masterSearch").value.trim().toLowerCase();
 const filtered=master.filter(x=>[x.assetNumber,x.model,x.accessCard,x.rid,x.serial,x.type,x.condition,x.notes].join(" ").toLowerCase().includes(q));
 $("masterRows").innerHTML=filtered.map(x=>{
 const asn=assignmentForAsset(x.id),acct=asn?accountById(asn.accountId):null;
-return `<tr class="${q?"search-return":""}"><td>${receiverInfoButton(x,q)}</td><td>${highlightMatch(x.model||"—",q)}</td><td>${highlightMatch(x.accessCard||"—",q)}</td><td>${highlightMatch(x.rid||"—",q)}</td><td>${highlightMatch(x.serial||"—",q)}</td><td>${acct?highlightMatch(acct.number,q):"Unassigned"}</td><td><button class="small-button" data-edit-master="${x.id}">Edit</button></td></tr>`}).join("");
+return `<tr class="${q?"search-return":""}"><td>${receiverInfoButton(x,q)}</td><td>${highlightMatch(x.model||"—",q)}</td><td>${highlightMatch(x.accessCard||"—",q)}</td><td>${highlightMatch(x.rid||"—",q)}</td><td>${highlightMatch(x.serial||"—",q)}</td><td>${acct?highlightMatch(acct.number,q):"Unassigned"}</td><td><button class="small-button" data-edit-master="${esc(x.id)}">Edit</button></td></tr>`}).join("");
 }
 
 function activationAccount(request,receiver){
@@ -916,22 +933,25 @@ function renderActivations(){
     if(status!=="all"&&request.status!==status)return false;
     return !q||[receiver?.assetNumber,receiver?.serial,receiver?.rid,account?.number,account?.name,request.action,request.status,request.errorCode,request.requesterName,request.requesterPhone,request.operatorName,request.rigFrac,request.lease,request.notes].join(" ").toLowerCase().includes(q);
   }).sort((a,b)=>String(b.request.requestedAt).localeCompare(String(a.request.requestedAt)));
-  $("activationRows").innerHTML=filtered.map(({request,receiver,account})=>`
+  $("activationRows").innerHTML=filtered.map(({request,receiver,account})=>{
+    const mapUrl=safeMapsLink(request.mapUrl);
+    return `
     <tr class="${q?"search-return":""}">
       <td><span class="activation-source ${request.remote?"":"manual"}">${request.remote?"QR Scan":"Manual"}</span></td>
       <td>${receiver?.id?receiverInfoButton(receiver,q):`<strong>${highlightMatch(receiver?.assetNumber||"Missing receiver",q)}</strong>`}<span>${highlightMatch(receiver?.model||"",q)}</span></td>
       <td><strong>${highlightMatch(account?.number||"Unassigned",q)}</strong><span>${highlightMatch(account?.name||"",q)}</span></td>
       <td><span class="activation-action ${request.action.toLowerCase().replace(/[^a-z]+/g,"-").replace(/^-|-$/g,"")}">${esc(request.action)}</span></td>
       <td>${esc(formatUndoTime(request.requestedAt)||request.requestedAt||"—")}</td>
-      <td><span class="activation-status ${request.status.toLowerCase()}">${esc(request.status)}</span></td>
-      <td><div class="activation-location"><strong>${esc(request.errorCode?`Error ${request.errorCode}`:"—")}</strong>${request.mapUrl?`<a href="${esc(request.mapUrl)}" target="_blank" rel="noopener">Open GPS map ↗</a><span>±${esc(Math.round(Number(request.gpsAccuracy)||0))} m</span>`:""}</div></td>
+      <td><span class="activation-status ${esc(String(request.status||"unknown").toLowerCase())}">${esc(request.status)}</span></td>
+      <td><div class="activation-location"><strong>${esc(request.errorCode?`Error ${request.errorCode}`:"—")}</strong>${mapUrl?`<a href="${esc(mapUrl)}" target="_blank" rel="noopener">Open GPS map ↗</a><span>±${esc(Math.round(Number(request.gpsAccuracy)||0))} m</span>`:""}</div></td>
       <td>${esc(request.completedAt?new Date(request.completedAt).toLocaleDateString():"—")}</td>
       <td class="activation-notes"><div class="activation-notes-stack" title="${esc(request.notes||"")}">${request.requesterName?`<span><b>Requested by:</b> ${esc(request.requesterName)}</span>`:""}${request.requesterPhone?`<span><b>Callback:</b> ${esc(request.requesterPhone)}</span>`:""}${request.operatorName?`<span><b>Operator:</b> ${esc(request.operatorName)}</span>`:""}${request.rigFrac?`<span><b>Rig/Frac:</b> ${esc(request.rigFrac)}</span>`:""}${request.lease?`<span><b>Lease:</b> ${esc(request.lease)}</span>`:""}${request.notes?`<span class="activation-request-note">${esc(request.notes)}</span>`:""}${!request.requesterName&&!request.requesterPhone&&!request.operatorName&&!request.rigFrac&&!request.lease&&!request.notes?"—":""}</div></td>
       <td><div class="row-actions">
-        ${request.status==="Pending"?`<button class="small-button" data-activation-complete="${request.id}">Complete</button>${request.remote?"":`<button class="small-button" data-activation-edit="${request.id}">Edit</button>`}<button class="small-button" data-activation-cancel="${request.id}">Cancel</button>`:`<button class="small-button" data-activation-reopen="${request.id}">Reopen</button>`}
-        ${currentUser?.role==="admin"?`<button class="small-button danger" data-activation-delete="${request.id}">Delete</button>`:""}
+        ${request.status==="Pending"?`<button class="small-button" data-activation-complete="${esc(request.id)}">Complete</button>${request.remote?"":`<button class="small-button" data-activation-edit="${esc(request.id)}">Edit</button>`}<button class="small-button" data-activation-cancel="${esc(request.id)}">Cancel</button>`:`<button class="small-button" data-activation-reopen="${esc(request.id)}">Reopen</button>`}
+        ${currentUser?.role==="admin"?`<button class="small-button danger" data-activation-delete="${esc(request.id)}">Delete</button>`:""}
       </div></td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
   $("activationEmpty").hidden=filtered.length!==0;
 }
 
@@ -1024,7 +1044,7 @@ function renderReceiverInfo(){
   const history=receiverHistory(receiver);
   const visible=receiverHistoryExpanded?history:history.slice(0,3);
   $("receiverHistoryList").innerHTML=visible.map(entry=>`
-    <button type="button" class="receiver-history-entry ${entry.kind}" data-receiver-event="${esc(entry.id||"")}">
+    <button type="button" class="receiver-history-entry ${esc(entry.kind)}" data-receiver-event="${esc(entry.id||"")}">
       <i></i>
       <div><strong>${esc(entry.title)}</strong><span>${esc(entry.detail)}</span>${entry.changedBy?`<span class="changed-by">Changed by ${esc(entry.changedBy)}</span>`:""}</div>
       <time>${esc(formatUndoTime(entry.date)||"Current")}</time>
@@ -1060,7 +1080,8 @@ function openReceiverEvent(eventId){
     ["GPS Accuracy",entry.gpsAccuracy?`±${Math.round(Number(entry.gpsAccuracy)||0)} m`:""],["Notes",entry.notes],
     ["Recorded By",entry.changedBy]
   ].filter(([,value])=>value);
-  $("receiverEventBody").innerHTML=`<div class="receiver-event-grid">${rows.map(([label,value])=>`<div><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join("")}</div>${entry.mapUrl?`<a class="primary-button receiver-event-map" href="${esc(entry.mapUrl)}" target="_blank" rel="noopener">Open GPS Map ↗</a>`:""}`;
+  const mapUrl=safeMapsLink(entry.mapUrl);
+  $("receiverEventBody").innerHTML=`<div class="receiver-event-grid">${rows.map(([label,value])=>`<div><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join("")}</div>${mapUrl?`<a class="primary-button receiver-event-map" href="${esc(mapUrl)}" target="_blank" rel="noopener">Open GPS Map ↗</a>`:""}`;
   openModal("receiverEventModal");
 }
 
@@ -1119,7 +1140,10 @@ function serviceQrMarkup(value,assetNumber){
 // Printed links freeze private receiver/account metadata in a public URL. QR-01
 // replaces this with a stable identifier and server lookup of current details.
 function serviceRequestLink(receiver,account=null){
-  const requestUrl=new URL(PUBLIC_SERVICE_REQUEST_URL);
+  // QR destinations are operator configuration, never executable/credential URLs.
+  let requestUrl;
+  try{requestUrl=new URL(PUBLIC_SERVICE_REQUEST_URL)}catch{return "";}
+  if(!["http:","https:"].includes(requestUrl.protocol)||requestUrl.username||requestUrl.password)return "";
   const requestData={
     a:receiver.assetNumber,
     m:receiver.model,
@@ -1210,7 +1234,7 @@ function visibleLabelReceivers(){
 
 function renderLabels(){
   const currentFilter=$("labelAccountFilter").value||"all";
-  $("labelAccountFilter").innerHTML=`<option value="all">All Accounts</option><option value="unassigned">Unassigned</option>${accounts.map(account=>`<option value="${account.id}">${esc(account.number)} — ${esc(account.name)}</option>`).join("")}`;
+  $("labelAccountFilter").innerHTML=`<option value="all">All Accounts</option><option value="unassigned">Unassigned</option>${accounts.map(account=>`<option value="${esc(account.id)}">${esc(account.number)} — ${esc(account.name)}</option>`).join("")}`;
   $("labelAccountFilter").value=[...$("labelAccountFilter").options].some(option=>option.value===currentFilter)?currentFilter:"all";
   const visible=visibleLabelReceivers();
   const visibleSelected=visible.filter(({receiver})=>selectedLabelIds.has(receiver.id)).length;
@@ -1219,7 +1243,7 @@ function renderLabels(){
   $("selectVisibleLabels").disabled=visible.length===0;
   $("labelReceiverList").innerHTML=visible.map(({receiver,account})=>`
     <label class="label-receiver-row ${selectedLabelIds.has(receiver.id)?"selected":""}">
-      <input type="checkbox" data-label-id="${receiver.id}" ${selectedLabelIds.has(receiver.id)?"checked":""}>
+      <input type="checkbox" data-label-id="${esc(receiver.id)}" ${selectedLabelIds.has(receiver.id)?"checked":""}>
       <span><strong>${esc(receiver.assetNumber)}</strong><span>${esc(receiver.model||receiver.type||"Receiver")}</span></span>
       <span><strong>${esc(account?.number||"Unassigned")}</strong><span>${esc(account?.name||"No current account")}</span></span>
       <span><strong>${esc(receiver.serial||"No serial")}</strong><span>RID ${esc(receiver.rid||"—")}</span></span>
@@ -1324,7 +1348,7 @@ e.preventDefault();e.stopPropagation();saveMasterReceiver();
 function openMove(assetId){
 $("moveAssetId").value=assetId;
 const current=assignmentForAsset(assetId);
-$("moveAccountSelect").innerHTML=accounts.filter(a=>a.id!==current?.accountId).map(a=>`<option value="${a.id}" ${assignedFor(a.id).length>=20?"disabled":""}>${esc(a.number)} — ${esc(a.name)} (${assignedFor(a.id).length}/20)</option>`).join("");
+$("moveAccountSelect").innerHTML=accounts.filter(a=>a.id!==current?.accountId).map(a=>`<option value="${esc(a.id)}" ${assignedFor(a.id).length>=20?"disabled":""}>${esc(a.number)} — ${esc(a.name)} (${assignedFor(a.id).length}/20)</option>`).join("");
 if(!$("moveAccountSelect").options.length){toast("No other account is available.");return}
 openModal("moveModal");
 }
@@ -2239,9 +2263,9 @@ function renderAuditResults(){
 
       <div class="audit-account-body">
         <div class="audit-count-line">
-          <div class="audit-count-box"><span>App Count</span><strong>${result.appCount}</strong></div>
-          <div class="audit-count-box"><span>DirecTV Count</span><strong>${result.auditCount}</strong></div>
-          <div class="audit-count-box"><span>Correct Matches</span><strong>${result.matchedCount}</strong></div>
+          <div class="audit-count-box"><span>App Count</span><strong>${esc(result.appCount)}</strong></div>
+          <div class="audit-count-box"><span>DirecTV Count</span><strong>${esc(result.auditCount)}</strong></div>
+          <div class="audit-count-box"><span>Correct Matches</span><strong>${esc(result.matchedCount)}</strong></div>
           <div class="audit-count-box"><span>Receiver Issues</span><strong>${issueCount}</strong></div>
         </div>
 

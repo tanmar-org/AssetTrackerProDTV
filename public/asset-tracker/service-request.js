@@ -1,5 +1,5 @@
-// Legacy static form retained alongside the React QR app. It creates only a
-// local mail draft and does not persist a service request (MAIL-01/SEC-04).
+// Keep old printed-label URLs usable alongside the React QR app. This legacy
+// form creates only a local mail draft; it does not persist a request (MAIL-01).
 const TEST_RECIPIENT="earrieta@tanmarcompanies.com";
 const params=new URLSearchParams(location.search);
 const data={
@@ -33,12 +33,18 @@ const details=[
 ];
 
 byId("assetNumber").textContent=clean(data.asset);
-// URL parameters are untrusted. This inherited HTML interpolation is unsafe;
-// retire the page or render values as text when implementing SEC-04.
-byId("receiverDetails").innerHTML=details
-  .filter(([,value])=>value)
-  .map(([label,value])=>`<dt>${label}</dt><dd>${clean(value)}</dd>`)
-  .join("");
+// Old labels supply arbitrary URL text. Build fixed elements and assign textContent
+// so markup, quotes, and URL-like values cannot create elements or attributes.
+const detailNodes=document.createDocumentFragment();
+for(const [label,value] of details){
+  if(!value)continue;
+  const term=document.createElement("dt");
+  const description=document.createElement("dd");
+  term.textContent=label;
+  description.textContent=clean(value);
+  detailNodes.append(term,description);
+}
+byId("receiverDetails").replaceChildren(detailNodes);
 
 function setLocationState(kind,title,message){
   const panel=document.querySelector(".location-panel");
