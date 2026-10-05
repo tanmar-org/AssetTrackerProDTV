@@ -1,0 +1,1 @@
+ALTER TABLE `app_users` ADD `last_login_at` text;

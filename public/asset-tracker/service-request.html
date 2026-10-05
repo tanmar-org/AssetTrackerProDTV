@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#08111d">
+  <title>Receiver Service Request</title>
+  <link rel="stylesheet" href="service-request.css">
+</head>
+<body>
+  <main class="request-shell">
+    <section class="request-card">
+      <header>
+        <img src="tanmar-emblem.png" alt="TanMar emblem">
+        <div>
+          <p>Receiver service</p>
+          <h1>Reactivate or Refresh</h1>
+        </div>
+      </header>
+
+      <div class="receiver-summary">
+        <span>Asset Number</span>
+        <strong id="assetNumber">—</strong>
+        <dl id="receiverDetails"></dl>
+      </div>
+
+      <label class="error-field" for="errorCode">
+        <span>On-screen error code <b>*</b></span>
+        <input id="errorCode" type="text" inputmode="text" autocomplete="off" maxlength="80" placeholder="Enter the code shown on the TV" required>
+      </label>
+
+      <section class="location-panel" aria-live="polite">
+        <div class="location-icon">⌖</div>
+        <div>
+          <strong id="locationTitle">Location required</strong>
+          <p id="locationMessage">Allow GPS access to create this service request.</p>
+        </div>
+      </section>
+
+      <p class="form-error" id="formError" role="alert" hidden></p>
+
+      <div class="actions">
+        <button id="locationButton" class="secondary" type="button">Share GPS Location</button>
+        <button id="emailButton" class="primary" type="button" disabled>Create Service Email</button>
+      </div>
+
+      <p class="privacy-note">Your GPS coordinates are used only in the service-request email. Review the prefilled email, then tap Send.</p>
+    </section>
+  </main>
+  <script src="service-request.js"></script>
+</body>
+</html>

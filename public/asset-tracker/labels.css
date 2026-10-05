@@ -1,0 +1,27 @@
+/* One layout shared by the on-screen preview and the isolated print document. */
+.dk-label{box-sizing:border-box;flex:none;position:relative;margin:0;border:0;border-radius:0;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif;overflow:visible}
+.dk-label *{box-sizing:border-box}
+.service-qr-label{width:150mm;height:62mm;padding:3mm;display:grid;grid-template-columns:40mm minmax(0,1fr);gap:4mm;align-items:center}
+.dk-service-brand{display:flex;flex-direction:column;align-items:center;gap:1mm}
+.dk-company-logo{display:block;width:35mm;height:12mm}
+.dk-service-qr{width:40mm;height:40mm;display:block}
+.dk-service-qr>svg{display:block;width:100%;height:100%}
+.dk-service-copy{min-width:0;display:flex;flex-direction:column;justify-content:space-between;height:54mm;padding:1mm 0}
+.dk-field{margin:0;white-space:nowrap;font:italic 900 18pt/1.12 Arial,Helvetica,sans-serif}
+.dk-scan-instruction{margin:0;white-space:nowrap;font:italic 900 11pt/1.1 Arial,Helvetica,sans-serif}
+.receiver-id-label{width:90mm;height:29mm;padding:2.5mm 4mm;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:1mm}
+.dk-barcode{display:block;flex:none;width:82mm;height:19mm}
+.dk-barcode-asset{display:block;font:700 11pt/1 Arial,Helvetica,sans-serif;white-space:nowrap;text-align:center;letter-spacing:.2mm}
+.dk-label-error{color:#000;font:700 11pt/1.3 Arial,Helvetica,sans-serif;white-space:normal}
+.label-preview-grid{display:block;padding:16px;max-height:720px;overflow:auto}
+.label-preview-item{margin:0 0 22px;min-width:0}
+.label-preview-caption{margin:0 0 9px;color:var(--muted,#93a0b4);font-size:14px;line-height:1.4}
+.label-preview-viewport{position:relative;width:100%;max-width:100%;overflow:hidden;background:#fff;border-radius:3px}
+.label-preview-viewport .dk-label{transform:scale(var(--label-scale,1));transform-origin:top left}
+.label-page-actions{flex-wrap:wrap;justify-content:flex-end}
+.label-print-help{margin:14px 0 0;color:var(--muted);font-size:14px;line-height:1.5}
+@media(max-width:760px){.label-page-actions{flex-direction:column}.service-link-panel{grid-template-columns:1fr}}
+@media print{.dk-label{background:#fff!important;color:#000!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+
+.label-select-visible{display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:14px;cursor:pointer}
+.label-select-visible input{width:18px;height:18px;margin:0;accent-color:var(--accent,#22d3ee);cursor:pointer}

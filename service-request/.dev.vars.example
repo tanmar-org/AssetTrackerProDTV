@@ -1,0 +1,3 @@
+# Copy to .dev.vars; never commit that file.
+# Use the same random server-only value configured in the tracker.
+ADMIN_SHARED_SECRET=

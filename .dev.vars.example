@@ -1,0 +1,4 @@
+# Copy to .dev.vars; never commit that file.
+# Generate one random value locally and set the SAME value in both apps.
+ADMIN_SHARED_SECRET=
+SERVICE_REQUEST_API_URL=http://localhost:5174/api/requests

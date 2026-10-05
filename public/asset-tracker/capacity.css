@@ -1,0 +1,29 @@
+.capacity-panel{margin:0 0 22px;padding:20px;border:1px solid var(--border);border-radius:16px;background:var(--panel);color:var(--text)}
+.capacity-heading h3{margin:0;font-size:1.2rem}
+.capacity-heading p{margin:7px 0 18px;color:var(--muted);font-size:.875rem;line-height:1.5}
+.capacity-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.capacity-metrics article{min-width:0;padding:15px;border:1px solid var(--border);border-radius:12px;background:var(--panel-soft)}
+.capacity-metrics span,.capacity-metrics small{display:block;font-size:.875rem;line-height:1.45;color:var(--muted)}
+.capacity-metrics strong{display:block;margin:9px 0;font-size:2rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.capacity-metrics .capacity-on strong{color:#58e1ae}
+.capacity-metrics .capacity-off strong{color:#ffd982}
+.capacity-projection{margin-top:16px;padding:16px;border-left:3px solid #58e1ae;background:var(--panel-soft);border-radius:0 10px 10px 0}
+.capacity-projection h4{margin:0;font-size:1rem;line-height:1.5}
+.capacity-projection p{margin:8px 0 0;font-size:1rem;line-height:1.6}
+.capacity-projection .capacity-assumption{font-size:.875rem;color:var(--muted)}
+.capacity-warning{margin:14px 0 0;color:#ffd982;font-size:.875rem;line-height:1.5}
+#accountsView .account-sheet-header{grid-template-columns:24px minmax(130px,.8fr) minmax(150px,1fr) minmax(100px,.8fr) repeat(4,minmax(65px,.4fr))}
+#accountsView .account-sheet-metric.empty-spaces strong{color:#85d6e5}
+#accountsView .account-sheet-metric span{font-size:.75rem;letter-spacing:0}
+#accountsView .account-main{min-width:0;overflow-wrap:anywhere}
+@media(max-width:1200px){.capacity-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1100px){#accountsView .account-sheet-header{grid-template-columns:24px minmax(0,.8fr) minmax(0,1fr) repeat(4,minmax(48px,.4fr))}}
+@media(max-width:760px){
+  .capacity-panel{padding:14px}.capacity-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  #accountsView .account-sheet-header{grid-template-columns:20px repeat(4,minmax(0,1fr));gap:12px 8px}
+  #accountsView .account-chevron{grid-row:1 / span 2}
+  #accountsView .account-main{grid-column:span 2;min-width:0;overflow-wrap:anywhere}
+  #accountsView .account-sheet-metric{display:block;min-width:0}
+  #accountsView .account-sheet-metric span{font-size:.75rem;letter-spacing:0}
+}
+@media(max-width:380px){.capacity-metrics{grid-template-columns:1fr}}

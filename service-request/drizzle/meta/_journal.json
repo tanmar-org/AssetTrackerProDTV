@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1785359567461,
+      "tag": "0000_salty_jamie_braddock",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785390632291,
+      "tag": "0001_cool_earthquake",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790225625144,
+      "tag": "0002_normal_zarda",
+      "breakpoints": true
+    }
+  ]
+}

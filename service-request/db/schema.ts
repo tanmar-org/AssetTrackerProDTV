@@ -1,0 +1,41 @@
+import { sql } from "drizzle-orm";
+import { index, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+export const serviceRequests = sqliteTable(
+  "service_requests",
+  {
+    id: text("id").primaryKey(),
+    assetNumber: text("asset_number").notNull(),
+    model: text("model").notNull().default(""),
+    receiverType: text("receiver_type").notNull().default(""),
+    serialNumber: text("serial_number").notNull().default(""),
+    rid: text("rid").notNull().default(""),
+    accessCard: text("access_card").notNull().default(""),
+    rentState: text("rent_state").notNull().default(""),
+    accountNumber: text("account_number").notNull().default(""),
+    accountName: text("account_name").notNull().default(""),
+    recordedLocation: text("recorded_location").notNull().default(""),
+    office: text("office").notNull().default(""),
+    operatorName: text("operator_name").notNull().default(""),
+    requesterName: text("requester_name").notNull().default(""),
+    requesterPhone: text("requester_phone").notNull().default(""),
+    rigFrac: text("rig_frac").notNull().default(""),
+    lease: text("lease").notNull().default(""),
+    errorCode: text("error_code").notNull(),
+    latitude: real("latitude").notNull(),
+    longitude: real("longitude").notNull(),
+    gpsAccuracy: real("gps_accuracy").notNull(),
+    gpsCapturedAt: text("gps_captured_at").notNull(),
+    action: text("action").notNull().default("Reactivate / Refresh"),
+    status: text("status").notNull().default("Pending"),
+    notes: text("notes").notNull().default(""),
+    requestedAt: text("requested_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    completedAt: text("completed_at"),
+    deletedAt: text("deleted_at"),
+  },
+  (table) => [
+    index("service_requests_asset_idx").on(table.assetNumber),
+    index("service_requests_status_idx").on(table.status),
+    index("service_requests_requested_idx").on(table.requestedAt),
+  ],
+);

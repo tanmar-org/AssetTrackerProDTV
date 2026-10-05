@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <title>TanMar Receiver Control</title>
+  <link rel="stylesheet" href="app.css?v=55">
+  <link rel="stylesheet" href="reskin.css?v=51">
+  <link rel="stylesheet" href="capacity.css?v=1">
+  <link rel="stylesheet" href="labels.css?v=55">
+</head>
+<body class="auth-locked">
+  <div class="auth-gate" id="authGate">
+    <section class="auth-card">
+      <div class="auth-emblem"><img src="tanmar-emblem-tight.png?v=33" alt="TanMar emblem"></div>
+      <p class="eyebrow">Authorized TanMar users</p>
+      <h1 id="authTitle">Employee Sign In</h1>
+      <p id="authDescription">Enter your username and PIN to continue.</p>
+      <form id="authForm">
+        <label><span>Username</span><input id="authName" autocomplete="username" maxlength="40" pattern="[A-Za-z][A-Za-z0-9]{1,39}" placeholder="jdoe" autocapitalize="none" spellcheck="false" required></label>
+        <label><span>PIN</span><input id="authPin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="current-password" required></label>
+        <div class="auth-error" id="authError" hidden></div>
+        <button class="primary-button" type="submit" id="authSubmit">Sign In</button>
+      </form>
+    </section>
+  </div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><img src="tanmar-emblem-tight.png?v=33" alt="TanMar emblem"></div>
+        <div>
+          <strong>TanMar Receiver Control</strong>
+          <span>DirecTV Asset Management</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="dashboard"><span class="nav-icon">⌂</span><span>Dashboard</span></button>
+        <button class="nav-item" data-view="accounts"><span class="nav-icon">◎</span><span>Accounts</span></button>
+        <button class="nav-item" data-view="master"><span class="nav-icon">▣</span><span>Master Registry</span></button>
+        <button class="nav-item" data-view="activations"><span class="nav-icon">⚡</span><span>Activations</span></button>
+        <button class="nav-item" data-view="rentalStock"><span class="nav-icon">▤</span><span>Rental Stock</span><span class="nav-badge" id="rentalStockNavBadge" hidden>0</span></button>
+        <button class="nav-item" data-view="audit"><span class="nav-icon">⇄</span><span>Audit Center</span></button>
+        <button class="nav-item" data-view="labels"><span class="nav-icon">▦</span><span>Labels</span></button>
+        <button class="nav-item" data-view="reports"><span class="nav-icon">◫</span><span>Reports</span></button>
+        <button class="nav-item" data-view="settings"><span class="nav-icon">⚙</span><span>Settings</span></button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="status-dot" id="cloudStatusDot"></div>
+        <div><strong id="cloudStatusTitle">Connecting to cloud</strong><span id="cloudStatusDetail">Checking shared data…</span></div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="menu-button" id="menuButton">☰</button>
+          <div>
+            <p class="eyebrow">West Texas Operations</p>
+            <h1 id="pageTitle">Dashboard</h1>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button class="cloud-sync-chip" id="cloudSyncButton" type="button" title="Check cloud sync status"><span class="cloud-sync-light"></span><span id="cloudSyncLabel">Connecting</span></button>
+          <div class="undo-controls">
+            <button class="secondary-button undo-button" id="undoButton" disabled title="Undo the last change">↶ Undo</button>
+            <button class="icon-button undo-history-button" id="undoHistoryButton" disabled aria-label="Open undo history" title="Undo history">▾</button>
+          </div>
+          <button class="secondary-button" id="openMasterImport" data-admin-only>Import Center</button>
+          <button class="primary-button" id="globalNewAccount">+ Add Account</button>
+          <button class="profile-button" id="profileButton" title="User menu">--</button>
+        </div>
+      </header>
+
+      <section class="view active" id="dashboardView">
+        <div class="welcome-panel">
+          <div>
+            <p class="eyebrow">Account overview</p>
+            <h2>Manage accounts first. Receivers follow the account.</h2>
+            <p>Open an account, add receivers by Asset Number, and verify every account stays at or below its 20-receiver limit.</p>
+          </div>
+          <button class="primary-button" data-open-view="accounts">Open Accounts</button>
+        </div>
+
+        <section class="stat-grid">
+          <article class="stat-card"><div class="stat-card-top"><span>Accounts</span><span class="stat-icon blue">◎</span></div><strong id="accountStat">0</strong><small>Open account sections</small></article>
+          <article class="stat-card"><div class="stat-card-top"><span>Assigned Receivers</span><span class="stat-icon green">✓</span></div><strong id="assignedStat">0</strong><small>Currently in accounts</small></article>
+          <article class="stat-card"><div class="stat-card-top"><span>Off Rent</span><span class="stat-icon purple">↘</span></div><strong id="offRentStat">0</strong><small>Review for deactivation</small></article>
+          <article class="stat-card"><div class="stat-card-top"><span>Capacity Warnings</span><span class="stat-icon red">!</span></div><strong id="capacityStat">0</strong><small>Accounts at 20 receivers</small></article>
+          <article class="stat-card"><div class="stat-card-top"><span>Audit Research</span><span class="stat-icon yellow">⇄</span></div><strong id="auditResearchStat">0</strong><small>Unresolved receiver mismatches</small></article>
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="panel">
+            <div class="panel-header"><div><p class="eyebrow">Working accounts</p><h3>Account Capacity</h3></div><button class="text-button" data-open-view="accounts">View all</button></div>
+            <div id="dashboardAccounts" class="dashboard-account-list"></div>
+          </article>
+
+          <aside class="dashboard-side">
+            <article class="panel quick-actions">
+              <div class="panel-header"><div><p class="eyebrow">Shortcuts</p><h3>Quick Actions</h3></div></div>
+              <button class="quick-action" id="quickNewAccount"><span class="quick-action-icon">＋</span><span><strong>Open new account</strong><small>Create an account and add receivers</small></span></button>
+              <button class="quick-action" data-open-view="master"><span class="quick-action-icon">▣</span><span><strong>Search master registry</strong><small>Find permanent receiver data</small></span></button>
+              <button class="quick-action" data-open-view="audit"><span class="quick-action-icon">⇄</span><span><strong>Import DirecTV audit</strong><small>Compare active receivers by account</small></span></button>
+            </article>
+          </aside>
+        </section>
+
+        <section class="panel rental-stock-alert" id="rentalStockAlert" hidden>
+          <div class="rental-stock-alert-copy">
+            <p class="eyebrow">Rental manager inventory</p>
+            <h3 id="rentalStockAlertTitle">Stock Running Low</h3>
+            <p id="rentalStockAlertDetail"></p>
+          </div>
+          <div class="rental-stock-alert-actions"><strong id="rentalStockAlertCount">0 remaining</strong><button class="primary-button" data-open-view="rentalStock">Open Rental Stock</button></div>
+        </section>
+
+        <section class="panel overdue-off-rent-panel">
+          <div class="panel-header">
+            <div><p class="eyebrow">Deactivation watch</p><h3>Off Rent Over 10 Days</h3></div>
+            <div class="overdue-header-actions">
+              <strong class="overdue-count" id="overdueOffRentCount">0 receivers</strong>
+              <button class="primary-button" id="generateDeactivationList" type="button" disabled>Generate List</button>
+            </div>
+          </div>
+          <p class="deactivation-help">Generate DirecTV deactivation requests in batches of no more than 10 receivers.</p>
+          <div class="table-wrap">
+            <table class="overdue-off-rent-table">
+              <thead><tr><th class="select-column"><input id="selectAllOverdue" type="checkbox" aria-label="Select all overdue receivers"></th><th>Asset</th><th>Model</th><th>Account</th><th>Last Location</th><th>Off Rent Since</th><th>Days</th></tr></thead>
+              <tbody id="overdueOffRentRows"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="overdueOffRentEmpty"><strong>No receivers currently require deactivation review</strong><span>Receivers will appear after the TQ report has shown them Off Rent for more than 10 days.</span></div>
+        </section>
+      </section>
+
+      <section class="view" id="accountsView">
+        <div class="page-toolbar">
+          <div>
+            <p class="eyebrow">Primary workspace</p>
+            <h2>Accounts</h2>
+            <p class="page-description">Each account can hold a maximum of 20 receivers. Open an account to add, move, or remove receivers.</p>
+          </div>
+          <button class="primary-button" id="accountsNewButton">+ Add Account</button>
+        </div>
+
+        <section class="capacity-panel" aria-labelledby="capacityTitle">
+          <div class="capacity-heading"><h3 id="capacityTitle">Receiver spaces</h3><p>All accounts · 20 paid spaces per account · totals stay visible when searching</p></div>
+          <div class="capacity-metrics">
+            <article><span>Paid spaces</span><strong id="accountPaidSpaces">0</strong><small id="accountPaidCount">0 accounts × 20</small></article>
+            <article><span>Active receivers</span><strong id="accountActiveReceivers">0</strong><small>Assigned to accounts</small></article>
+            <article class="capacity-on"><span>On rent</span><strong id="accountOnRentReceivers">0</strong><small>Active and earning rent</small></article>
+            <article class="capacity-off"><span>Active, off rent</span><strong id="accountOffRentReceivers">0</strong><small>Review for deactivation</small></article>
+            <article><span>Empty spaces now</span><strong id="accountEmptySpaces">0</strong><small>Unused paid capacity</small></article>
+          </div>
+          <div class="capacity-projection"><h4 id="accountConsolidationTitle">Account consolidation</h4><p id="accountConsolidationDetail"></p><p class="capacity-assumption">Estimate assumes all active Off Rent receivers are deactivated and the remaining receivers can be consolidated. Confirm account, location and service requirements before closing accounts.</p></div>
+          <p class="capacity-warning" id="accountCapacityWarning" role="status" hidden></p>
+        </section>
+
+        <div class="account-toolbar account-toolbar-row">
+          <div class="account-search-wrap">
+            <label class="search-field"><span>⌕</span><input id="accountSearch" type="search" placeholder="Search account, asset number, serial, card, or RID..."></label>
+            <div class="account-search-note">Receiver searches expand the account where the receiver is currently assigned.</div>
+          </div>
+          <div class="account-expand-actions">
+            <button class="secondary-button" id="expandAllAccounts">Expand All</button>
+            <button class="secondary-button" id="collapseAllAccounts">Collapse All</button>
+          </div>
+        </div>
+
+        <div class="account-row-list" id="accountCardGrid"></div>
+        <div class="empty-state standalone" id="accountEmpty" hidden><strong>No accounts found</strong><span>Create a new account or change your search.</span></div>
+      </section>
+
+      <section class="view" id="accountDetailView">
+        <div class="detail-heading">
+          <button class="secondary-button" id="backToAccounts">← Accounts</button>
+          <div class="detail-title">
+            <p class="eyebrow">Account workspace</p>
+            <h2 id="detailAccountNumber">Account</h2>
+            <p id="detailAccountName"></p>
+          </div>
+          <div class="detail-actions">
+            <button class="secondary-button" id="editAccountButton">Edit Account</button>
+            <button class="secondary-button" id="importAccountReceiversButton">Import Receivers</button>
+            <button class="primary-button" id="addReceiverButton">+ Add Receiver</button>
+          </div>
+        </div>
+
+        <section class="detail-stat-grid">
+          <article class="mini-stat"><span>Assigned</span><strong id="detailAssigned">0</strong></article>
+          <article class="mini-stat"><span>Available Slots</span><strong id="detailAvailable">20</strong></article>
+          <article class="mini-stat"><span>On Rent</span><strong id="detailOnRent">0</strong></article>
+          <article class="mini-stat"><span>Off Rent</span><strong id="detailOffRent">0</strong></article>
+        </section>
+
+        <div class="capacity-bar-wrap">
+          <div class="capacity-copy"><span>Account capacity</span><strong id="capacityCopy">0 of 20</strong></div>
+          <div class="capacity-bar"><div id="capacityFill"></div></div>
+          <div class="capacity-warning" id="capacityWarning" hidden>This account has reached the 20-receiver limit.</div>
+        </div>
+
+        <section class="panel account-receiver-panel">
+          <div class="panel-header">
+            <div><p class="eyebrow">Current assignment</p><h3>Receivers in this Account</h3></div>
+            <label class="search-field compact"><span>⌕</span><input id="receiverSearch" type="search" placeholder="Search receivers..."></label>
+          </div>
+          <div class="table-wrap">
+            <table class="receiver-table">
+              <thead><tr><th>Asset</th><th>Model</th><th>Access Card</th><th>RID</th><th>Serial</th><th>Rent</th><th></th></tr></thead>
+              <tbody id="receiverRows"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="receiverEmpty" hidden><strong>No receivers assigned</strong><span>Add one by typing its Asset Number.</span></div>
+        </section>
+      </section>
+
+      <section class="view" id="masterView">
+        <div class="page-toolbar">
+          <div>
+            <p class="eyebrow">Permanent receiver reference</p>
+            <h2>Master Registry</h2>
+            <p class="page-description">Every receiver the company has ever owned remains here permanently, whether assigned, removed, lost, or inactive.</p>
+          </div>
+          <button class="primary-button" id="masterAddButton">+ Add Receiver</button>
+        </div>
+
+        <div class="account-toolbar">
+          <label class="search-field"><span>⌕</span><input id="masterSearch" type="search" placeholder="Search asset, card, RID, serial, or model..."></label>
+        </div>
+
+        <section class="panel">
+          <div class="table-wrap">
+            <table class="receiver-table">
+              <thead><tr><th>Asset</th><th>Model</th><th>Access Card</th><th>RID</th><th>Serial</th><th>Current Account</th><th></th></tr></thead>
+              <tbody id="masterRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="activationsView">
+        <div class="page-toolbar">
+          <div>
+            <p class="eyebrow">Receiver service workflow</p>
+            <h2>Activations</h2>
+            <p class="page-description">Create activation or deactivation requests, track their progress, and keep a dated record of completed work.</p>
+          </div>
+          <div class="toolbar-actions">
+            <button class="secondary-button" id="refreshActivationsButton">↻ Refresh Requests</button>
+            <button class="primary-button" id="newActivationButton">+ New Request</button>
+          </div>
+        </div>
+
+        <section class="activation-summary-grid">
+          <article class="mini-stat"><span>Pending Requests</span><strong id="activationPendingCount">0</strong></article>
+          <article class="mini-stat"><span>Completed</span><strong id="activationCompletedCount">0</strong></article>
+          <article class="mini-stat"><span>Activations Pending</span><strong id="activationOnCount">0</strong></article>
+          <article class="mini-stat"><span>Deactivations Pending</span><strong id="activationOffCount">0</strong></article>
+        </section>
+
+        <section class="panel activation-panel">
+          <div class="activation-filter-row">
+            <label class="search-field"><span>⌕</span><input id="activationSearch" type="search" placeholder="Search asset, account, action, or notes..."></label>
+            <select id="activationStatusFilter">
+              <option value="all">All Requests</option>
+              <option value="Pending">Pending</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div class="table-wrap">
+            <table class="activation-table">
+              <thead><tr><th>Source</th><th>Asset</th><th>Account</th><th>Action</th><th>Requested</th><th>Status</th><th>Error / GPS</th><th>Completed</th><th>Notes</th><th></th></tr></thead>
+              <tbody id="activationRows"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="activationEmpty" hidden><strong>No activation requests found</strong><span>Create a request or change the current filter.</span></div>
+        </section>
+      </section>
+
+      <section class="view" id="labelsView">
+        <div class="page-toolbar">
+          <div>
+            <p class="eyebrow">Receiver identification</p>
+            <h2>Labels</h2>
+            <p class="page-description">Brother QL-820NWB · Combined receiver / service labels on DK-2212 · Barcode labels on DK-2211.</p>
+          </div>
+          <div class="label-page-actions">
+            <button class="secondary-button" id="clearLabelSelection">Clear Selection</button>
+            <button class="primary-button" id="printServiceLabelsButton" disabled>Print Receiver / Service · DK-2212</button>
+            <button class="primary-button" id="printLabelsButton" disabled>Print Barcodes · DK-2211</button>
+          </div>
+        </div>
+
+        <section class="panel service-link-panel">
+          <div>
+            <p class="eyebrow">Service QR destination</p>
+            <h3>GPS Service Request</h3>
+            <p>The QR code opens a public request screen with no login. GPS permission and an on-screen error code are required before the prefilled service email can be created.</p>
+          </div>
+          <div class="service-destination-card"><span>Testing recipient</span><strong>earrieta@tanmarcompanies.com</strong><small>Production recipient: dtvmid@tanmarcompanies.com</small></div>
+        </section>
+
+        <p class="label-print-help">Load the matching roll before each print job. Receiver / service: 62 mm roll, 150 mm cut. Barcode: 29 mm roll, 90 mm cut. Barcode: select your saved DK-2211 printer settings with Landscape orientation. Receiver / service: use its separate DK-2212 settings. Turn browser headers / footers off and use no margins. Check that the print preview shows one page per selected receiver.</p>
+
+        <div class="label-workspace">
+          <section class="panel label-picker-panel">
+            <div class="label-filter-row">
+              <label class="search-field"><span>⌕</span><input id="labelSearch" type="search" placeholder="Search asset, account, serial, card, or RID..."></label>
+              <select id="labelAccountFilter"><option value="all">All Accounts</option></select>
+              <label class="label-select-visible"><input type="checkbox" id="selectVisibleLabels">Select Visible</label>
+            </div>
+            <div class="label-selection-summary"><strong id="labelSelectedCount">0 selected</strong><span id="labelVisibleCount">0 receivers shown</span></div>
+            <div class="label-receiver-list" id="labelReceiverList"></div>
+            <div class="empty-state" id="labelReceiverEmpty" hidden><strong>No receivers found</strong><span>Change the search or account filter.</span></div>
+          </section>
+
+          <section class="panel label-preview-panel">
+            <div class="panel-header">
+              <div><p class="eyebrow">Print preview</p><h3>Receiver / Service + Barcode</h3></div>
+              <span class="label-sheet-note">Two labels per receiver · separate print jobs</span>
+            </div>
+            <div class="label-preview-grid" id="labelPreviewGrid"></div>
+            <div class="empty-state" id="labelPreviewEmpty"><strong>No labels selected</strong><span>Select receivers from the list to build the print sheet.</span></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="auditView">
+        <div class="page-toolbar">
+          <div>
+            <p class="eyebrow">DirecTV reconciliation</p>
+            <h2>Audit Center</h2>
+            <p class="page-description">Import the current DirecTV audit and compare active receivers against the receivers assigned to each account in the app.</p>
+          </div>
+          <div class="audit-page-actions">
+            <button class="secondary-button" id="printAuditButton" disabled>Print Discrepancies</button>
+            <button class="secondary-button" id="exportAuditButton" disabled>Export CSV</button>
+            <button class="primary-button" id="importAuditButton">Import Audit File</button>
+          </div>
+        </div>
+
+        <section class="audit-summary-grid">
+          <article class="mini-stat"><span>Accounts Checked</span><strong id="auditAccountsChecked">0</strong></article>
+          <article class="mini-stat"><span>Perfect Matches</span><strong id="auditPerfectMatches">0</strong></article>
+          <article class="mini-stat"><span>Accounts with Issues</span><strong id="auditIssueAccounts">0</strong></article>
+          <article class="mini-stat"><span>Unresolved Receivers</span><strong id="auditUnmatchedReceivers">0</strong></article>
+        </section>
+
+        <section class="panel audit-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Latest comparison</p>
+              <h3 id="auditFileLabel">No audit imported</h3>
+            </div>
+            <button class="secondary-button" id="clearAuditButton" disabled>Clear Results</button>
+          </div>
+
+          <div class="audit-empty" id="auditEmptyState">
+            <span class="placeholder-icon">⇄</span>
+            <h3>Import a DirecTV audit file</h3>
+            <p>The audit is matched to account assignments using Account Number plus Access Card and RID. The Master Registry is not used as the comparison list.</p>
+          </div>
+
+          <div id="auditResults" hidden>
+            <div class="audit-filter-row">
+              <label class="search-field">
+                <span>⌕</span>
+                <input id="auditSearch" type="search" placeholder="Search account number, account name, card, or RID...">
+              </label>
+              <select id="auditStatusFilter">
+                <option value="all">All Results</option>
+                <option value="perfect">Perfect Matches</option>
+                <option value="issues">Accounts with Issues</option>
+                <option value="needs-research">Needs Research</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="corrected">Corrected</option>
+                <option value="ignored">Ignored</option>
+              </select>
+            </div>
+
+            <div class="audit-account-list" id="auditAccountList"></div>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="reportsView">
+        <div class="page-toolbar">
+          <div>
+            <p class="eyebrow">Operations snapshot</p>
+            <h2>Reports</h2>
+            <p class="page-description">Review account capacity, receiver status, and the latest audit results. Export the account summary for Excel or print the report.</p>
+          </div>
+          <div class="report-actions">
+            <button class="secondary-button" id="printReportButton">Print Report</button>
+            <button class="primary-button" id="exportReportCsvButton">Export CSV</button>
+          </div>
+        </div>
+
+        <section class="report-stat-grid">
+          <article class="mini-stat"><span>Master Receivers</span><strong id="reportMasterCount">0</strong></article>
+          <article class="mini-stat"><span>Assigned</span><strong id="reportAssignedCount">0</strong></article>
+          <article class="mini-stat"><span>Unassigned</span><strong id="reportUnassignedCount">0</strong></article>
+          <article class="mini-stat"><span>Assigned Off Rent</span><strong id="reportOffRentCount">0</strong></article>
+        </section>
+
+        <section class="panel report-panel">
+          <div class="panel-header">
+            <div><p class="eyebrow">Account summary</p><h3>Receivers by Account</h3></div>
+            <span class="report-generated" id="reportGeneratedAt"></span>
+          </div>
+          <div class="table-wrap">
+            <table class="report-table">
+              <thead><tr><th>Account</th><th>Account Name</th><th>Office / Location</th><th>Assigned</th><th>On Rent</th><th>Off Rent</th><th>Available</th><th>Audit</th></tr></thead>
+              <tbody id="reportAccountRows"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="reportAccountEmpty" hidden><strong>No accounts available</strong><span>Import or create accounts to populate this report.</span></div>
+        </section>
+
+        <section class="panel report-panel">
+          <div class="panel-header">
+            <div><p class="eyebrow">Needs review</p><h3>Assigned Receivers Marked Off Rent</h3></div>
+          </div>
+          <div class="table-wrap">
+            <table class="report-table">
+              <thead><tr><th>Asset</th><th>Account</th><th>Account Name</th><th>Model</th><th>Access Card</th><th>RID</th></tr></thead>
+              <tbody id="reportOffRentRows"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="reportOffRentEmpty" hidden><strong>No assigned Off Rent receivers</strong><span>All assigned receivers are currently marked On Rent.</span></div>
+        </section>
+      </section>
+
+      <section class="view" id="rentalStockView">
+        <div class="page-toolbar">
+          <div><p class="eyebrow">Receiver checkout replacement</p><h2>Rental Manager Stock</h2><p class="page-description">Issue receiver batches to the rentals manager. Receivers leave available stock automatically when the TQ report marks them On Rent.</p></div>
+          <button class="primary-button" id="newRentalStockBatch">+ Issue Receiver Batch</button>
+        </div>
+        <section class="rental-stock-summary-grid">
+          <article class="mini-stat"><span>Available Stock</span><strong id="rentalStockAvailable">0</strong></article>
+          <article class="mini-stat"><span>Issued This Batch</span><strong id="rentalStockIssued">0</strong></article>
+          <article class="mini-stat"><span>Placed On Rent</span><strong id="rentalStockReleased">0</strong></article>
+          <article class="mini-stat"><span>Stock Status</span><strong id="rentalStockStatus">No Batch</strong></article>
+        </section>
+        <section class="panel rental-stock-panel">
+          <div class="panel-header"><div><p class="eyebrow">Current checkout</p><h3 id="rentalStockCurrentTitle">No Active Batch</h3></div><span class="report-generated" id="rentalStockIssuedDate"></span></div>
+          <div class="table-wrap"><table class="receiver-table rental-stock-table"><thead><tr><th>Asset</th><th>Model</th><th>Access Card</th><th>RID</th><th>Rent Status</th><th>Stock Status</th><th data-admin-only>Admin</th></tr></thead><tbody id="rentalStockRows"></tbody></table></div>
+          <div class="empty-state" id="rentalStockEmpty"><strong>No active stock batch</strong><span>Issue a receiver batch to begin tracking the rentals manager’s available inventory.</span></div>
+        </section>
+        <section class="panel rental-stock-history-panel"><div class="panel-header"><div><p class="eyebrow">Completed checkouts</p><h3>Batch History</h3></div></div><div id="rentalStockHistory" class="rental-stock-history"></div></section>
+      </section>
+
+      <section class="view" id="settingsView">
+        <div class="page-toolbar">
+          <div>
+            <p class="eyebrow">Data safety</p>
+            <h2>Settings</h2>
+            <p class="page-description">This version stores data in the current browser. Download a complete backup before clearing browser data or moving to another device.</p>
+          </div>
+        </div>
+
+        <section class="settings-grid">
+          <article class="panel settings-card">
+            <div class="settings-icon">↓</div>
+            <div>
+              <p class="eyebrow">Complete backup</p>
+              <h3>Download App Data</h3>
+              <p>Includes the Master Registry, accounts, assignments, activation history, and the latest audit results.</p>
+            </div>
+            <button class="primary-button" id="downloadBackupButton">Download Backup</button>
+          </article>
+
+          <article class="panel settings-card">
+            <div class="settings-icon">↑</div>
+            <div>
+              <p class="eyebrow">Restore or transfer</p>
+              <h3>Restore App Data</h3>
+              <p>Load a backup created by TanMar Receiver Control. Restoring replaces the data stored in this browser.</p>
+            </div>
+            <button class="secondary-button" id="restoreBackupButton" data-admin-only>Choose Backup</button>
+          </article>
+        </section>
+
+        <section class="panel storage-status-panel">
+          <div>
+            <p class="eyebrow">Shared storage</p>
+            <h3>TanMar Cloud Sync</h3>
+            <p id="cloudStorageDescription">Connecting this browser to the shared TanMar receiver records. Existing browser data will be migrated automatically when the cloud is empty.</p>
+          </div>
+          <span class="storage-status-badge cloud" id="cloudStorageBadge">Connecting</span>
+        </section>
+
+        <section class="panel recovery-panel" id="recoveryPanel" data-admin-only>
+          <div class="panel-header">
+            <div><p class="eyebrow">Data protection</p><h3>Cloud Recovery</h3></div>
+            <button class="secondary-button" id="refreshRecoveryButton" type="button">↻ Refresh</button>
+          </div>
+          <p class="recovery-help">The app automatically keeps the 25 most recent shared-data versions. Restoring creates a safety copy of the current version first.</p>
+          <div class="recovery-list" id="recoveryList">
+            <div class="empty-state"><strong>Loading recovery points</strong><span>Recent cloud versions will appear here.</span></div>
+          </div>
+        </section>
+
+        <section class="panel user-management-panel" id="userManagementPanel" data-admin-only>
+          <div class="panel-header">
+            <div><p class="eyebrow">Access control</p><h3>Authorized TanMar Users</h3></div>
+            <span class="storage-status-badge cloud">Administrator</span>
+          </div>
+          <form class="user-create-form" id="userCreateForm">
+            <label><span>Username</span><input id="newUserName" maxlength="40" pattern="[A-Za-z][A-Za-z0-9]{1,39}" placeholder="jdoe" autocapitalize="none" spellcheck="false" required></label>
+            <label><span>PIN</span><input id="newUserPin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" required></label>
+            <label><span>Permission</span><select id="newUserRole"><option value="user">Regular User</option><option value="admin">Administrator</option></select></label>
+            <button class="primary-button" type="submit">Add User</button>
+          </form>
+          <div class="user-list" id="userList"></div>
+        </section>
+
+        <section class="panel activity-panel" id="activityPanel" data-admin-only>
+          <div class="panel-header">
+            <div><p class="eyebrow">Employee accountability</p><h3>Recent Activity</h3></div>
+            <button class="secondary-button" id="refreshActivityButton" type="button">↻ Refresh</button>
+          </div>
+          <p class="activity-help">Search, filter, and export the latest 500 shared-data, user-access, and denied-permission events.</p>
+          <div class="activity-controls">
+            <label><span>Search</span><input id="activitySearch" type="search" placeholder="Username or action..."></label>
+            <label><span>Type</span><select id="activityTypeFilter"><option value="all">All Activity</option><option value="data">Data Changes</option><option value="user">User Management</option><option value="denied">Denied Attempts</option></select></label>
+            <label><span>From</span><input id="activityDateFrom" type="date"></label>
+            <label><span>Through</span><input id="activityDateTo" type="date"></label>
+            <button class="secondary-button" id="exportActivityButton" type="button">Export CSV</button>
+          </div>
+          <div class="activity-summary" id="activitySummary">Loading activity…</div>
+          <div class="activity-list" id="activityList">
+            <div class="empty-state"><strong>Loading activity</strong><span>Recent employee changes will appear here.</span></div>
+          </div>
+        </section>
+      </section>
+
+      <section class="view placeholder-view" id="placeholderView">
+        <div class="placeholder-card"><span class="placeholder-icon">◆</span><h2 id="placeholderTitle">Coming Soon</h2><p>This section is connected and ready for the next build.</p></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <div class="profile-menu" id="profileMenu" hidden>
+    <strong id="profileMenuName">Employee</strong>
+    <span id="profileMenuRole">Regular User</span>
+    <button class="secondary-button" id="signOutButton" type="button">Sign Out</button>
+  </div>
+
+  <aside class="undo-history-panel" id="undoHistoryPanel" hidden>
+    <div class="undo-history-header">
+      <div><p class="eyebrow">Change safety</p><h3>Undo History</h3></div>
+      <button class="icon-button" id="closeUndoHistory" aria-label="Close undo history">×</button>
+    </div>
+    <p class="undo-history-help">Choose any entry to reverse that change and every change made after it.</p>
+    <div class="undo-history-list" id="undoHistoryList"></div>
+    <div class="empty-state" id="undoHistoryEmpty"><strong>No changes to undo</strong><span>Your recent edits will appear here.</span></div>
+  </aside>
+
+  <div class="modal-backdrop" id="receiverInfoModal" hidden>
+    <section class="modal receiver-info-modal" role="dialog" aria-modal="true" aria-labelledby="receiverInfoAsset">
+      <div class="modal-header receiver-info-header">
+        <div>
+          <p class="eyebrow">Receiver information</p>
+          <h2 id="receiverInfoAsset">Receiver</h2>
+        </div>
+        <div class="receiver-info-header-actions">
+          <span class="receiver-status-indicator" id="receiverInfoStatus"><i></i><span>Status</span></span>
+          <button class="icon-button" data-close="receiverInfoModal" aria-label="Close receiver information">×</button>
+        </div>
+      </div>
+      <div class="receiver-info-body">
+        <div class="receiver-info-grid" id="receiverInfoGrid"></div>
+        <section class="receiver-history-section">
+          <div class="receiver-history-heading">
+            <div><p class="eyebrow">Last actions</p><h3>Receiver History</h3></div>
+            <button class="secondary-button receiver-history-toggle" id="receiverHistoryToggle" type="button">Full History</button>
+          </div>
+          <div class="receiver-history-list" id="receiverHistoryList"></div>
+          <div class="empty-state receiver-history-empty" id="receiverHistoryEmpty" hidden>
+            <strong>No receiver history yet</strong>
+            <span>Future account and service activity will appear here.</span>
+          </div>
+        </section>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="activationModal" hidden>
+    <section class="modal">
+      <div class="modal-header"><div><p class="eyebrow">Receiver service request</p><h2 id="activationModalTitle">New Activation Request</h2></div><button class="icon-button" data-close="activationModal">×</button></div>
+      <form id="activationForm">
+        <input type="hidden" id="activationEditId">
+        <div class="form-grid">
+          <label><span>Asset Number *</span><input id="activationAssetInput" required autocomplete="off" list="activationAssetOptions" placeholder="Type or scan asset number"></label>
+          <label><span>Action *</span><select id="activationActionInput" required><option value="Activate">Activate</option><option value="Deactivate">Deactivate</option></select></label>
+          <label><span>Request Date *</span><input id="activationDateInput" type="date" required></label>
+          <label><span>Requested By *</span><input id="activationRequesterInput" required autocomplete="name" placeholder="Employee or requester name"></label>
+          <label><span>Current Account</span><input id="activationAccountDisplay" readonly></label>
+        </div>
+        <label class="single-field activation-notes-field"><span>Notes</span><textarea id="activationNotesInput" rows="4" placeholder="Ticket number, contact, special instructions, or follow-up notes"></textarea></label>
+        <datalist id="activationAssetOptions"></datalist>
+        <div class="modal-actions"><button type="button" class="secondary-button" data-close="activationModal">Cancel</button><button class="primary-button" type="submit">Save Request</button></div>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="receiverEventModal" hidden>
+    <section class="modal small-modal receiver-event-modal" role="dialog" aria-modal="true" aria-labelledby="receiverEventTitle">
+      <div class="modal-header"><div><p class="eyebrow">Receiver history event</p><h2 id="receiverEventTitle">Event Details</h2></div><button class="icon-button" data-close="receiverEventModal" aria-label="Close event details">×</button></div>
+      <div class="receiver-event-body" id="receiverEventBody"></div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="rentalStockModal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="rentalStockModalTitle">
+      <div class="modal-header"><div><p class="eyebrow">Rental manager checkout</p><h2 id="rentalStockModalTitle">Issue Receiver Batch</h2></div><button class="icon-button" data-close="rentalStockModal">×</button></div>
+      <form id="rentalStockForm">
+        <div class="form-grid"><label><span>Rental Manager *</span><input id="rentalManagerName" required placeholder="Manager name"></label><label><span>Low Stock Warning *</span><input id="rentalStockThreshold" type="number" min="1" max="30" value="5" required></label></div>
+        <label class="single-field"><span>Receiver Asset Numbers *</span><textarea id="rentalStockAssets" rows="10" required placeholder="Paste or scan one asset number per line. A standard issue is 30 receivers."></textarea></label>
+        <div class="rental-stock-form-note" id="rentalStockFormNote">0 valid receivers entered</div>
+        <div class="modal-actions"><button type="button" class="secondary-button" data-close="rentalStockModal">Cancel</button><button class="primary-button" type="submit">Issue Batch</button></div>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="accountModal" hidden>
+    <section class="modal">
+      <div class="modal-header"><div><p class="eyebrow">Account record</p><h2 id="accountModalTitle">Add Account</h2></div><button class="icon-button" data-close="accountModal">×</button></div>
+      <form id="accountForm">
+        <input type="hidden" id="accountEditId">
+        <div class="form-grid">
+          <label><span>Account Number *</span><input id="accountNumberInput" required></label>
+          <label><span>Account Name *</span><input id="accountNameInput" required></label>
+          <label><span>Location</span><input id="accountLocationInput"></label>
+          <label><span>Office / Yard</span><input id="accountOfficeInput"></label>
+        </div>
+        <div class="modal-actions"><button type="button" class="secondary-button" data-close="accountModal">Cancel</button><button class="primary-button" type="submit">Save Account</button></div>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="assignModal" hidden>
+    <section class="modal small-modal">
+      <div class="modal-header"><div><p class="eyebrow">Account assignment</p><h2>Add Receiver</h2></div><button class="icon-button" data-close="assignModal">×</button></div>
+      <form id="assignForm">
+        <label class="single-field"><span>Asset Number *</span><input id="assignAssetInput" required autocomplete="off" placeholder="Type or scan asset number"></label>
+        <div class="lookup-result" id="lookupResult" hidden></div>
+        <div class="modal-actions"><button type="button" class="secondary-button" data-close="assignModal">Cancel</button><button class="primary-button" id="assignSubmit" type="submit">Add to Account</button></div>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="masterModal" hidden>
+    <section class="modal">
+      <div class="modal-header"><div><p class="eyebrow">Master receiver record</p><h2 id="masterModalTitle">Add Receiver to Master</h2></div><button class="icon-button" data-close="masterModal">×</button></div>
+      <form id="masterForm">
+        <input type="hidden" id="masterEditId">
+        <input type="hidden" id="assignAfterMaster" value="no">
+        <div class="form-grid">
+          <label><span>Asset Number *</span><input id="masterAssetInput" required autocomplete="off"></label>
+          <label><span>Model</span><input id="masterModelInput" autocomplete="off"></label>
+          <label><span>Access Card</span><input id="masterCardInput" autocomplete="off"></label>
+          <label><span>RID</span><input id="masterRidInput" autocomplete="off"></label>
+          <label><span>Serial Number</span><input id="masterSerialInput" autocomplete="off"></label>
+          <label><span>Receiver Type</span><input id="masterTypeInput" autocomplete="off"></label>
+          <label><span>Condition</span><select id="masterConditionInput"><option value="Good">Good</option><option value="Test">Test</option><option value="Bad">Bad</option></select></label>
+        </div>
+        <label class="single-field"><span>Receiver Notes</span><textarea id="masterNotesInput" rows="4" placeholder="Bad HDMI port, damaged power port, missing remote, testing required, or other receiver notes"></textarea></label>
+        <p class="scanner-help">Barcode scanning: Enter advances to the next field. Use Save Receiver when finished.</p>
+        <div class="modal-actions"><button type="button" class="secondary-button" data-close="masterModal">Cancel</button><button class="primary-button" id="masterSaveButton" type="submit">Save Receiver</button></div>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="moveModal" hidden>
+    <section class="modal small-modal">
+      <div class="modal-header"><div><p class="eyebrow">Receiver assignment</p><h2>Move Receiver</h2></div><button class="icon-button" data-close="moveModal">×</button></div>
+      <form id="moveForm">
+        <input type="hidden" id="moveAssetId">
+        <label class="single-field"><span>Move to Account</span><select id="moveAccountSelect" required></select></label>
+        <div class="modal-actions"><button type="button" class="secondary-button" data-close="moveModal">Cancel</button><button class="primary-button" type="submit">Move Receiver</button></div>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="accountImportModal" hidden>
+    <section class="modal import-modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Bulk account setup</p>
+          <h2>Import Receivers to Account</h2>
+        </div>
+        <button class="icon-button" data-close="accountImportModal">×</button>
+      </div>
+
+      <div class="import-body">
+        <section id="accountImportStart">
+          <div class="import-instructions">
+            <h3>Upload a CSV for this account</h3>
+            <p>The file may include Asset Number, Model, Access Card, RID, Serial Number, and Receiver Type. Existing Master Registry records are reused. New receivers are added to the Master Registry automatically.</p>
+            <p class="import-rule">The account cannot exceed 20 assigned receivers.</p>
+          </div>
+
+          <button class="primary-button" id="chooseAccountImportFile">Choose CSV File</button>
+        </section>
+
+        <section id="accountImportPreview" hidden>
+          <div class="import-preview-header">
+            <div>
+              <p class="eyebrow">Import preview</p>
+              <h3 id="accountImportFileName">File name</h3>
+            </div>
+            <button class="secondary-button" id="cancelAccountImportPreview">Cancel</button>
+          </div>
+
+          <div class="import-summary-grid">
+            <article><span>Rows Read</span><strong id="accountImportRows">0</strong></article>
+            <article><span>New to Master</span><strong id="accountImportNew">0</strong></article>
+            <article><span>Ready to Assign</span><strong id="accountImportReady">0</strong></article>
+            <article><span>Warnings</span><strong id="accountImportWarnings">0</strong></article>
+          </div>
+
+          <div class="import-message" id="accountImportMessage"></div>
+
+          <div class="table-wrap import-preview-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Asset</th>
+                  <th>Master Registry</th>
+                  <th>Assignment</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="accountImportPreviewRows"></tbody>
+            </table>
+          </div>
+
+          <div class="modal-actions">
+            <button class="secondary-button" id="backToAccountImportStart">Back</button>
+            <button class="primary-button" id="applyAccountImport">Apply Import</button>
+          </div>
+        </section>
+      </div>
+    </section>
+  </div>
+
+  <input type="file" id="accountImportFileInput" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" hidden>
+  <div class="modal-backdrop" id="auditImportModal" hidden>
+    <section class="modal import-modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">DirecTV reconciliation</p>
+          <h2>Import Audit File</h2>
+        </div>
+        <button class="icon-button" data-close="auditImportModal">×</button>
+      </div>
+
+      <div class="import-body">
+        <section id="auditImportStart">
+          <div class="import-instructions">
+            <h3>Choose the current DirecTV audit file</h3>
+            <p>The file should contain Account Number and at least one receiver identifier: Access Card or RID. The app compares the audit only against receivers currently assigned to each account.</p>
+            <p class="import-rule">A perfect account must have the same count and the same receivers on both sides.</p>
+          </div>
+          <button class="primary-button" id="chooseAuditFile">Choose Audit File</button>
+        </section>
+
+        <section id="auditImportPreview" hidden>
+          <div class="import-preview-header">
+            <div>
+              <p class="eyebrow">Audit preview</p>
+              <h3 id="auditImportFileName">File name</h3>
+            </div>
+            <button class="secondary-button" id="cancelAuditPreview">Cancel</button>
+          </div>
+
+          <div class="import-summary-grid">
+            <article><span>Rows Read</span><strong id="auditRowsRead">0</strong></article>
+            <article><span>Accounts Found</span><strong id="auditAccountsFound">0</strong></article>
+            <article><span>Valid Rows</span><strong id="auditValidRows">0</strong></article>
+            <article><span>Skipped Rows</span><strong id="auditSkippedRows">0</strong></article>
+          </div>
+
+          <div class="import-message" id="auditImportMessage"></div>
+
+          <div class="table-wrap import-preview-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th>Access Card</th>
+                  <th>RID</th>
+                  <th>Preview Result</th>
+                </tr>
+              </thead>
+              <tbody id="auditImportPreviewRows"></tbody>
+            </table>
+          </div>
+
+          <div class="modal-actions">
+            <button class="secondary-button" id="backToAuditStart">Back</button>
+            <button class="primary-button" id="runAuditButton">Run Audit</button>
+          </div>
+        </section>
+      </div>
+    </section>
+  </div>
+
+  <input type="file" id="auditFileInput" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" hidden>
+
+  <div class="modal-backdrop" id="dataImportModal" hidden>
+    <section class="modal import-modal">
+      <div class="modal-header">
+        <div><p class="eyebrow">Receiver data management</p><h2>Import Center</h2></div>
+        <button class="icon-button" data-close="dataImportModal">×</button>
+      </div>
+      <div class="import-body">
+        <section id="dataImportChoices">
+          <div class="import-choice-grid">
+            <article class="import-choice">
+              <span class="import-choice-icon">▣</span>
+              <h3>Master Registry XLSX</h3>
+              <p>Import permanent receiver information from the <strong>Master</strong> sheet. Account assignments are preserved.</p>
+              <button class="primary-button" id="chooseMasterXlsx">Choose XLSX</button>
+            </article>
+            <article class="import-choice">
+              <span class="import-choice-icon">◎</span>
+              <h3>West Texas XLSX</h3>
+              <p>Import accounts and assigned receivers from the <strong>West Texas</strong> sheet. Missing receivers are added to Master.</p>
+              <button class="primary-button" id="chooseWtxXlsx">Choose XLSX</button>
+            </article>
+            <article class="import-choice">
+              <span class="import-choice-icon">↻</span>
+              <h3>TQ Report CSV</h3>
+              <p>Daily update that changes only <strong>On Rent / Off Rent</strong>. Company-wide rows outside the local Master Registry are ignored.</p>
+              <button class="primary-button" id="chooseTqCsv">Choose CSV</button>
+            </article>
+          </div>
+
+          <div class="reset-data-panel">
+            <div>
+              <p class="eyebrow">Testing tools</p>
+              <h3>Clear App Data</h3>
+              <p>Remove all accounts, assignments, Master Registry records, audit results, and test entries so you can begin with imported data only.</p>
+            </div>
+            <button class="danger-button" id="clearAllAppData" data-admin-only>Clear All App Data</button>
+          </div>
+        </section>
+
+        <section id="dataImportPreview" hidden>
+          <div class="import-preview-header">
+            <div><p class="eyebrow" id="dataImportType">Import preview</p><h3 id="dataImportFileName">File</h3></div>
+            <button class="secondary-button" id="cancelDataImport">Cancel</button>
+          </div>
+          <div class="import-summary-grid">
+            <article><span>Rows Read</span><strong id="dataRowsRead">0</strong></article>
+            <article><span>New</span><strong id="dataNewCount">0</strong></article>
+            <article><span>Updates</span><strong id="dataUpdateCount">0</strong></article>
+            <article><span>Warnings</span><strong id="dataWarningCount">0</strong></article>
+          </div>
+          <div class="import-message" id="dataImportMessage"></div>
+          <div class="table-wrap import-preview-table-wrap">
+            <table>
+              <thead><tr><th>Record</th><th>Action</th><th>Details</th></tr></thead>
+              <tbody id="dataImportPreviewRows"></tbody>
+            </table>
+          </div>
+          <div class="modal-actions">
+            <button class="secondary-button" id="backToDataImportChoices">Back</button>
+            <button class="primary-button" id="applyDataImport">Apply Import</button>
+          </div>
+        </section>
+      </div>
+    </section>
+  </div>
+
+  <input type="file" id="masterXlsxInput" accept=".xlsx,.xls" hidden>
+  <input type="file" id="wtxXlsxInput" accept=".xlsx,.xls" hidden>
+  <input type="file" id="tqCsvInput" accept=".csv,text/csv" hidden>
+  <input type="file" id="backupFileInput" accept=".json,application/json" hidden>
+
+  <div class="modal-backdrop" id="deactivationListModal" hidden>
+    <section class="modal deactivation-modal">
+      <div class="modal-header">
+        <div><p class="eyebrow">DirecTV request</p><h2>Receiver Deactivation List</h2></div>
+        <button class="icon-button" data-close="deactivationListModal" aria-label="Close">×</button>
+      </div>
+      <div class="deactivation-modal-body">
+        <div class="deactivation-batch-bar">
+          <div>
+            <strong id="deactivationBatchTitle">Batch 1</strong>
+            <span id="deactivationBatchSummary">Up to 10 receivers per request</span>
+          </div>
+          <label id="deactivationBatchPickerWrap" hidden><span>Batch</span><select id="deactivationBatchPicker"></select></label>
+        </div>
+        <label class="deactivation-recipient">
+          <span>DirecTV email address</span>
+          <input id="directvRecipientEmail" type="email" placeholder="Enter the DirecTV service email">
+          <small>Saved only on this device. It is used to open a prepared email draft.</small>
+        </label>
+        <textarea id="deactivationEmailText" class="deactivation-email-text" readonly aria-label="Generated deactivation email"></textarea>
+        <div class="modal-actions deactivation-actions">
+          <button class="secondary-button" id="copyDeactivationList" type="button">Copy Email</button>
+          <button class="primary-button" id="openDeactivationEmail" type="button">Open Email Draft</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="vendor/qrcode.js"></script>
+  <script src="vendor/jsbarcode.min.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js?v=58"></script>
+</body>
+</html>
