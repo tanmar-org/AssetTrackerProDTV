@@ -100,7 +100,7 @@ POST remains public and still needs the pending abuse/asset validation work.
 Set the non-secret label destination in `public/asset-tracker/config.js` to the
 approved reachable QR HTTPS URL before printing real labels (HOST-03/QR-01).
 
-## Provision, build, and run
+## Provision
 
 Follow the root README to install both lockfiles and configure each private file.
 Apply migrations in both apps, then provision the first tracker administrator in
@@ -108,6 +108,38 @@ a terminal. The operator command hides PIN echo and uses bound parameters; it
 writes no temporary SQL file. A table lock precedes the empty-user check, because
 a conditional INSERT alone cannot serialize concurrent PostgreSQL provisioners.
 Any existing user blocks bootstrap; HTTP setup remains unavailable.
+
+## Account security and upgrades
+
+Run root `npm run db:migrate` with the tracker schema-owner connection before
+running this version. Migration `0002_access_constraints.sql` adds hash/salt/token
+format checks, a 0–4 failure-counter bound, and a session-user lookup index. It
+requires no new table grants and does not rewrite credentials or copy D1 data.
+If existing/imported rows violate these checks, the migration rolls back and the
+operator must reconcile those rows through the authorized migration plan; do not
+bypass constraints or edit an applied migration. The QR schema is unchanged.
+
+Login holds a PostgreSQL user-row lock through PIN verification and session
+insertion. Five failed attempts lock that account for 15 minutes, including
+concurrent requests across Node processes. Expired sessions for the account are
+pruned on successful login. Access endpoints require JSON objects of at most
+4 KiB; PINs remain strings to preserve leading zeroes. Unambiguous legacy display
+names can still resolve to normalized login aliases, without renaming on login.
+Correct ambiguous aliases through user administration before importing accounts.
+
+Account changes serialize administrator checks and preserve at least one active
+administrator. PIN resets, role changes, and activation changes revoke all sessions
+for the target, requiring a fresh login; reactivation never revives old sessions.
+Resetting your own PIN/changing your own role clears your cookie and reloads the
+staff sign-in gate. Unlocking alone does not revoke sessions. Account changes,
+revocation, and audit writes share one transaction; audit failure cancels the change.
+
+These protections retain the existing 4–8 digit PIN policy and 12-hour sessions.
+Company SSO/outer access controls, broader traffic throttling, browser cache
+cleanup on shared devices, and inventory permission/schema enforcement remain
+AUTH-01/DATA-04/SEC-03 tasks before deployment.
+
+## Build and run
 
 Run `npm test` and `npm run typecheck` in each app. Build artifacts are in `.next/`;
 public assets are served directly from each `public/` directory. Builds use system

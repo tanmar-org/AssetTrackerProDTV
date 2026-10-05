@@ -1,4 +1,5 @@
 import { database } from "./database.ts";
+import type { Database } from "@tanmar/database";
 
 export type SessionUser = {
   id: string;
@@ -66,18 +67,24 @@ function cookieValue(request: Request, name: string) {
   const cookie = request.headers.get("cookie") || "";
   for (const part of cookie.split(";")) {
     const [key, ...value] = part.trim().split("=");
-    if (key === name) return decodeURIComponent(value.join("="));
+    if (key === name) {
+      // Malformed/foreign cookies are unauthenticated input, not server errors.
+      try {
+        const token = decodeURIComponent(value.join("="));
+        return /^[a-f0-9]{64}$/.test(token) ? token : "";
+      } catch { return ""; }
+    }
   }
   return "";
 }
 
 // Only the token hash is stored. Join against the current user record so account
 // deactivation and role changes apply to existing sessions on their next request.
-export async function getSessionUser(request: Request): Promise<SessionUser | null> {
+export async function getSessionUser(request: Request, connection?: Database): Promise<SessionUser | null> {
   const token = cookieValue(request, SESSION_COOKIE);
   if (!token) return null;
   const tokenHash = await sha256(token);
-  const row = await db().prepare(
+  const row = await (connection ?? db()).prepare(
     `SELECT u.id, u.name, u.role
      FROM app_sessions s JOIN app_users u ON u.id = s.user_id
      WHERE s.token_hash = $1 AND s.expires_at > $2 AND u.active = 1`,
@@ -85,11 +92,11 @@ export async function getSessionUser(request: Request): Promise<SessionUser | nu
   return row || null;
 }
 
-export async function requireUser(request: Request, role?: "admin") {
-  const user = await getSessionUser(request);
+export async function requireUser(request: Request, role?: "admin", connection?: Database) {
+  const user = await getSessionUser(request, connection);
   if (!user) return { user: null, response: Response.json({ error: "Sign in required." }, { status: 401 }) };
   if (role === "admin" && user.role !== "admin") {
-    await db().prepare(
+    await (connection ?? db()).prepare(
       "INSERT INTO app_change_log (id, user_id, user_name, action, created_at) VALUES ($1, $2, $3, $4, $5)",
     ).bind(
       crypto.randomUUID(),
@@ -105,11 +112,13 @@ export async function requireUser(request: Request, role?: "admin") {
 
 // The browser receives a 12-hour bearer cookie; HttpOnly keeps it out of client
 // JavaScript and Secure requires HTTPS outside localhost development handling.
-export async function createSession(userId: string) {
+// Login supplies its transaction so session issuance and account checks commit
+// together. PIN/role updates lock the same user row before revoking sessions.
+export async function createSession(userId: string, connection: Database = db()) {
   const token = randomHex(32);
   const now = new Date();
   const expires = new Date(now.getTime() + 12 * 60 * 60 * 1000);
-  await db().prepare(
+  await connection.prepare(
     "INSERT INTO app_sessions (id, user_id, token_hash, expires_at, created_at) VALUES ($1, $2, $3, $4, $5)",
   ).bind(crypto.randomUUID(), userId, await sha256(token), expires.toISOString(), now.toISOString()).run();
   return {

@@ -3473,6 +3473,9 @@ $("userList").addEventListener("click",async event=>{
     });
     const result=await response.json();
     if(!response.ok)throw new Error(result.error||"Unable to update user.");
+    // A self PIN reset or role change revokes this session on the server.
+    // Reload into the sign-in gate before issuing more administrator requests.
+    if(result.reauthenticate){location.reload();return;}
     await loadUsers();
     await loadActivity();
     toast(unlockButton?"User account unlocked.":toggleButton?"User access updated.":"User record saved.");

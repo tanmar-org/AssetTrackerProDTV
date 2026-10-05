@@ -96,6 +96,14 @@ updates, JSONB round trips/key-order comparisons, competing writes, rollback of
 failed audit inserts, no orphan history on rejected updates, revision-protected
 recovery, QR requests, staff proxy/status/tombstones, and readiness.
 
+Account-security tests also exercise concurrent wrong-PIN lockouts, PIN-reset/login
+races, all-session revocation, concurrent last-admin demotions, authorization after
+waiting on a transaction lock, and account/audit/session rollback. Existing-row
+upgrades test migration failure/retry without credential rewrites. Unit checks
+cover chunked UTF-8 body limits and malformed cookies before database work.
+The existing PIN policy/outer company authentication and shared-device cache
+behavior still need owner decisions/further implementation; see AUTH-01/DATA-04.
+
 ## Finishing implementation
 
 Review diffs and `git diff --check`; run checks appropriate to the change. Update
