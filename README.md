@@ -48,6 +48,7 @@ Initialize and start the tracker:
 
 ```bash
 npx wrangler d1 migrations apply DB --local --config wrangler.local.json --persist-to .wrangler/state
+npm run admin:provision
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
@@ -62,7 +63,19 @@ npx wrangler d1 migrations apply DB --local --config wrangler.local.json --persi
 npm run dev -- --host 127.0.0.1 --port 5174
 ```
 
-Open `http://localhost:5173/` and create the first administrator with a new test PIN. Use an isolated browser profile. The QR form is at `http://localhost:5174/`; it reads the full receiver details from a generated service-label URL for the test email, displays only the asset number, and requires location permission. Phone scans need a reachable HTTPS service address instead of localhost.
+The tracker provisioning command requires an interactive terminal and prompts for
+the initial administrator username and a new test PIN without echoing the PIN.
+It targets local D1 only and refuses to add or change accounts once any user exists.
+For a different local persistence directory, pass `--persist-to DIRECTORY` to both
+the migration command and `npm run admin:provision -- --persist-to DIRECTORY`.
+See [the development guide](docs/DEVELOPMENT.md#initial-administrator-provisioning).
+
+Open `http://localhost:5173/` and sign in with the provisioned account. The website
+cannot create the first administrator; an empty database displays a setup-required
+message. Use an isolated browser profile. The QR form is at `http://localhost:5174/`;
+it reads the full receiver details from a generated service-label URL for the test
+email, displays only the asset number, and requires location permission. Phone scans
+need a reachable HTTPS service address instead of localhost.
 
 ## Build
 

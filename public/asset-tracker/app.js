@@ -56,7 +56,7 @@ let currentReceiverInfoId=null;
 let receiverHistoryExpanded=false;
 let pendingAuditIssueId=null;
 let currentUser=null;
-let authNeedsSetup=false;
+let authNeedsProvisioning=false;
 let currentCloudAction="Data change";
 let activityRecords=[];
 let cloudRevision=0;
@@ -3245,15 +3245,18 @@ function applyUserAccess(user){
   $("authGate").hidden=true;
 }
 
-function showAuthGate(needsSetup=false,message=""){
-  authNeedsSetup=needsSetup;
+// Empty databases require an operator-created admin; the public UI never offers
+// account creation. Existing staff accounts keep the normal sign-in flow.
+function showAuthGate(needsProvisioning=false,message=""){
+  authNeedsProvisioning=needsProvisioning;
   document.body.classList.add("auth-locked");
   $("authGate").hidden=false;
-  $("authTitle").textContent=needsSetup?"Create Initial Administrator":"Employee Sign In";
-  $("authDescription").textContent=needsSetup
-    ?"Create the first administrator username using first initial plus last name, such as jdoe."
+  $("authForm").hidden=needsProvisioning;
+  $("authTitle").textContent=needsProvisioning?"Administrator Setup Required":"Employee Sign In";
+  $("authDescription").textContent=needsProvisioning
+    ?"Contact your administrator to finish setup before signing in."
     :"Enter your username and PIN to continue.";
-  $("authSubmit").textContent=needsSetup?"Create Administrator":"Sign In";
+  $("authSubmit").textContent="Sign In";
   $("authError").hidden=!message;
   $("authError").textContent=message;
   $("authPin").value="";
@@ -3268,7 +3271,7 @@ async function initializeAccess(){
       applyUserAccess(result.user);
       await initializeCloudSync();
     }else{
-      showAuthGate(Boolean(result.needsSetup));
+      showAuthGate(Boolean(result.needsProvisioning));
     }
   }catch(error){
     showAuthGate(false,error.message||"Access service unavailable.");
@@ -3277,6 +3280,7 @@ async function initializeAccess(){
 
 $("authForm").addEventListener("submit",async event=>{
   event.preventDefault();
+  if(authNeedsProvisioning)return;
   $("authSubmit").disabled=true;
   $("authError").hidden=true;
   try{
@@ -3284,7 +3288,7 @@ $("authForm").addEventListener("submit",async event=>{
       method:"POST",
       headers:{"content-type":"application/json"},
       body:JSON.stringify({
-        action:authNeedsSetup?"setup":"login",
+        action:"login",
         name:$("authName").value.trim(),
         pin:$("authPin").value
       })
@@ -3294,7 +3298,7 @@ $("authForm").addEventListener("submit",async event=>{
     applyUserAccess(result.user);
     await initializeCloudSync();
   }catch(error){
-    showAuthGate(authNeedsSetup,error.message||"Unable to sign in.");
+    showAuthGate(authNeedsProvisioning,error.message||"Unable to sign in.");
   }finally{
     $("authSubmit").disabled=false;
   }

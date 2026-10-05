@@ -45,6 +45,10 @@ The journal records current evidence; older handoff statements may be stale.
   `db/index.ts` is insufficient.
 - The tracker stores most operational collections as one JSON state payload.
   The QR application stores service requests in a separate database.
+- Initial administrator creation is operator-only: migrate an isolated local D1
+  database, then run `npm run admin:provision` in a terminal. Never reintroduce
+  public HTTP bootstrap or pass PINs as command arguments. The provisioning adapter
+  must be ported with the selected production backend during HOST-02.
 - Current QR links and mail drafts carry receiver/account metadata. Automatic
   server email and a Monday reporting job are not implemented.
 - An account-password value was removed from a public template under SEC-01.
