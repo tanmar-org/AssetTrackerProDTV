@@ -17,9 +17,9 @@ decisions. The owner reviews and merges all changes from `Dev/` branches.
   QR/email, and frontend flows without changing executable behavior.
 - [x] QA-00 — Run baseline builds/tests and relevant static checks. Record failures
   and limitations honestly rather than silently fixing unrelated application code.
-- [ ] PR-01 — Commit and push `Dev/project-foundation`; open a PR against `main`.
+- [x] PR-01 — Commit and push `Dev/project-foundation`; open a PR against `main`.
   Branch is committed and pushed with explicit owner approval of public publication.
-  PR creation remains pending.
+  [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3) is open for owner review.
 - [ ] OWNER-01 — Owner performs final review and merges the foundation PR.
 
 ## Before public deployment — security and dependency blockers

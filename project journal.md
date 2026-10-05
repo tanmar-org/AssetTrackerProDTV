@@ -6,11 +6,13 @@
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
 - Development branch: `Dev/project-foundation`.
 - Publication status: owner explicitly approved public publication; the branch is
-  pushed. PR creation is pending.
+  pushed. [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3) is open
+  for owner review and merging.
 - Working copy on the hosting VM: `/home/itadmin/projects/AssetTrackerProDTV`.
 - Owner reviews and merges all PRs. Agents may push `Dev/` branches and open PRs.
-- Current phase: documentation, explanatory comments, and developer setup. Project
-  corrections and production deployment have not started.
+- Current phase: documentation, explanatory comments, and developer setup completed;
+  foundation PR awaits owner review. Project corrections and production deployment
+  have not started.
 - Next task: after owner review, agree on the hosting architecture and work through
   the prioritized [TODO list](TODO.md). Start with exposed credentials, repository
   visibility, dependency remediation, and server-side permission boundaries.
@@ -174,6 +176,8 @@ Repository visibility remains public; no settings were changed by the agent.
 
 The prepared development branch has been pushed successfully.
 
-Pending: open the PR and record its URL.
-The owner then reviews and merges; deployment and functional corrections remain
-separate tasks.
+[PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3) opened on 2026-10-05,
+targeting `main` from `Dev/project-foundation`. Foundation task PR-01 is complete.
+The owner performs final review and merging (OWNER-01); deployment and functional
+corrections remain separate tasks. The prior build/test results still apply because
+the final update only records PR status and its link.
