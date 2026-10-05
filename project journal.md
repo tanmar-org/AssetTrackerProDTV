@@ -9,7 +9,8 @@
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
-  were merged by the owner. The SEC-02 provisioning PR is being prepared.
+  were merged by the owner. SEC-02 provisioning
+  [PR #6](https://github.com/tanmar-org/AssetTrackerProDTV/pull/6) is open for review.
 - Active working copy on the hosting VM:
   `/home/itadmin/projects/AssetTrackerProDTV-security-cleanup`.
 - Owner reviews and merges all PRs. Agents may push `Dev/` branches and open PRs.
@@ -285,7 +286,9 @@ stripping so the shared helper works with the declared Node 22.13+ minimum.
 No live database or production account was created or altered. The production
 provisioning adapter must be ported with the selected backend under HOST-02.
 
-SEC-02 implementation is complete. Pending: push/open the owner-reviewed PR, then
+SEC-02 implementation is complete and pushed in
+[PR #6](https://github.com/tanmar-org/AssetTrackerProDTV/pull/6), targeting `main`.
+Pending: owner review/merge, then
 continue explicit server permissions (SEC-03), account lifecycle hardening (AUTH-01),
 and dependency cleanup. Credential rotation/validity under SEC-01-OWNER still awaits
 owner confirmation.

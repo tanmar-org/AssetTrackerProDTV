@@ -56,7 +56,8 @@ decisions. The owner reviews and merges all changes from `Dev/` branches.
   provisioning; test fresh DB, concurrent requests, and already-initialized DB.
   Implemented on `Dev/controlled-admin-provisioning`: HTTP setup always returns
   403; the local operator command inserts only into an empty user table. Build and
-  all 14 tests passed, plus fresh/repeated local D1 CLI checks. Owner review pending.
+  all 14 tests passed, plus fresh/repeated local D1 CLI checks.
+  [PR #6](https://github.com/tanmar-org/AssetTrackerProDTV/pull/6) awaits owner review.
 - [ ] SEC-03 — Enforce explicit server permissions and record schemas. Include
   rental stock, bulk edits, restore/clear operations, assignment uniqueness, account
   capacity, and identifier/link validation. Client action labels must not grant
