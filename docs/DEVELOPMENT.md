@@ -26,8 +26,8 @@ Git fetch/push uses the repository's dedicated SSH alias and deploy key. This
 checkout's `core.sshCommand` uses the user's SSH configuration explicitly. Those
 machine-local settings and keys are not repository files. GitHub CLI API operations
 need separate authentication (`gh auth login`); an SSH deploy key does not authorize
-PR creation through the API. The connected GitHub tool can create PRs for this
-repository without persisting its credentials on the VM.
+PR creation through the API. Use an authorized GitHub integration or CLI account
+for PR operations; never paste access tokens or passwords into chat.
 
 ## Install dependencies
 

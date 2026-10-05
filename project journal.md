@@ -5,8 +5,8 @@
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
 - Development branch: `Dev/project-foundation`.
-- Publication status: owner explicitly approved publishing these documents to the
-  public repository on 2026-10-05; branch push and PR creation are in progress.
+- Publication status: owner explicitly approved public publication; the branch is
+  pushed. PR creation is pending.
 - Working copy on the hosting VM: `/home/itadmin/projects/AssetTrackerProDTV`.
 - Owner reviews and merges all PRs. Agents may push `Dev/` branches and open PRs.
 - Current phase: documentation, explanatory comments, and developer setup. Project
@@ -138,8 +138,8 @@ Passwordless sudo is unavailable. Installed official SHA-256-verified Node
 `~/.local/share/assettracker-tools/`, with links in `~/.local/bin/` already on PATH.
 No root-level server services were provisioned. Project-local author identity is
 `Codex <codex@localhost>` to distinguish automated commits from the owner's identity.
-GitHub's connected account can create PRs; the VM CLI still requires its own API
-authentication for CLI PR commands, while Git push uses the SSH deploy key.
+CLI PR commands require separate API authentication, while Git push uses the SSH
+deploy key. Use an authorized GitHub integration or CLI account for PR operations.
 
 Both connected GitHub metadata and an unauthenticated GitHub repository API request
 confirmed `private: false` / public visibility. No visibility change was made.
@@ -172,5 +172,8 @@ The owner subsequently stated: "I approve pushing these documents to the public
 repository." This explicitly authorizes publication of this foundation payload.
 Repository visibility remains public; no settings were changed by the agent.
 
-Pending: push this branch, open the PR, and record its URL. The owner then reviews and merges;
-deployment and functional corrections remain separate tasks.
+The prepared development branch has been pushed successfully.
+
+Pending: open the PR and record its URL.
+The owner then reviews and merges; deployment and functional corrections remain
+separate tasks.
