@@ -48,6 +48,19 @@ The journal records current evidence; older handoff statements may be stale.
 - The tracker retains operational collections as a JSONB state document. State,
   history, and audit writes share a transaction/advisory lock; recovery requires
   an expected revision. The QR application has its own request database.
+- Inventory PUT is administrator-only replacement; PATCH permits checked everyday
+  edits using actual persisted differences, never client action labels. Use
+  `lib/inventory-state.ts` for reads/saves/recovery schemas and
+  `lib/inventory-permissions.ts` for ordinary changes. Include rental stock in
+  validation/export/Undo/clear. See [inventory policy](docs/INVENTORY-PERMISSIONS.md).
+- State/recovery take account lock `728303` before state lock `728302`, recheck
+  sessions/roles after waiting, and hold authorization through commit. Preserve
+  this lock order. QR proxy deletion requires an admin; its upstream call is
+  bounded to five seconds and uses the same account-authorization lock.
+- Regular browser operations queue separately. A permanent rejection/conflict
+  pauses sync and retains the draft for export; do not silently overwrite it or
+  resume failed operations after loading another revision/user. Durable conflict
+  handling and shared-device caches remain DATA-01/DATA-04 work.
 - Apply PostgreSQL migrations from `migrations/` with an operator connection;
   web requests never run DDL. `drizzle/` directories are historical D1 records,
   not the current migration source. Follow [self-hosting setup](docs/SELF-HOSTING.md).

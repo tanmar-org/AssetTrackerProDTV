@@ -63,6 +63,11 @@ let cloudRevision=0;
 let cloudReady=false;
 let cloudSaving=false;
 let cloudQueued=false;
+// Preserve each regular-user operation while another request is in flight.
+// A single coalesced document could otherwise become a forbidden bulk edit.
+let cloudPendingStates=[];
+let cloudCaptureQueued=false;
+let cloudWriteBlocked=false;
 let cloudSaveTimer=null;
 let cloudPollTimer=null;
 const expandedAccountIds=new Set();
@@ -77,7 +82,7 @@ function load(key,fallback){
   }
 }
 // Undo snapshots read the last cached version rather than current in-memory edits.
-// auditState is absent here, and restoreUndoEntry omits rentalStock (DATA-03).
+// Include every operational collection; database users/logs/QR requests stay separate.
 function persistedState(){
   return {
     master:load(KEYS.master,[]),
@@ -85,11 +90,12 @@ function persistedState(){
     assignments:load(KEYS.assignments,[]),
     activations:load(KEYS.activations,[]),
     receiverEvents:load(KEYS.receiverHistory,[]),
+    auditState:load("atp.audit.v8",null),
     rentalStock:load(KEYS.rentalStock,{batches:[]})
   };
 }
 
-function liveState(){return {master,accounts,assignments,activations,receiverEvents,rentalStock}}
+function liveState(){return {master,accounts,assignments,activations,receiverEvents,auditState,rentalStock}}
 
 function persistUndoHistory(){
   while(undoHistory.length){
@@ -102,7 +108,7 @@ function persistUndoHistory(){
 function recordUndo(label="Data change",force=false){
   const previous=persistedState();
   const current=liveState();
-  const comparableCurrent={master,accounts,assignments,activations,receiverEvents,rentalStock};
+  const comparableCurrent={master,accounts,assignments,activations,receiverEvents,auditState,rentalStock};
   if(!force&&JSON.stringify(previous)===JSON.stringify(comparableCurrent))return;
   undoHistory.unshift({id:makeId(),label,createdAt:new Date().toISOString(),changedBy:currentUser?.name||"Unknown",state:previous});
   undoHistory=undoHistory.slice(0,30);
@@ -226,50 +232,74 @@ async function readCloudState({quiet=false}={}){
 function scheduleCloudSave(action="Data change"){
   currentCloudAction=action||currentCloudAction;
   cloudQueued=true;
+  if(cloudWriteBlocked)return;
+  if(currentUser?.role!=="admin"&&!cloudCaptureQueued){
+    cloudCaptureQueued=true;
+    // Capture after this event's synchronous mutations/reconciliation finish.
+    // Audit correction may schedule twice in one event; those form one operation.
+    queueMicrotask(()=>{
+      cloudCaptureQueued=false;
+      if(cloudPendingStates.length>=32){
+        cloudWriteBlocked=true;
+        setCloudStatus("error","Sync paused: too many pending edits. Download an inventory snapshot before reloading; ask an administrator to reconcile it.");
+        return;
+      }
+      cloudPendingStates.push({state:structuredClone(cloudState()),action:currentCloudAction});
+    });
+  }
   if(!cloudReady)return;
   clearTimeout(cloudSaveTimer);
   cloudSaveTimer=setTimeout(()=>flushCloudSave(),450);
 }
 
-// Debounce/coalesce local edits and send the last known server revision. Current
-// conflict handling replaces unsaved edits with the server copy (DATA-01).
+// Regular operations are sent in order against acknowledged revisions. A policy,
+// validation, or revision rejection pauses retries and retains the local draft;
+// loading a conflicting server copy here would silently discard those edits.
 async function flushCloudSave(){
-  if(!cloudReady||cloudSaving||!cloudQueued)return;
+  if(!cloudReady||cloudSaving||!cloudQueued||cloudWriteBlocked||cloudCaptureQueued)return;
   cloudQueued=false;
   cloudSaving=true;
+  let succeeded=false;
+  const pending=currentUser?.role!=="admin"?cloudPendingStates[0]:null;
   setCloudStatus("saving");
   try{
     const response=await fetch(CLOUD_STATE_API,{
-      method:"PUT",
+      method:currentUser?.role==="admin"?"PUT":"PATCH",
       headers:{"content-type":"application/json"},
-      body:JSON.stringify({state:cloudState(),baseRevision:cloudRevision,action:currentCloudAction})
+      body:JSON.stringify({state:pending?.state||cloudState(),baseRevision:cloudRevision,action:pending?.action||currentCloudAction})
     });
-    if(response.status===401){showAuthGate(false,"Your session expired. Sign in again.");throw new Error("Sign in required.")}
-    if(response.status===409){
-      await readCloudState({quiet:true});
-      toast("Cloud had a newer change. The shared copy was loaded.");
-      return;
-    }
-    if(!response.ok)throw new Error("Cloud save failed.");
     const result=await response.json();
+    if(response.status>=400&&response.status<500){
+      cloudWriteBlocked=true;
+      if(response.status===401)showAuthGate(false,"Your session expired. Sign in again; your unsaved edits will stay paused so you can download an inventory snapshot.");
+      throw new Error(`${result.error||"Save rejected."} Sync paused; download an inventory snapshot before reloading or ask an administrator to reconcile it.`);
+    }
+    if(!response.ok)throw new Error("Cloud is unavailable. This browser is holding the latest changes and will retry.");
     cloudRevision=Number(result.revision)||cloudRevision;
+    if(pending)cloudPendingStates.shift();
+    cloudQueued=cloudQueued||cloudPendingStates.length>0;
+    succeeded=true;
     setCloudStatus("synced",`Shared records saved ${new Date(result.updatedAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}.`);
-  }catch{
+  }catch(error){
     cloudQueued=true;
-    setCloudStatus("error","Cloud is unavailable. This browser is holding the latest changes and will retry.");
+    setCloudStatus("error",error.message||"Cloud is unavailable. This browser is holding the latest changes and will retry.");
   }finally{
     cloudSaving=false;
-    if(cloudQueued&&navigator.onLine)setTimeout(()=>flushCloudSave(),2500);
+    if(cloudQueued&&!cloudWriteBlocked&&navigator.onLine)setTimeout(()=>flushCloudSave(),succeeded?0:2500);
   }
 }
 
 async function initializeCloudSync(){
+  if(cloudWriteBlocked){setCloudStatus("error","Sync remains paused. Download your inventory snapshot before reloading or asking an administrator to reconcile it.");return;}
   setCloudStatus("connecting");
   try{
     const result=await readCloudState({quiet:true});
     cloudReady=true;
     if(result.state){
       setCloudStatus("synced","This browser is using the shared TanMar receiver records.");
+    }else if(currentUser?.role!=="admin"){
+      setCloudStatus("error","An administrator must initialize the shared inventory. Existing browser records have been retained.");
+      return;
     }else if(isUntouchedStarterData()){
       cloudReady=true;
       setCloudStatus("error","Cloud is empty. Open the app first on the browser that holds your real TanMar data.");
@@ -277,7 +307,7 @@ async function initializeCloudSync(){
     }else{
       cloudQueued=true;
       await flushCloudSave();
-      toast("Existing receiver data moved to TanMar Cloud Sync.");
+      if(!cloudQueued)toast("Existing receiver data moved to TanMar Cloud Sync.");
     }
   }catch{
     cloudReady=true;
@@ -424,20 +454,23 @@ function updateUndoControls(){
   $("undoHistoryEmpty").hidden=available;
 }
 
-// Local Undo becomes another shared save; it is not a database point-in-time
-// restore. Its incomplete audit/stock coverage is tracked in DATA-03.
+// Local Undo is an admin inventory replacement, not a database point-in-time
+// restore. Older device snapshots may lack audit/stock and require confirmation.
 function restoreUndoEntry(index=0){
   const entry=undoHistory[index];
   if(!entry)return;
+  if(currentUser?.role!=="admin"){toast("Administrator access is required to restore an inventory snapshot.");return;}
   const steps=index+1;
   if(steps>1&&!confirm(`Undo ${steps} changes and return to “${entry.label}”?`))return;
   const state=entry.state||{};
+  if((!Object.hasOwn(state,"auditState")||!Object.hasOwn(state,"rentalStock"))&&!confirm("This older Undo snapshot omits audit or rental stock. Restoring it clears those missing collections. Download the current inventory snapshot first if needed. Continue?"))return;
   master=Array.isArray(state.master)?state.master:[];
   accounts=Array.isArray(state.accounts)?state.accounts:[];
   assignments=Array.isArray(state.assignments)?state.assignments:[];
   activations=Array.isArray(state.activations)?state.activations:[];
   receiverEvents=Array.isArray(state.receiverEvents)?state.receiverEvents:[];
   auditState=state.auditState&&typeof state.auditState==="object"?state.auditState:null;
+  rentalStock=state.rentalStock&&Array.isArray(state.rentalStock.batches)?state.rentalStock:{batches:[]};
   undoHistory=undoHistory.slice(index+1);
   persistUndoHistory();
   save("Undo",{skipUndo:true});
@@ -896,7 +929,7 @@ function renderActivations(){
       <td class="activation-notes"><div class="activation-notes-stack" title="${esc(request.notes||"")}">${request.requesterName?`<span><b>Requested by:</b> ${esc(request.requesterName)}</span>`:""}${request.requesterPhone?`<span><b>Callback:</b> ${esc(request.requesterPhone)}</span>`:""}${request.operatorName?`<span><b>Operator:</b> ${esc(request.operatorName)}</span>`:""}${request.rigFrac?`<span><b>Rig/Frac:</b> ${esc(request.rigFrac)}</span>`:""}${request.lease?`<span><b>Lease:</b> ${esc(request.lease)}</span>`:""}${request.notes?`<span class="activation-request-note">${esc(request.notes)}</span>`:""}${!request.requesterName&&!request.requesterPhone&&!request.operatorName&&!request.rigFrac&&!request.lease&&!request.notes?"—":""}</div></td>
       <td><div class="row-actions">
         ${request.status==="Pending"?`<button class="small-button" data-activation-complete="${request.id}">Complete</button>${request.remote?"":`<button class="small-button" data-activation-edit="${request.id}">Edit</button>`}<button class="small-button" data-activation-cancel="${request.id}">Cancel</button>`:`<button class="small-button" data-activation-reopen="${request.id}">Reopen</button>`}
-        <button class="small-button danger" data-activation-delete="${request.id}">Delete</button>
+        ${currentUser?.role==="admin"?`<button class="small-button danger" data-activation-delete="${request.id}">Delete</button>`:""}
       </div></td>
     </tr>`).join("");
   $("activationEmpty").hidden=filtered.length!==0;
@@ -1414,6 +1447,7 @@ $("activationRows").addEventListener("click",async event=>{
   const reopen=event.target.closest("[data-activation-reopen]");
   const remove=event.target.closest("[data-activation-delete]");
   if(edit){openActivationForm(activations.find(item=>item.id===edit.dataset.activationEdit));return}
+  if(remove&&currentUser?.role!=="admin"){toast("Administrator access is required to delete service requests.");return;}
   const id=complete?.dataset.activationComplete||cancel?.dataset.activationCancel||reopen?.dataset.activationReopen||remove?.dataset.activationDelete;
   const request=remoteActivations.find(item=>item.id===id)||activations.find(item=>item.id===id);
   if(!request)return;
@@ -2638,18 +2672,18 @@ function exportReportCsv(){
 $("exportReportCsvButton").addEventListener("click",exportReportCsv);
 $("printReportButton").addEventListener("click",()=>window.print());
 
-// This browser export omits rentalStock and both databases' users/logs/history/
-// service requests. The UI's complete-backup claim needs correction (DATA-03).
+// This portable inventory snapshot includes rental stock but omits users,
+// sessions, database logs/history, and the separate QR database (DATA-03).
 function downloadBackup(){
   const backup={
     app:"TanMar Receiver Control",
     schemaVersion:1,
     exportedAt:new Date().toISOString(),
-    data:{master,accounts,assignments,activations,receiverEvents,auditState}
+    data:{master,accounts,assignments,activations,receiverEvents,auditState,rentalStock}
   };
   const date=new Date().toISOString().slice(0,10);
   downloadFile(`asset-tracker-backup-${date}.json`,JSON.stringify(backup,null,2),"application/json");
-  toast("Complete backup downloaded.");
+  toast("Inventory snapshot downloaded. Database backups are separate.");
 }
 
 function validBackupArray(value){
@@ -2657,6 +2691,7 @@ function validBackupArray(value){
 }
 
 async function restoreBackup(file){
+  if(currentUser?.role!=="admin"){toast("Administrator access is required to restore inventory.");return;}
   try{
     const backup=JSON.parse(await file.text());
     const data=backup?.data;
@@ -2668,7 +2703,7 @@ async function restoreBackup(file){
     }
 
     const confirmed=confirm(
-      `Restore ${data.accounts.length} account${data.accounts.length===1?"":"s"} and ${data.master.length} Master receiver${data.master.length===1?"":"s"}?\n\nThis will replace the Asset Tracker data currently stored in this browser.`
+      `Restore ${data.accounts.length} account${data.accounts.length===1?"":"s"} and ${data.master.length} Master receiver${data.master.length===1?"":"s"}?\n\nThis will replace the inventory currently stored in this browser.${!data.rentalStock?" This older snapshot omits rental stock; restoring it clears current stock batches.":""}`
     );
     if(!confirmed)return;
 
@@ -2678,6 +2713,7 @@ async function restoreBackup(file){
     activations=validBackupArray(data.activations)?data.activations:[];
     receiverEvents=validBackupArray(data.receiverEvents)?data.receiverEvents:[];
     auditState=data.auditState&&typeof data.auditState==="object" ? data.auditState : null;
+    rentalStock=data.rentalStock&&Array.isArray(data.rentalStock.batches)?data.rentalStock:{batches:[]};
     currentAccountId=null;
     expandedAccountIds.clear();
     save("Restore app backup");
@@ -3136,8 +3172,9 @@ $("applyDataImport").onclick=applyDataImport;
 
 
 $("clearAllAppData").addEventListener("click",()=>{
+  if(currentUser?.role!=="admin"){toast("Administrator access is required to clear inventory.");return;}
   const confirmed=confirm(
-    "Clear ALL app data?\n\nThis will remove every account, receiver, assignment, activation request, audit result, and test entry from the shared cloud records. You can restore it with Undo."
+    "Clear ALL app data?\n\nThis will remove every account, receiver, assignment, activation request, audit result, rental-stock batch, and test entry from the shared cloud records. You can restore it with Undo."
   );
 
   if(!confirmed)return;
@@ -3149,6 +3186,7 @@ $("clearAllAppData").addEventListener("click",()=>{
   receiverEvents=[];
   currentAccountId=null;
   auditState=null;
+  rentalStock={batches:[]};
 
   save("Clear all app data");
   localStorage.removeItem(AUDIT_KEY);

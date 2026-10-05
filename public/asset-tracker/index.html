@@ -65,8 +65,8 @@
         <div class="topbar-actions">
           <button class="cloud-sync-chip" id="cloudSyncButton" type="button" title="Check cloud sync status"><span class="cloud-sync-light"></span><span id="cloudSyncLabel">Connecting</span></button>
           <div class="undo-controls">
-            <button class="secondary-button undo-button" id="undoButton" disabled title="Undo the last change">↶ Undo</button>
-            <button class="icon-button undo-history-button" id="undoHistoryButton" disabled aria-label="Open undo history" title="Undo history">▾</button>
+            <button class="secondary-button undo-button" id="undoButton" data-admin-only disabled title="Undo the last change">↶ Undo</button>
+            <button class="icon-button undo-history-button" id="undoHistoryButton" data-admin-only disabled aria-label="Open undo history" title="Undo history">▾</button>
           </div>
           <button class="secondary-button" id="openMasterImport" data-admin-only>Import Center</button>
           <button class="primary-button" id="globalNewAccount">+ Add Account</button>
@@ -459,7 +459,7 @@
           <div>
             <p class="eyebrow">Data safety</p>
             <h2>Settings</h2>
-            <p class="page-description">This version stores data in the current browser. Download a complete backup before clearing browser data or moving to another device.</p>
+            <p class="page-description">This version stores data in the current browser. Download a inventory snapshot before clearing browser data or moving to another device.</p>
           </div>
         </div>
 
@@ -467,11 +467,11 @@
           <article class="panel settings-card">
             <div class="settings-icon">↓</div>
             <div>
-              <p class="eyebrow">Complete backup</p>
+              <p class="eyebrow">Inventory snapshot</p>
               <h3>Download App Data</h3>
-              <p>Includes the Master Registry, accounts, assignments, activation history, and the latest audit results.</p>
+              <p>Includes receivers, accounts, assignments, service history, audit results, and rental stock. Database users, logs, and QR requests require separate backups.</p>
             </div>
-            <button class="primary-button" id="downloadBackupButton">Download Backup</button>
+            <button class="primary-button" id="downloadBackupButton">Download Snapshot</button>
           </article>
 
           <article class="panel settings-card">
@@ -489,7 +489,7 @@
           <div>
             <p class="eyebrow">Shared storage</p>
             <h3>TanMar Cloud Sync</h3>
-            <p id="cloudStorageDescription">Connecting this browser to the shared TanMar receiver records. Existing browser data will be migrated automatically when the cloud is empty.</p>
+            <p id="cloudStorageDescription">Connecting this browser to shared TanMar receiver records. An administrator initializes inventory when shared storage is empty.</p>
           </div>
           <span class="storage-status-badge cloud" id="cloudStorageBadge">Connecting</span>
         </section>
@@ -601,10 +601,10 @@
           <label><span>Asset Number *</span><input id="activationAssetInput" required autocomplete="off" list="activationAssetOptions" placeholder="Type or scan asset number"></label>
           <label><span>Action *</span><select id="activationActionInput" required><option value="Activate">Activate</option><option value="Deactivate">Deactivate</option></select></label>
           <label><span>Request Date *</span><input id="activationDateInput" type="date" required></label>
-          <label><span>Requested By *</span><input id="activationRequesterInput" required autocomplete="name" placeholder="Employee or requester name"></label>
+          <label><span>Requested By *</span><input id="activationRequesterInput" required autocomplete="name" placeholder="Employee or requester name" maxlength="120"></label>
           <label><span>Current Account</span><input id="activationAccountDisplay" readonly></label>
         </div>
-        <label class="single-field activation-notes-field"><span>Notes</span><textarea id="activationNotesInput" rows="4" placeholder="Ticket number, contact, special instructions, or follow-up notes"></textarea></label>
+        <label class="single-field activation-notes-field"><span>Notes</span><textarea id="activationNotesInput" rows="4" placeholder="Ticket number, contact, special instructions, or follow-up notes" maxlength="2048"></textarea></label>
         <datalist id="activationAssetOptions"></datalist>
         <div class="modal-actions"><button type="button" class="secondary-button" data-close="activationModal">Cancel</button><button class="primary-button" type="submit">Save Request</button></div>
       </form>
@@ -622,7 +622,7 @@
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="rentalStockModalTitle">
       <div class="modal-header"><div><p class="eyebrow">Rental manager checkout</p><h2 id="rentalStockModalTitle">Issue Receiver Batch</h2></div><button class="icon-button" data-close="rentalStockModal">×</button></div>
       <form id="rentalStockForm">
-        <div class="form-grid"><label><span>Rental Manager *</span><input id="rentalManagerName" required placeholder="Manager name"></label><label><span>Low Stock Warning *</span><input id="rentalStockThreshold" type="number" min="1" max="30" value="5" required></label></div>
+        <div class="form-grid"><label><span>Rental Manager *</span><input id="rentalManagerName" required placeholder="Manager name" maxlength="120"></label><label><span>Low Stock Warning *</span><input id="rentalStockThreshold" type="number" min="1" max="30" value="5" required></label></div>
         <label class="single-field"><span>Receiver Asset Numbers *</span><textarea id="rentalStockAssets" rows="10" required placeholder="Paste or scan one asset number per line. A standard issue is 30 receivers."></textarea></label>
         <div class="rental-stock-form-note" id="rentalStockFormNote">0 valid receivers entered</div>
         <div class="modal-actions"><button type="button" class="secondary-button" data-close="rentalStockModal">Cancel</button><button class="primary-button" type="submit">Issue Batch</button></div>
@@ -636,10 +636,10 @@
       <form id="accountForm">
         <input type="hidden" id="accountEditId">
         <div class="form-grid">
-          <label><span>Account Number *</span><input id="accountNumberInput" required></label>
-          <label><span>Account Name *</span><input id="accountNameInput" required></label>
-          <label><span>Location</span><input id="accountLocationInput"></label>
-          <label><span>Office / Yard</span><input id="accountOfficeInput"></label>
+          <label><span>Account Number *</span><input id="accountNumberInput" required maxlength="128"></label>
+          <label><span>Account Name *</span><input id="accountNameInput" required maxlength="256"></label>
+          <label><span>Location</span><input id="accountLocationInput" maxlength="256"></label>
+          <label><span>Office / Yard</span><input id="accountOfficeInput" maxlength="256"></label>
         </div>
         <div class="modal-actions"><button type="button" class="secondary-button" data-close="accountModal">Cancel</button><button class="primary-button" type="submit">Save Account</button></div>
       </form>
@@ -664,15 +664,15 @@
         <input type="hidden" id="masterEditId">
         <input type="hidden" id="assignAfterMaster" value="no">
         <div class="form-grid">
-          <label><span>Asset Number *</span><input id="masterAssetInput" required autocomplete="off"></label>
-          <label><span>Model</span><input id="masterModelInput" autocomplete="off"></label>
-          <label><span>Access Card</span><input id="masterCardInput" autocomplete="off"></label>
-          <label><span>RID</span><input id="masterRidInput" autocomplete="off"></label>
-          <label><span>Serial Number</span><input id="masterSerialInput" autocomplete="off"></label>
-          <label><span>Receiver Type</span><input id="masterTypeInput" autocomplete="off"></label>
+          <label><span>Asset Number *</span><input id="masterAssetInput" required autocomplete="off" maxlength="128"></label>
+          <label><span>Model</span><input id="masterModelInput" autocomplete="off" maxlength="128"></label>
+          <label><span>Access Card</span><input id="masterCardInput" autocomplete="off" maxlength="128"></label>
+          <label><span>RID</span><input id="masterRidInput" autocomplete="off" maxlength="128"></label>
+          <label><span>Serial Number</span><input id="masterSerialInput" autocomplete="off" maxlength="128"></label>
+          <label><span>Receiver Type</span><input id="masterTypeInput" autocomplete="off" maxlength="128"></label>
           <label><span>Condition</span><select id="masterConditionInput"><option value="Good">Good</option><option value="Test">Test</option><option value="Bad">Bad</option></select></label>
         </div>
-        <label class="single-field"><span>Receiver Notes</span><textarea id="masterNotesInput" rows="4" placeholder="Bad HDMI port, damaged power port, missing remote, testing required, or other receiver notes"></textarea></label>
+        <label class="single-field"><span>Receiver Notes</span><textarea id="masterNotesInput" rows="4" placeholder="Bad HDMI port, damaged power port, missing remote, testing required, or other receiver notes" maxlength="2048"></textarea></label>
         <p class="scanner-help">Barcode scanning: Enter advances to the next field. Use Save Receiver when finished.</p>
         <div class="modal-actions"><button type="button" class="secondary-button" data-close="masterModal">Cancel</button><button class="primary-button" id="masterSaveButton" type="submit">Save Receiver</button></div>
       </form>

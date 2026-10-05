@@ -43,8 +43,8 @@ test("Node/PostgreSQL integration", async (t) => {
   };
   const admin = async () => { await reset(); await provisionAdmin(tracker.database, fixture); return signIn(); };
   const state = (id) => ({
-    master: [{ id, assetNumber: "TEST-001" }], accounts: [], assignments: [],
-    activations: [], receiverEvents: [], auditState: null, rentalStock: [{ id: "TEST-STOCK" }],
+    master: [{ id, assetNumber: "TEST-001", rentState: "Off Rent" }], accounts: [], assignments: [],
+    activations: [], receiverEvents: [], auditState: null, rentalStock: { batches: [] },
   });
   const save = (cookie, id, baseRevision, action = "Test inventory change") =>
     api("/api/app-state", "PUT", { state: state(id), baseRevision, action }, cookie);
@@ -166,7 +166,9 @@ test("Node/PostgreSQL integration", async (t) => {
   await t.test("simultaneous initial and later saves accept one revision and reject the other", async () => {
     const cookie = await admin();
     for (const revision of [0, 1]) {
-      const responses = await Promise.all([save(cookie, "writer-a", revision), save(cookie, "writer-b", revision)]);
+      // Both requests must actually change data. An unchanged retry correctly
+      // returns its current revision and does not compete with a genuine write.
+      const responses = await Promise.all([save(cookie, `writer-a-${revision}`, revision), save(cookie, `writer-b-${revision}`, revision)]);
       assert.deepEqual(responses.map((response) => response.status).sort(), [200, 409]);
     }
     assert.equal(await count("app_state_history"), 1);
@@ -177,13 +179,13 @@ test("Node/PostgreSQL integration", async (t) => {
   await t.test("JSONB key ordering does not inflate regular-user record change counts", async () => {
     const cookie = await admin();
     const initial = state("initial");
-    initial.master = Array.from({ length: 12 }, (_, index) => ({ id: String(index), assetNumber: `TEST-${index}` }));
+    initial.master = Array.from({ length: 12 }, (_, index) => ({ id: String(index), assetNumber: `TEST-${index}`, rentState: "Off Rent" }));
     assert.equal((await api("/api/app-state", "PUT", { state: initial, baseRevision: 0 }, cookie)).status, 200);
     const credentials = { name: "testuser", pin: "593742", role: "user" };
     await api("/api/users", "POST", credentials, cookie);
     const regular = await signIn(credentials);
     initial.master[0].assetNumber = "TEST-CHANGED";
-    assert.equal((await api("/api/app-state", "PUT", { state: initial, baseRevision: 1 }, regular)).status, 200);
+    assert.equal((await api("/api/app-state", "PATCH", { state: initial, baseRevision: 1 }, regular)).status, 200);
   });
 
   await t.test("an update rejected by PostgreSQL produces no orphan history or audit", async () => {

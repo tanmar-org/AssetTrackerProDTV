@@ -1,16 +1,17 @@
-// Access endpoints accept small JSON objects only. Enforce the byte limit while
-// reading, including chunked requests, before allocating/parsing a whole body.
+// Enforce each endpoint's byte budget while reading, including chunked requests,
+// before allocating/parsing a whole body. Access endpoints retain a 4-KiB default.
 export class AccessInputError extends Error {
   status: number;
   constructor(message: string, status = 400) { super(message); this.status = status; }
 }
 
-export async function readAccessBody(request: Request): Promise<Record<string, unknown>> {
+export async function readAccessBody(request: Request, options: { limit?: number; label?: string } = {}): Promise<Record<string, unknown>> {
   if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json")
     throw new AccessInputError("Send an application/json request.", 415);
-  const limit = 4096;
+  const limit = options.limit ?? 4096;
+  const tooLarge = `${options.label ?? "Access"} request is too large.`;
   if (Number(request.headers.get("content-length")) > limit)
-    throw new AccessInputError("Access request is too large.", 413);
+    throw new AccessInputError(tooLarge, 413);
   const reader = request.body?.getReader();
   if (!reader) throw new AccessInputError("Send a JSON object.");
   const decoder = new TextDecoder();
@@ -23,7 +24,7 @@ export async function readAccessBody(request: Request): Promise<Record<string, u
       size += value.byteLength;
       if (size > limit) {
         await reader.cancel();
-        throw new AccessInputError("Access request is too large.", 413);
+        throw new AccessInputError(tooLarge, 413);
       }
       text += decoder.decode(value, { stream: true });
     }

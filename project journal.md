@@ -4,8 +4,8 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/account-security`, based on merged
-  `main` at `93ed64c`.
+- Development branch: `Dev/inventory-permissions`, based on merged
+  `main` at `8f25043`.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -19,11 +19,14 @@
 - Owner reviews and merges all PRs. Agents may push `Dev/` branches and open PRs.
 - Current phase: the owner merged the native Node/PostgreSQL migration in
   [PR #11](https://github.com/tanmar-org/AssetTrackerProDTV/pull/11). Account lifecycle
-  and concurrency corrections are implemented on `Dev/account-security` in
-  [PR #17](https://github.com/tanmar-org/AssetTrackerProDTV/pull/17) for owner review.
+  and concurrency corrections in
+  [PR #17](https://github.com/tanmar-org/AssetTrackerProDTV/pull/17) are also merged
+  by the owner. Inventory permissions/schemas are implemented on
+  `Dev/inventory-permissions` in
+  [PR #19](https://github.com/tanmar-org/AssetTrackerProDTV/pull/19) for owner review.
   Production deployment has not started.
-- Next task: complete SEC-03 inventory permissions/schemas, remaining AUTH-01
-  company access/shared-device requirements, and dependencies. Production domains/services/backups/data cutover remain
+- Next task: SEC-04 legacy injection, remaining dependency/QR security work,
+  and AUTH-01/DATA-01/DATA-04 access/conflict/cache requirements. Production domains/services/backups/data cutover remain
   under HOST-03/HOST-04/MIG-01. SEC-01-OWNER still needs owner confirmation.
 
 ## 2026-10-05 — Repository access and read-only review
@@ -484,3 +487,99 @@ Pushed `Dev/account-security` and opened
 [PR #17](https://github.com/tanmar-org/AssetTrackerProDTV/pull/17), targeting `main`.
 Implementation, regression tests, and documentation share this PR. The owner
 performs final review and merging.
+
+## 2026-10-05 17:51 CDT — SEC-03 inventory permissions and schemas
+
+The owner merged PR #17 and authorized the next correction. Created
+`Dev/inventory-permissions` from merged main `8f25043`. Preserved the original
+checkout's unrelated authentication-comment edit. Refreshed both installs against
+already-merged lockfiles without modifying dependencies or submitting advisory
+metadata. The implemented role policy preserves regular everyday tools while
+reserving replacements and destructive operations for administrators; a concise
+policy preference question was optional, and implementation proceeded using this
+stated assumption for owner review. The exact policy is in
+[INVENTORY-PERMISSIONS.md](docs/INVENTORY-PERMISSIONS.md).
+
+Replaced the client-action-label/record-count heuristic with administrator-only
+PUT and server-checked ordinary PATCH. Ordinary edits operate on one account or
+receiver/service subject, or issue one rental batch with its associated history.
+Bulk changes, full replacements/initial imports, deletion, restore/Undo, and stock
+removal/metadata/history changes require administrator authority. Stock release
+and batch completion only follow checked rent-state reconciliation. Audit research
+snapshots can change without authorizing unrelated inventory bulk edits. Regular
+request logs derive from actual differences, not submitted labels. No-op saves
+create no revision, history, or audit event.
+
+Added `lib/inventory-state.ts` and `lib/inventory-permissions.ts`. Full schemas
+validate known fields/types/enums, bounded strings/arrays/8-MiB bodies, safe record
+IDs, leading-zero text identifiers, duplicate IDs/asset/account numbers, assignment
+uniqueness, existing links, 20-receiver account capacity, rental batch/item/removal
+counts, structured audit counts/issue IDs, valid ISO dates, and safe Maps URLs.
+Reads, all saves, and recovery apply the same checks; no new SQL migration is
+required. Incompatible source records/history must be reconciled explicitly under
+MIG-01. No live data was fetched or automatically changed.
+
+State/recovery take account authorization lock `728303` before state lock `728302`,
+rechecking the actor after waiting and holding access through the transaction.
+Queued replacement/recovery/delete tests prove a demoted actor cannot use stale
+authority. QR proxy reads/status updates remain available to staff; deletion now
+requires an administrator. Bound its body/fields and upstream timeout (five seconds),
+keep the server credential private, and hold the account lock through the response.
+Tracker/QR atomic coordination still remains DATA-02.
+
+The browser sends regular PATCH snapshots separately, captures after synchronous
+UI reconciliation, and advances only acknowledged revisions. A 32-operation queue
+bounds memory. Validation/permission/revision errors pause retries and polling,
+retain the local draft, and explain snapshot export/manual reconciliation instead
+of overwriting it with another server revision. Queue order remains memory-only;
+reload durability, complete offline conflict resolution, storage quota failures,
+and shared-device cleanup remain DATA-01/DATA-04. Browser fields align with server
+length limits. Staff UI/server must ship together; older regular PUT clients need
+a reload before use.
+
+Inventory exports/new Undo entries now include rental stock and audit. Undo is an
+admin replacement; clear resets stock too, avoiding dangling links. Older exports/
+Undo entries warn about clearing missing stock/audit collections. Export UI describes
+an inventory snapshot, not a complete database backup; operator backup/restore of
+users, sessions, logs/history, and QR requests remains DATA-03. Changed formatter/
+state/authorization code has focused review comments.
+
+An initial integration run caught a repeated stock-release failure after the server
+corrected synthetic history authors. Stored event attribution now overrides a
+browser's earlier name, and new events receive the current actor, while all other
+old history fields stay immutable to regular PATCH. This also prevents account
+renames/server stamping from breaking later legitimate operations.
+
+Validation:
+
+- Both native builds and TypeScript checks passed. Tracker **21 unit/HTTP checks**
+  and QR **1 HTTP check** passed. Browser queue/export/Undo tests execute the actual
+  source functions in a simulated DOM context; full mobile/browser acceptance is
+  still QA-01, not implied by these results.
+- **49 PostgreSQL integration checks passed**: existing runtime/account coverage,
+  16 inventory scenarios, and their three parent tests. Inventory checks cover
+  role/method versus labels, ordinary assignments and stock, 40-receiver issuance,
+  all stock releases, admin removal/clear, rejected stock/bulk/history bypasses,
+  malformed IDs/links/types/capacity/URLs, incompatible recovery, queued privilege
+  changes, denied QR forwarding, timeout cleanup, and no-op audit integrity.
+- Changed server/helpers/tests pass focused ESLint; browser ESLint has the same
+  four inherited warnings and no errors. Browser syntax, diff checks, and original
+  checkout preservation checks passed. Recorded full-lint issues remain QA-02;
+  no unrelated suppression or package upgrade was introduced by this branch.
+- After introducing no-op responses, the competing-write fixture now supplies two
+  genuine changes at each revision. Unchanged retries no longer count as writes;
+  competing changes still accept exactly one revision and reject the other.
+- Disposable databases and runtime roles were removed (remaining counts 0/0).
+  The private PostgreSQL test cluster is stopped; no TCP listener, production
+  service, live database, or deployment was changed.
+
+SEC-03, DATA-01-REJECTION, and DATA-03-SNAPSHOT implementation criteria are met;
+owner review/merge remains pending. DATA-01/DATA-03 remain open for durable conflict
+handling and complete database backups/restoration. Next priorities include SEC-04
+legacy-page injection, DEP-01/DEP-02 dependencies, SEC-05 public QR controls, company
+access/cache policy, and authorized source-data reconciliation before deployment.
+
+Pushed `Dev/inventory-permissions` and opened
+[PR #19](https://github.com/tanmar-org/AssetTrackerProDTV/pull/19), targeting `main`.
+Implementation, regression tests, and documentation share this PR. The owner
+performs final review and merging; no production deployment was performed.
