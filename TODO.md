@@ -18,6 +18,8 @@ decisions. The owner reviews and merges all changes from `Dev/` branches.
 - [x] QA-00 — Run baseline builds/tests and relevant static checks. Record failures
   and limitations honestly rather than silently fixing unrelated application code.
 - [ ] PR-01 — Commit and push `Dev/project-foundation`; open a PR against `main`.
+  Prepared and committed locally. Push blocked by automatic approval review pending
+  private repository visibility or explicit owner approval of public publication.
 - [ ] OWNER-01 — Owner performs final review and merges the foundation PR.
 
 ## Before public deployment — security and dependency blockers

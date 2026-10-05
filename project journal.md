@@ -5,6 +5,8 @@
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
 - Development branch: `Dev/project-foundation`.
+- Publication status: committed locally; push/PR blocked pending private visibility
+  or explicit owner approval to publish the review documents publicly.
 - Working copy on the hosting VM: `/home/itadmin/projects/AssetTrackerProDTV`.
 - Owner reviews and merges all PRs. Agents may push `Dev/` branches and open PRs.
 - Current phase: documentation, explanatory comments, and developer setup. Project
@@ -160,5 +162,12 @@ failed on inherited issues; QA-02 tracks source/type/configuration remediation.
 See [the exact validation record](docs/reviews/2026-10-05-validation.md).
 No tracked font-cache files or lockfiles changed during the installs/builds.
 
-Pending: commit/push this branch and open the owner-reviewed PR. The owner then
-reviews and merges; deployment and functional corrections remain separate tasks.
+Committed the foundation as `4c72138`. Automatic approval review rejected the
+branch push because GitHub confirmed a public destination while the owner's stated
+intent was private, and the new documentation includes internal architecture and
+security findings. No push or PR creation succeeded. Asked the owner to make the
+repository private or explicitly approve public publication of this payload.
+
+Pending: verify private visibility or receive explicit public-publication approval,
+push this branch, open the PR, and record its URL. The owner then reviews and merges;
+deployment and functional corrections remain separate tasks.
