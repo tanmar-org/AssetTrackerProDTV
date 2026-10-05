@@ -4,21 +4,26 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/controlled-admin-provisioning`, based on merged
-  `main` at `7063cdb`.
+- Development branch: `Dev/postgresql-migration-plan`, based on merged
+  `main` at `52d401d`.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
-  were merged by the owner. SEC-02 provisioning
-  [PR #6](https://github.com/tanmar-org/AssetTrackerProDTV/pull/6) is open for review.
+  and SEC-02 provisioning
+  [PR #6](https://github.com/tanmar-org/AssetTrackerProDTV/pull/6)
+  were merged by the owner.
+- PostgreSQL preference documentation
+  [PR #7](https://github.com/tanmar-org/AssetTrackerProDTV/pull/7) is open for owner review.
 - Active working copy on the hosting VM:
   `/home/itadmin/projects/AssetTrackerProDTV-security-cleanup`.
 - Owner reviews and merges all PRs. Agents may push `Dev/` branches and open PRs.
-- Current phase: SEC-02 controlled administrator provisioning implemented/tested;
-  owner review is pending. Production deployment has not started.
-- Next task: owner reviews the corrective PR; continue SEC-03 server permissions
-  and remaining dependency remediation. SEC-01-OWNER and hosting architecture
-  remain unresolved in the prioritized [TODO list](TODO.md).
+- Current phase: SEC-02 is merged. The owner prefers PostgreSQL hosted on this VM
+  for the database migration; the current code still requires Workers/D1.
+  Production deployment has not started.
+- Next task: design the Node/PostgreSQL migration under HOST-01/HOST-02, retaining
+  controlled provisioning and staff/public access boundaries. SEC-03 server
+  permissions, dependencies, and SEC-01-OWNER remain unresolved in the
+  prioritized [TODO list](TODO.md).
 
 ## 2026-10-05 — Repository access and read-only review
 
@@ -292,3 +297,32 @@ Pending: owner review/merge, then
 continue explicit server permissions (SEC-03), account lifecycle hardening (AUTH-01),
 and dependency cleanup. Credential rotation/validity under SEC-01-OWNER still awaits
 owner confirmation.
+
+## 2026-10-05 — PostgreSQL migration preference
+
+The owner confirmed the need to replace Workers/D1 and expressed a preference for
+PostgreSQL. Use a VM-hosted PostgreSQL database as the migration planning target;
+Node/Next.js remains the recommended runtime, with the final layout and operational
+design still pending under HOST-01. This is a recorded preference, not a completed
+hosting migration. Verified PR #6 is merged and fetched main at `52d401d` before
+creating `Dev/postgresql-migration-plan` for this documentation update.
+
+PostgreSQL is suitable for the reviewed workload: its transactions allow related
+inventory/history/audit writes to commit together, and JSONB can preserve the
+current state document during an incremental migration. Moving the document into
+PostgreSQL alone will not correct application permissions, revision conflicts,
+or backup coverage. Plan to retain the current UI, port both apps' direct D1 SQL
+calls and operator provisioning, and validate migrations with synthetic data.
+Define production backups and verify restoration before cutover.
+
+Updated agent instructions, TODO status, the development guide, and this handoff.
+No application code, dependency versions, installed services, or databases changed.
+Validation is documentation diff review and `git diff --check`; no runtime tests
+are required for this documentation-only update. Owner review/merge remains required.
+
+Pushed this documentation update and opened
+[PR #7](https://github.com/tanmar-org/AssetTrackerProDTV/pull/7), targeting `main`.
+No migration implementation or production deployment is included.
+
+References: [PostgreSQL transactions](https://www.postgresql.org/docs/current/tutorial-transactions.html)
+and [JSON/JSONB storage](https://www.postgresql.org/docs/current/datatype-json.html).

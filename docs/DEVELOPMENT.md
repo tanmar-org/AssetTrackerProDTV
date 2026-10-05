@@ -92,6 +92,9 @@ artifacts and local credentials out of PRs; preserve unrelated user changes.
 ## Local applications and data
 
 The current applications still require local Cloudflare Worker/D1 emulation.
+The owner prefers PostgreSQL hosted on this VM for the planned production migration.
+That preference does not change the current development commands: HOST-01/HOST-02
+must first implement the Node runtime and PostgreSQL persistence/provisioning paths.
 Follow the root README for isolated local database migrations and development
 ports 5173 (tracker) and 5174 (QR service). A root `npm start` does not complete
 the planned self-hosting migration.

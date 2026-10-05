@@ -1,8 +1,9 @@
 # Project TODO
 
 Use stable IDs in journal entries and PR descriptions. Checked items are completed;
-unchecked items are unresolved. Recommendations below are not approved architecture
-decisions. The owner reviews and merges all changes from `Dev/` branches.
+unchecked items are unresolved. Recommendations remain proposals unless an owner
+decision is recorded explicitly. The owner reviews and merges all changes from
+`Dev/` branches.
 
 ## Development foundation — first PR
 
@@ -57,7 +58,7 @@ decisions. The owner reviews and merges all changes from `Dev/` branches.
   Implemented on `Dev/controlled-admin-provisioning`: HTTP setup always returns
   403; the local operator command inserts only into an empty user table. Build and
   all 14 tests passed, plus fresh/repeated local D1 CLI checks.
-  [PR #6](https://github.com/tanmar-org/AssetTrackerProDTV/pull/6) awaits owner review.
+  [PR #6](https://github.com/tanmar-org/AssetTrackerProDTV/pull/6) was merged by the owner.
 - [ ] SEC-03 — Enforce explicit server permissions and record schemas. Include
   rental stock, bulk edits, restore/clear operations, assignment uniqueness, account
   capacity, and identifier/link validation. Client action labels must not grant
@@ -94,11 +95,13 @@ decisions. The owner reviews and merges all changes from `Dev/` branches.
 
 ## Hosting, QR, email, and migration
 
-- [ ] HOST-01 **Architecture decision** — Owner confirms the runtime/database plan.
-  Recommendation: Node/Next.js plus local PostgreSQL; SQLite is a smaller alternative.
-  Preserve UI and separate staff/private and customer/public access boundaries.
+- [ ] HOST-01 **Architecture decision** — Complete the runtime/database plan.
+  The owner prefers PostgreSQL hosted on this VM (2026-10-05); use it as the database
+  target for migration planning. Node/Next.js is the recommended runtime, with the
+  final application layout and operational design still to be completed. Preserve
+  UI and separate staff/private and customer/public access boundaries.
 - [ ] HOST-02 — Port Worker entry/runtime bindings and direct D1 SQL calls to the
-  selected backend. Replace Worker/Sites build validation and static/image serving;
+  PostgreSQL target. Replace Worker/Sites build validation and static/image serving;
   port the trusted operator provisioning command; run both apps on the VM without
   Cloudflare application/database bindings. Never restore public bootstrap as a shortcut.
 - [ ] HOST-03 — Configure domains, HTTPS, internal request endpoint, new shared

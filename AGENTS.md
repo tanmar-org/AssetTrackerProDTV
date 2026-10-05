@@ -43,6 +43,10 @@ The journal records current evidence; older handoff statements may be stale.
   separate D1 `DB` bindings. Ordinary Node hosting is a planned migration, not a
   completed capability. Several routes call the D1 API directly; changing only
   `db/index.ts` is insufficient.
+- The owner prefers PostgreSQL hosted on this VM as the migration target
+  (2026-10-05). Plan HOST-01/HOST-02 around PostgreSQL; the Node runtime layout and
+  production operations still need design and implementation. Local D1 is only
+  the current development/testing environment, not the intended production backend.
 - The tracker stores most operational collections as one JSON state payload.
   The QR application stores service requests in a separate database.
 - Initial administrator creation is operator-only: migrate an isolated local D1
