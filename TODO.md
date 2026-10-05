@@ -33,7 +33,9 @@ decisions. The owner reviews and merges all changes from `Dev/` branches.
   value into docs, issues, logs, fixtures, or PR descriptions. Verify the public
   bundle and approved service-request workflow no longer expose it.
   Browser/draft removal and regression coverage passed on
-  `Dev/remove-public-account-password`; credential validity/rotation awaits owner
+  `Dev/remove-public-account-password` in
+  [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4);
+  credential validity/rotation awaits owner
   confirmation. Removal alone does not erase historical exposure.
 - [x] SEC-01-CODE — Remove the embedded credential from the browser/email template;
   preserve receiver details and pass source, generated-draft, and built-asset checks.

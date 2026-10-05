@@ -8,7 +8,8 @@
   `main` at `0c0a6f3`.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
-  were merged by the owner. The credential-removal PR is being prepared.
+  were merged by the owner. Credential-removal
+  [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4) is open for review.
 - Active working copy on the hosting VM:
   `/home/itadmin/projects/AssetTrackerProDTV-security-cleanup`.
 - Owner reviews and merges all PRs. Agents may push `Dev/` branches and open PRs.
@@ -232,4 +233,8 @@ SEC-01-OWNER remain open until credential exposure and the provider authenticati
 workflow are resolved. Git history and previously deployed copies are not erased
 by this code change; production deployment remains outside this task.
 
-Pending: push the branch, open the owner-reviewed PR, and record its URL.
+Pushed the branch and opened
+[PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4), targeting `main`.
+Owner review/merge and SEC-01-OWNER confirmation remain pending. The next corrective
+priorities are controlled administrator provisioning and explicit server permissions,
+alongside the remaining dependency work. No production deployment was performed.
