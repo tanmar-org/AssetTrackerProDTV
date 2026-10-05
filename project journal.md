@@ -26,7 +26,8 @@
   SEC-04 safe service rendering in
   [PR #20](https://github.com/tanmar-org/AssetTrackerProDTV/pull/20) is merged by
   the owner. Local bounded spreadsheet parsing/dependency corrections are
-  implemented on `Dev/dependency-remediation` for owner review.
+  implemented on `Dev/dependency-remediation` in
+  [PR #21](https://github.com/tanmar-org/AssetTrackerProDTV/pull/21) for owner review.
   Production deployment has not started.
 - Next task: public QR validation/abuse/server lookup work and remaining lint dependency,
   and AUTH-01/DATA-01/DATA-04 access/conflict/cache requirements. Production domains/services/backups/data cutover remain
@@ -735,3 +736,11 @@ chain and future advisory tracking. Next substantial work is SEC-05/QR-01 public
 submission validation/abuse controls and stable server asset lookup/private metadata
 removal. Production configuration, data reconciliation, backups, and company access
 remain deployment work. No production service/database/deployment was changed.
+
+Pushed `Dev/dependency-remediation` and opened
+[PR #21](https://github.com/tanmar-org/AssetTrackerProDTV/pull/21), targeting `main`.
+All implementation, evidence, comments, and documentation share this PR. Rendering/
+spreadsheet test servers and browser threads closed after tests; the private
+PostgreSQL test cluster was not started or changed. The owner performs final review
+and merging. GitHub's push notice still reflects the default branch before this
+QR lockfile correction; the fresh npm evidence above is scoped separately.

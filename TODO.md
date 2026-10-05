@@ -67,7 +67,9 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   a local browser worker with file/time/ZIP/worksheet/cell limits. XLSX/XLS/CSV,
   leading-zero/formatted identifiers, Master/West Texas/account/audit mappings,
   malformed inputs and actual browser upload previews pass with outside requests
-  blocked. Implemented on `Dev/dependency-remediation`; owner review/merge pending.
+  blocked. Implemented on `Dev/dependency-remediation` in
+  [PR #21](https://github.com/tanmar-org/AssetTrackerProDTV/pull/21); owner
+  review/merge pending.
   See [dependency/import limits](docs/DEPENDENCY-REMEDIATION.md).
 - [x] SEC-02 — Replace public first-admin setup with controlled provisioning.
   Admin creation must be atomic and unavailable to unauthenticated users after
