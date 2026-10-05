@@ -77,7 +77,9 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   bounded HTTPS Google Maps URLs; QR destinations reject executable/credential URLs.
   Five unit regressions and four Chromium scenarios plus their parent passed,
   covering legacy, React QR, and staff pages. Implemented on
-  `Dev/safe-service-rendering`; owner review/merge pending. Legacy requests still
+  `Dev/safe-service-rendering` in
+  [PR #20](https://github.com/tanmar-org/AssetTrackerProDTV/pull/20); owner
+  review/merge pending. Legacy requests still
   create mail drafts only; private URL metadata and public API validation remain
   QR-01/MAIL-01/SEC-05.
 - [ ] SEC-05 — Add public-request abuse controls, size/field limits, asset lookup,

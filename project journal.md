@@ -24,7 +24,7 @@
   by the owner. Inventory permissions/schemas in
   [PR #19](https://github.com/tanmar-org/AssetTrackerProDTV/pull/19) are also merged.
   SEC-04 safe service rendering is implemented on `Dev/safe-service-rendering`
-  for owner review.
+  in [PR #20](https://github.com/tanmar-org/AssetTrackerProDTV/pull/20) for owner review.
   Production deployment has not started.
 - Next task: remaining dependency/QR security work,
   and AUTH-01/DATA-01/DATA-04 access/conflict/cache requirements. Production domains/services/backups/data cutover remain
@@ -644,3 +644,11 @@ SEC-04 implementation criteria are met; owner review/merge remains pending.
 SEC-05/QR-01/MAIL-01 still require public request validation/abuse controls,
 server receiver lookup, private metadata removal, and server email. Next priorities
 are DEP-01/DEP-02 dependencies and public-request security. No deployment performed.
+
+Pushed `Dev/safe-service-rendering` and opened
+[PR #20](https://github.com/tanmar-org/AssetTrackerProDTV/pull/20) against `main`.
+Implementation, regression tests, and documentation share this PR. GitHub's push
+notice reports four default-branch advisory matches (two high/two moderate);
+no fresh advisory/reachability assessment was performed during this rendering task.
+DEP-01/DEP-02 remain open. All temporary rendering-test servers/browser processes,
+including the failed font-diagnostic runner, were stopped. Owner reviews/merges.
