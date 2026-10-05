@@ -1,7 +1,8 @@
-type RuntimeEnv = {
-  DB?: D1Database;
-  ADMIN_SHARED_SECRET?: string;
-};
+import { database } from "../../../lib/database";
+
+// Server-only PostgreSQL connections require the Node runtime and fresh responses.
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type RequestRow = {
   id: string;
@@ -35,73 +36,24 @@ type RequestRow = {
 
 const allowedStatuses = new Set(["Pending", "Completed", "Cancelled"]);
 
-function runtime() {
-  return (
-    globalThis as typeof globalThis & {
-      __TANMAR_SERVICE_ENV__?: RuntimeEnv;
-    }
-  ).__TANMAR_SERVICE_ENV__;
-}
-
-function database() {
-  const active = runtime();
-  if (!active?.DB) throw new Error("Service request database is unavailable.");
-  return active.DB;
-}
-
 // Staff read/update/delete requests use the server-to-server shared secret.
 // Public POST intentionally does not call this guard so a scanned label can submit.
 function authorized(request: Request) {
-  const active = runtime();
   const token = request.headers.get("authorization");
   return Boolean(
-    (active?.ADMIN_SHARED_SECRET &&
-      token === `Bearer ${active.ADMIN_SHARED_SECRET}`),
+    (process.env.ADMIN_SHARED_SECRET &&
+      token === `Bearer ${process.env.ADMIN_SHARED_SECRET}`),
   );
 }
 
-// CORS only controls browser access, not authorization. This inherited Sites
-// origin must be reviewed with the new domains during HOST-03.
-function dashboardOrigin(request: Request) {
-  return request.headers.get("origin") ===
-    "https://directv-asset-tracker-eric.evo3453.chatgpt.site"
-    ? "https://directv-asset-tracker-eric.evo3453.chatgpt.site"
-    : "";
+// Staff reads/updates go through the tracker server proxy. Cross-origin browser
+// access is unnecessary, so do not retain the original Sites CORS allowlist.
+function dashboardJson(_request: Request, data: unknown, init?: ResponseInit) {
+  return Response.json(data, { ...init, headers: { ...init?.headers, "cache-control": "no-store" } });
 }
 
-function dashboardJson(
-  request: Request,
-  data: unknown,
-  init?: ResponseInit,
-) {
-  const origin = dashboardOrigin(request);
-  return Response.json(data, {
-    ...init,
-    headers: {
-      ...(init?.headers || {}),
-      ...(origin
-        ? {
-            "access-control-allow-origin": origin,
-            vary: "Origin",
-          }
-        : {}),
-    },
-  });
-}
-
-export function OPTIONS(request: Request) {
-  const origin = dashboardOrigin(request);
-  if (!origin) return new Response(null, { status: 403 });
-  return new Response(null, {
-    status: 204,
-    headers: {
-      "access-control-allow-origin": origin,
-      "access-control-allow-methods": "GET, PATCH, DELETE, OPTIONS",
-      "access-control-allow-headers": "Authorization, Content-Type",
-      "access-control-max-age": "86400",
-      vary: "Origin",
-    },
-  });
+export function OPTIONS() {
+  return new Response(null, { status: 403 });
 }
 
 function mapRow(row: RequestRow) {
@@ -201,7 +153,7 @@ export async function POST(request: Request) {
     // pending-request rule atomically when implementing SEC-05.
     const duplicate = await db
       .prepare(
-        "SELECT id FROM service_requests WHERE asset_number = ? AND status = 'Pending' AND deleted_at IS NULL LIMIT 1",
+        "SELECT id FROM service_requests WHERE asset_number = $1 AND status = 'Pending' AND deleted_at IS NULL LIMIT 1",
       )
       .bind(assetNumber)
       .first<{ id: string }>();
@@ -225,7 +177,7 @@ export async function POST(request: Request) {
           recorded_location, office, operator_name, requester_name, requester_phone, rig_frac, lease,
           error_code, latitude, longitude,
           gps_accuracy, gps_captured_at, action, status, notes, requested_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', '', ?)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, 'Pending', '', $24)`,
       )
       .bind(
         id,
@@ -256,13 +208,10 @@ export async function POST(request: Request) {
       .run();
 
     return Response.json({ id, status: "Pending", requestedAt }, { status: 201 });
-  } catch (error) {
+  } catch {
     return Response.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to submit the service request.",
+        error: "Unable to submit the service request.",
       },
       { status: 500 },
     );
@@ -281,12 +230,11 @@ export async function GET(request: Request) {
       )
       .all<RequestRow>();
     return dashboardJson(request, { requests: result.results.map(mapRow) });
-  } catch (error) {
+  } catch {
     return dashboardJson(
       request,
       {
-        error:
-          error instanceof Error ? error.message : "Unable to load requests.",
+        error: "Unable to load requests.",
       },
       { status: 500 },
     );
@@ -314,7 +262,7 @@ export async function PATCH(request: Request) {
     const completedAt = status === "Completed" ? new Date().toISOString() : null;
     const result = await database()
       .prepare(
-        "UPDATE service_requests SET status = ?, completed_at = ?, notes = ? WHERE id = ? AND deleted_at IS NULL",
+        "UPDATE service_requests SET status = $1, completed_at = $2, notes = $3 WHERE id = $4 AND deleted_at IS NULL",
       )
       .bind(status, completedAt, String(body.notes || "").trim(), id)
       .run();
@@ -322,12 +270,11 @@ export async function PATCH(request: Request) {
     if (!result.meta.changes)
       return dashboardJson(request, { error: "Request not found." }, { status: 404 });
     return dashboardJson(request, { id, status, completedAt });
-  } catch (error) {
+  } catch {
     return dashboardJson(
       request,
       {
-        error:
-          error instanceof Error ? error.message : "Unable to update request.",
+        error: "Unable to update request.",
       },
       { status: 500 },
     );
@@ -345,19 +292,18 @@ export async function DELETE(request: Request) {
       return dashboardJson(request, { error: "Request id is required." }, { status: 400 });
     const result = await database()
       .prepare(
-        "UPDATE service_requests SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL",
+        "UPDATE service_requests SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL",
       )
       .bind(new Date().toISOString(), id)
       .run();
     if (!result.meta.changes)
       return dashboardJson(request, { error: "Request not found." }, { status: 404 });
     return dashboardJson(request, { id, deleted: true });
-  } catch (error) {
+  } catch {
     return dashboardJson(
       request,
       {
-        error:
-          error instanceof Error ? error.message : "Unable to delete request.",
+        error: "Unable to delete request.",
       },
       { status: 500 },
     );

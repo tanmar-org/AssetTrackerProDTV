@@ -1,5 +1,9 @@
 # Handoff validation
 
+> Historical Worker/D1 handoff evidence. Current code runs on Node/PostgreSQL;
+> use [the root README](../README.md), [development guide](DEVELOPMENT.md), and
+> [self-hosting setup](SELF-HOSTING.md) for current commands and architecture.
+
 Performed September 23, 2026 on the exported source, using isolated local data.
 
 - Installed the tracker's pinned dependencies successfully with `npm ci`; companion dependency entries were identical and reused for validation.

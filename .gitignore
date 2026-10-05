@@ -52,3 +52,6 @@ next-env.d.ts
 *.db-shm
 
 /service-request/node_modules/
+
+# Environment examples are safe templates; actual secrets stay ignored.
+!.env.example

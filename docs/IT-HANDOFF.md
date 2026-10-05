@@ -1,5 +1,9 @@
 # IT handoff — TanMar Receiver Control
 
+> Historical Worker/D1 handoff evidence. Current code runs on Node/PostgreSQL;
+> use [the root README](../README.md), [development guide](DEVELOPMENT.md), and
+> [self-hosting setup](SELF-HOSTING.md) for current commands and architecture.
+
 Updated September 27, 2026. This is the current source with the export changes below, not a completed transfer of production hosting or databases.
 
 ## Provenance

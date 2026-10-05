@@ -1,31 +1,19 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { startNext } from "./helpers/next-server.mjs";
 
-// Existing smoke coverage exercises the built redirect with stubbed assets.
-// It does not test authenticated APIs, real D1 state, or staff workflows (QA-01).
-test("routes the primary URL to receiver control", async () => {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-
-  const response = await worker.fetch(
-    new Request("http://localhost/", {
-      headers: { accept: "text/html" },
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
-      },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
-  );
-
+// Smoke the actual production Node server and public static asset serving.
+test("Node routes the primary URL to receiver control and serves its UI", async (t) => {
+  const server = await startNext(fileURLToPath(new URL("../", import.meta.url)), { DATABASE_URL: "" });
+  t.after(server.close);
+  const response = await fetch(server.url, { redirect: "manual" });
   assert.equal(response.status, 307);
-  assert.equal(
-    new URL(response.headers.get("location"), "http://localhost").pathname,
-    "/asset-tracker/index.html",
-  );
+  assert.equal(new URL(response.headers.get("location"), server.url).pathname, "/asset-tracker/index.html");
+  const page = await fetch(`${server.url}/asset-tracker/index.html`);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /authForm/);
+  const unavailable = await fetch(`${server.url}/api/health`);
+  assert.equal(unavailable.status, 503);
+  assert.deepEqual(await unavailable.json(), { status: "unavailable" });
 });

@@ -4,8 +4,8 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/postgresql-migration-plan`, based on merged
-  `main` at `52d401d`.
+- Development branch: `Dev/node-postgresql`, based on merged
+  `main` at `13467e6`.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -13,17 +13,16 @@
   [PR #6](https://github.com/tanmar-org/AssetTrackerProDTV/pull/6)
   were merged by the owner.
 - PostgreSQL preference documentation
-  [PR #7](https://github.com/tanmar-org/AssetTrackerProDTV/pull/7) is open for owner review.
+  [PR #7](https://github.com/tanmar-org/AssetTrackerProDTV/pull/7) was merged by the owner.
 - Active working copy on the hosting VM:
   `/home/itadmin/projects/AssetTrackerProDTV-security-cleanup`.
 - Owner reviews and merges all PRs. Agents may push `Dev/` branches and open PRs.
-- Current phase: SEC-02 is merged. The owner prefers PostgreSQL hosted on this VM
-  for the database migration; the current code still requires Workers/D1.
-  Production deployment has not started.
-- Next task: design the Node/PostgreSQL migration under HOST-01/HOST-02, retaining
-  controlled provisioning and staff/public access boundaries. SEC-03 server
-  permissions, dependencies, and SEC-01-OWNER remain unresolved in the
-  prioritized [TODO list](TODO.md).
+- Current phase: native Node/PostgreSQL migration implemented and verified in
+  [PR #11](https://github.com/tanmar-org/AssetTrackerProDTV/pull/11), awaiting owner
+  review/merge. Production deployment has not started.
+- Next task: complete SEC-03 server permissions, AUTH-01 account lifecycle, and
+  remaining dependencies. Production domains/services/backups/data cutover remain
+  under HOST-03/HOST-04/MIG-01. SEC-01-OWNER still needs owner confirmation.
 
 ## 2026-10-05 — Repository access and read-only review
 
@@ -326,3 +325,90 @@ No migration implementation or production deployment is included.
 
 References: [PostgreSQL transactions](https://www.postgresql.org/docs/current/tutorial-transactions.html)
 and [JSON/JSONB storage](https://www.postgresql.org/docs/current/datatype-json.html).
+
+## 2026-10-05 — Native Node/PostgreSQL implementation
+
+The owner merged PR #7 and requested continued implementation without separate
+PRs for minor documentation edits. Fetched main at `13467e6` and created
+`Dev/node-postgresql`. Documentation now travels with the corresponding code;
+the original checkout's unrelated edit remains intact.
+
+Replaced both Vinext/Worker build/start paths with native Next.js/Node. Removed
+Worker/Sites configuration/plugins, Wrangler, unused D1/Drizzle adapters/examples,
+and unused ChatGPT authentication templates. Both apps use Next.js 16.3.8 and React
+19.3.0; lockfiles were regenerated intentionally for the replacement runtime.
+This removes unused runtime/tool dependencies, not a claim that DEP-01 is complete.
+System fonts remove Google Fonts fetching and obsolete generated font-cache paths.
+
+Added a shared `@tanmar/database` package with bounded PostgreSQL pools, native
+parameterized SQL, and transactions on one checked-out client. Ported all active
+SQL calls and configuration to separate PostgreSQL URLs and Node server env vars.
+Removed request-time DDL; operator-managed migrations are checksummed, atomic,
+serialized, and refuse the other app's history. Retained the old `drizzle/`
+directories as explicitly historical D1 records for later authorized export mapping.
+
+The tracker keeps its operational state in JSONB, preserving its API fields and
+leading-zero text identifiers. JSONB can reorder object keys, so edit comparisons
+now canonicalize keys to avoid falsely counting unchanged rows as changes. State,
+history, and audit updates share a transaction/advisory lock and keep conditional
+revision writes. Recovery requires the reviewed revision and commits all related
+writes together; the browser sends its current revision. Separate QR/tracker
+coordination remains open under DATA-02.
+
+Ported administrator provisioning to PostgreSQL, with hidden PIN prompts, bound
+parameters, no temporary SQL files, and a table lock before inspecting emptiness.
+HTTP setup remains rejected and any existing user blocks repeat provisioning.
+Native `/api/health` endpoints check database/schema availability without revealing
+connection details. Staff QR operations still use a server proxy/shared credential;
+removed the obsolete Sites cross-origin allowlist. Permission, QR metadata, abuse,
+email, and authentication lifecycle issues remain in TODO.md.
+
+Installed user-local PostgreSQL 18.6 server/client/libpq development binaries from
+Ubuntu packages, checked SHA-256 against repository metadata, and added local tool
+wrappers. The isolated test cluster uses a private Unix socket with no TCP listener;
+no sudo, system service, production database, or live export was used. Both Node
+servers were exercised against random test databases and restricted runtime roles.
+
+Updated README files, contributor instructions, development/self-hosting guides,
+TODOs, and this handoff within the implementation branch. Original IT handoff and
+validation documents are labeled historical. Production services, HTTPS, backups,
+restore verification, existing printed labels, and real-data migration remain
+separate required work; this PR is not production deployment.
+
+Final validation:
+
+- Both `npm run install:ci` commands passed with **369 packages each**. The shared
+  file dependency is packaged into each app (not symlinked); verified the QR
+  PostgreSQL driver resolves from its own node_modules. Refresh/rebuild both
+  apps after shared-package changes. Removed the old Sites-specific npm cache
+  override; npm advisory submission stays disabled and Next telemetry is disabled.
+- Both `npm test` builds passed on native Node: **6 tracker tests** and **1 QR
+  test** passed. Real PostgreSQL integration passed **17 reported tests** (the
+  parent plus 16 scenarios), with no failures/skips. No Worker build was used.
+- Both application TypeScript checks passed. Focused server/scripts/helper lint
+  passed; the changed tracker browser file retains 4 inherited warnings. Full
+  root lint retains 2 vendor errors/147 warnings; QR lint retains 2 effect-state
+  errors/3 image warnings. QA-02 remains open for those failures.
+- Native migration CLI applied the schema and repeated safely. Interactive
+  provisioning created one synthetic administrator with hidden PIN input; a
+  second run refused with exit 1 and left the original row unchanged. PIN arguments
+  and noninteractive input were rejected. Browser/CLI syntax and diff checks passed.
+- Integration fixtures and runtime roles were removed (both remaining counts 0);
+  the disposable CLI database was dropped. The user-local PostgreSQL test cluster
+  at `/tmp/assettracker-postgresql-development/data` is stopped and has no TCP
+  listener. Only its empty test-admin database remains for future development.
+
+Removed the former Worker/Vinext/Drizzle tooling from both lockfiles. The pg driver
+retains its optional `pg-cloudflare` compatibility dependency, but its installed
+stream selector uses native Node networking here; it creates no Worker/D1 binding
+or hosted dependency. Do not mistake a transitive package name for active hosting.
+
+HOST-01/HOST-02 and DATA-02-TRACKER implementation criteria are met; owner PR review
+and merging remain pending. Physical devices/printing, production data, backup
+restoration, final domains/HTTPS, and production service operation were not tested
+or changed. Continue SEC-03/AUTH-01 and dependency remediation before deployment.
+
+Pushed `Dev/node-postgresql` and opened
+[PR #11](https://github.com/tanmar-org/AssetTrackerProDTV/pull/11), targeting `main`.
+The implementation, regression tests, and related documentation are together in
+this PR. The owner performs final review and merging; no deployment was performed.

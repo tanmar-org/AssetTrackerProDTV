@@ -1,0 +1,134 @@
+# Node/PostgreSQL architecture and setup
+
+Both applications use native Next.js on Node. The staff server serves the existing
+`public/asset-tracker/` UI and APIs; the QR server serves the React form and request
+API. PostgreSQL replaces D1. Neither application needs Cloudflare credentials,
+Worker bindings, Sites hosting metadata, Wrangler, or Vinext.
+
+| Component | Development default | Database access |
+| --- | --- | --- |
+| Staff tracker | Loopback port 5173 | Tracker database/runtime role |
+| Public QR service | Loopback port 5174 | Separate requests database/runtime role |
+| Staff request proxy | Configured QR `/api/requests` URL | Server-only shared credential |
+| Operator migrations | `npm run db:migrate` in each app | Separate schema-owner connection |
+| Initial admin | Root `npm run admin:provision` | Tracker only; hidden interactive PIN |
+
+The shared `packages/database/` module owns a bounded pool of four connections per
+Node process. Its query facade accepts native PostgreSQL statements and bound `$1`
+parameters. Transactions hold one client through commit/rollback and release it
+on every path. This is not a D1 emulator or a SQL translation layer.
+
+## Data layout and compatibility
+
+Use two databases with separate application roles. Tracker tables are `app_users`,
+`app_sessions`, `app_change_log`, `app_state`, and `app_state_history`. The requests
+database contains `service_requests`. Each has operator-owned `schema_migrations`.
+
+Operational inventory remains one state document, now validated by JSONB. Native
+JSONB may reorder keys; server edit comparisons canonicalize object keys so
+unchanged records are not falsely counted as edits. Arrays and all collections,
+including rental stock, retain their content. This preserves the API data format;
+normalizing inventory into relational tables remains future work.
+
+IDs and canonical ISO date strings remain text for compatibility with existing
+clients and later authorized D1 import. Usernames have a case-insensitive unique
+index, account roles/active flags are constrained, and sessions reference users.
+Request coordinates use double precision. Preserve leading-zero identifiers as
+text. No data is automatically copied from existing D1 databases.
+
+State saves and recovery share a transaction/advisory lock. The revision predicate
+also protects updates outside that lock; rejected updates create no history/audit.
+Recovery additionally requires the revision the administrator reviewed. A failure
+in history or audit writes rolls back the state change. The two databases still
+do not provide atomic coordination between inventory and QR status (DATA-02).
+
+## Database ownership and permissions
+
+For development, use an isolated PostgreSQL 18 server with synthetic data. For
+production, provisioning the service and credentials is an operator task under
+HOST-04, following owner review. The user-local test cluster is not production.
+
+Create separate migration owners and runtime roles; no runtime role should be a
+superuser, database creator, role creator, or schema owner. Use `createuser
+--pwprompt` or `psql`'s `\password` to set secrets interactively, never a password
+literal in a command line, shell history, or this repository. Create the tracker
+database owned by its migration owner and the requests database by its own owner.
+
+Each app's `.env.migrate` contains its owner `DATABASE_URL`; `npm run db:migrate`
+loads this file and applies only that app's checksummed migrations from `migrations/`.
+An advisory lock and transaction serialize migration runners. Repeated migrations
+are safe; changed applied files or the other app's migration history are rejected.
+Do not edit an applied migration: add a new numbered file for schema changes.
+
+After migrating, grant only the explicit application tables to its runtime role.
+The following example runs as the **tracker schema owner in the tracker database**;
+replace database/role names with the operator's configured names:
+
+```sql
+REVOKE ALL ON DATABASE assettracker FROM PUBLIC;
+GRANT CONNECT ON DATABASE assettracker TO assettracker_runtime;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO assettracker_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+  app_users, app_sessions, app_change_log, app_state, app_state_history
+  TO assettracker_runtime;
+```
+
+Apply equivalent database/schema access in the requests database, granting data
+access only on `service_requests` to its own runtime role. Do not grant runtime
+access to `schema_migrations`. Review grants when future migrations add tables.
+Use authenticated local/socket access or loopback with SCRAM; never expose
+PostgreSQL publicly or reuse the test cluster's trust authentication in production.
+
+## Application configuration
+
+Each app's `.env.local` contains **only runtime settings** from its `.env.example`:
+
+- `DATABASE_URL`: that app's restricted PostgreSQL connection.
+- `ADMIN_SHARED_SECRET`: the same newly generated server-only credential in both apps.
+- `SERVICE_REQUEST_API_URL`: tracker-only, the trusted QR server's `/api/requests` URL.
+
+Keep `.env.migrate` owner credentials separate from the web process environment
+and production service account. Protect private files and backups; do not commit
+them or put server secrets in `NEXT_PUBLIC_` values/browser configuration. Node
+CLI environment variables take precedence over private files; verify the selected
+database before running operator commands. No connection URL or PIN is printed.
+
+The browser calls its same-origin staff proxy, so the old Sites CORS allowlist is
+removed. Direct cross-origin browser staff reads are not enabled. Public request
+POST remains public and still needs the pending abuse/asset validation work.
+Set the non-secret label destination in `public/asset-tracker/config.js` to the
+approved reachable QR HTTPS URL before printing real labels (HOST-03/QR-01).
+
+## Provision, build, and run
+
+Follow the root README to install both lockfiles and configure each private file.
+Apply migrations in both apps, then provision the first tracker administrator in
+a terminal. The operator command hides PIN echo and uses bound parameters; it
+writes no temporary SQL file. A table lock precedes the empty-user check, because
+a conditional INSERT alone cannot serialize concurrent PostgreSQL provisioners.
+Any existing user blocks bootstrap; HTTP setup remains unavailable.
+
+Run `npm test` and `npm run typecheck` in each app. Build artifacts are in `.next/`;
+public assets are served directly from each `public/` directory. Builds use system
+fonts and require no Google Fonts download. Keep the complete repository layout
+and both installed lockfiles, including the relative database package.
+
+Run `npm start` for each built application. Defaults bind only loopback. A later
+production setup must add approved HTTPS domains/reverse proxy, restricted service
+users, startup/restart supervision, logging/monitoring, and environment handling.
+`/api/health` checks the selected database and an application table, returning a
+small no-cache 200/503 response without connection details. Use it for readiness.
+Phone GPS and Secure session cookies require proper HTTPS outside local testing.
+
+## Cutover remains separate
+
+Before public deployment, resolve the remaining security/dependency items in
+TODO.md. Obtain authorized exports from both original databases, reconcile data
+and legacy constraints, clear old sessions, verify complete database backups and
+restoration, and plan printed-label/domain continuity and rollback. No exports,
+live records, domains, or production services are changed by this implementation.
+
+References: [Next.js self-hosting](https://nextjs.org/docs/app/guides/self-hosting),
+[node-postgres transactions](https://node-postgres.com/features/transactions), and
+[PostgreSQL roles](https://www.postgresql.org/docs/current/sql-createrole.html).

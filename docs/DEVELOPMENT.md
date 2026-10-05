@@ -1,156 +1,105 @@
 # Development and review workflow
 
 Read [AGENTS.md](../AGENTS.md), [the journal](<../project journal.md>), and
-[TODO.md](../TODO.md) first. Every repository change belongs on a `Dev/` branch;
-agents may push that branch and open a PR. The owner performs final review and merging.
+[TODO.md](../TODO.md). All changes belong on `Dev/` branches; agents may push/open
+PRs, and the owner reviews/merges. Bundle routine documentation edits with the
+implementation rather than creating a PR for each small update.
 
-## VM tools
+## Tools and installs
 
-Installed for `itadmin` on 2026-10-05:
+The VM has user-local Node/npm (version pinned by `.nvmrc`), GitHub CLI, and
+PostgreSQL 18.6 tools. PostgreSQL server/client/libpq Ubuntu packages were downloaded,
+verified against repository SHA-256 metadata, and extracted under
+`~/.local/share/assettracker-tools/postgresql/`. Wrappers in `~/.local/bin/` supply
+its local library path. No system service or production database was installed.
 
-- Node v24.21.0 LTS, with npm v11.19.0 and npx.
-- GitHub CLI v2.102.0.
-- Existing Git, Python 3, curl, tar/xz, flock, timeout, sha256sum, and GPG.
+Git push/fetch uses the repository's dedicated SSH alias/deploy key; PR operations
+use the authorized GitHub CLI account. Keep keys, tokens, and database URLs out of
+Git and logs. The original checkout has unrelated work; preserve it.
 
-Node/GitHub CLI were downloaded from their official release endpoints, checked
-against published SHA-256 checksums, and installed under
-`~/.local/share/assettracker-tools/`. Executable links are in `~/.local/bin/`, which
-is on this VM's PATH. No passwordless sudo is available; this setup did not install
-system services, a database server, or a production reverse proxy.
+Each application has its own lockfile. Run `npm run install:ci` in the root and
+`service-request/`; it uses `npm ci` without advisory submission. The shared
+`@tanmar/database` package is a relative local dependency, so retain the repository
+layout to install both apps. `.npmrc` packages the shared module into each app's
+node_modules so the QR server does not rely on the tracker's installed dependencies.
+After editing `packages/database/`, refresh its local copies in both apps before
+building/testing. Regenerate lockfiles intentionally only for approved
+dependency/runtime changes. Do not run `npm audit fix --force`.
 
-Check tools with `node --version`, `npm --version`, `gh --version`, and
-`git --version`. The repository's minimum Node version is 22.13; `.nvmrc` pins
-the LTS version used for this baseline.
+## Local applications
 
-Git fetch/push uses the repository's dedicated SSH alias and deploy key. This
-checkout's `core.sshCommand` uses the user's SSH configuration explicitly. Those
-machine-local settings and keys are not repository files. GitHub CLI API operations
-need separate authentication (`gh auth login`); an SSH deploy key does not authorize
-PR creation through the API. Use an authorized GitHub integration or CLI account
-for PR operations; never paste access tokens or passwords into chat.
+Follow [self-hosting setup](SELF-HOSTING.md) for databases and roles. Each app has
+private `.env.local` runtime settings and a separate `.env.migrate` owner connection.
+Node CLI commands load the corresponding file; Next.js loads `.env.local`. Server
+secrets are never prefixed with `NEXT_PUBLIC_` or put in `public/asset-tracker/config.js`.
 
-## Install dependencies
+Run `npm run db:migrate` separately in each app, then `npm run admin:provision` at
+the root in a terminal. PIN entry is hidden; no PIN arguments, environment variables,
+or SQL files are used. Bootstrap takes a PostgreSQL table lock and refuses if any
+user exists, including inactive users. Public HTTP setup always returns 403.
 
-Each application has its own lockfile and install environment. From the repository
-root:
+`npm run dev` uses loopback ports 5173/5174. `npm start` runs a built production Node
+server on the same defaults. Local D1/Workers are no longer part of either path.
+Use synthetic data; do not import production records for development. Test phones
+require reachable HTTPS and an approved public destination, not a localhost label.
 
-```bash
-npm run install:ci
-cd service-request
-npm run install:ci
-```
+## Checks
 
-The reviewed helpers use isolated writable caches and bounded installs. They do
-not upgrade dependency versions. Several locked packages have known advisories;
-see DEP-01/DEP-02 before public deployment. Do not expose a development server
-publicly or run `npm audit fix --force` as part of routine setup.
-
-## Build and existing tests
-
-Run in **each** application directory:
+In each app:
 
 ```bash
 npm test
-```
-
-This builds, validates the exported Worker/Sites artifact, and runs the existing
-Node tests. The tracker suite also checks deactivation drafts and the built public
-JavaScript for the removed account-password field. After a successful unchanged
-build, run the tracker tests with `node --experimental-strip-types --test tests/*.test.mjs`; the QR smoke test
-can be run separately with `node --test tests/rendered-html.test.mjs`.
-
-Additional checks as appropriate:
-
-```bash
+npm run typecheck
 npm run lint
-npx tsc --noEmit --incremental false
 ```
 
-The inherited smoke tests verify a root redirect and service-page metadata. The
-tracker's SEC-01 tests additionally cover credential-field removal and retained
-receiver details. SEC-02 covers rejected HTTP setup, local provisioning, concurrent
-initial creation, and normal login/session behavior. Broader security/data behavior
-still needs QA-01 coverage. The suite uses Node's SQLite module with synthetic data;
-CLI/test commands enable TypeScript stripping for the existing PIN helper on Node 22.13+.
-Record exact results, including existing failures.
-On 2026-10-05 both builds/tests passed; lint and TypeScript checks failed on inherited
-issues. See [the baseline validation](reviews/2026-10-05-validation.md) and QA-02.
-The build uses workerd/Miniflare; a restricted execution sandbox may prevent runtime
-startup. Use the approved VM execution context when required and explain failures.
+`npm test` builds with native Next.js and tests real Node HTTP responses/static
+assets. Tracker regressions also verify hidden bootstrap UI, operator validation,
+and credential-free deactivation drafts/served JavaScript. After an unchanged
+successful build, run `node --experimental-strip-types --test tests/*.test.mjs`.
+On 2026-10-05 both builds/type checks passed. Inherited lint issues remain under
+QA-02: root vendor errors/browser warnings and QR effect-state errors/image warnings.
+Changed server/helper code passes focused lint checks.
 
-Browser scripts can be checked without running the UI:
+## Real PostgreSQL integration tests
+
+`npm run test:integration` at the root runs both built Node servers using separate,
+randomly named test databases and restricted application roles. It requires a
+**disposable local PostgreSQL cluster** with a test administrator able to create
+and drop databases/roles. Never point it at production. The helper requires a
+loopback/private socket destination and the dedicated `assettracker_test_admin`
+database name; it does not use a normal application `DATABASE_URL`.
+
+Example private cluster with the VM's user-local tools (choose a fresh directory):
 
 ```bash
-node --check public/asset-tracker/app.js
-node --check public/asset-tracker/service-request.js
+umask 077
+mkdir -p /tmp/assettracker-pg-tests/socket
+initdb -D /tmp/assettracker-pg-tests/data \
+  -L "$HOME/.local/share/assettracker-tools/postgresql/usr/share/postgresql/18" \
+  --auth-local=trust --auth-host=scram-sha-256 --no-locale --encoding=UTF8
+pg_ctl -D /tmp/assettracker-pg-tests/data \
+  -l /tmp/assettracker-pg-tests/server.log \
+  -o "-h '' -p 55432 -k /tmp/assettracker-pg-tests/socket -c unix_socket_permissions=0700" -w start
+createdb -h /tmp/assettracker-pg-tests/socket -p 55432 assettracker_test_admin
+TEST_DATABASE_URL='postgresql://localhost:55432/assettracker_test_admin?host=/tmp/assettracker-pg-tests/socket' npm run test:integration
+pg_ctl -D /tmp/assettracker-pg-tests/data -m fast -w stop
 ```
 
-Builds create ignored `dist/`, `.sites-runtime/`, and `.wrangler/` files. Check
-`git status` afterward: committed font-cache files may also be touched. Keep generated
-artifacts and local credentials out of PRs; preserve unrelated user changes.
+Local trust authentication here is limited to a private socket in a mode-0700
+test directory. It is not a production configuration. Fixtures are dropped and
+servers stopped after tests. The operator must stop the private test cluster.
 
-## Local applications and data
+Coverage includes repeatable/checksummed migrations, database role separation,
+rejected HTTP bootstrap, concurrent operator provisioning, login/logout/account
+updates, JSONB round trips/key-order comparisons, competing writes, rollback of
+failed audit inserts, no orphan history on rejected updates, revision-protected
+recovery, QR requests, staff proxy/status/tombstones, and readiness.
 
-The current applications still require local Cloudflare Worker/D1 emulation.
-The owner prefers PostgreSQL hosted on this VM for the planned production migration.
-That preference does not change the current development commands: HOST-01/HOST-02
-must first implement the Node runtime and PostgreSQL persistence/provisioning paths.
-Follow the root README for isolated local database migrations and development
-ports 5173 (tracker) and 5174 (QR service). A root `npm start` does not complete
-the planned self-hosting migration.
+## Finishing implementation
 
-Copy each `.dev.vars.example` only when local API testing needs it. Generate a new
-random shared credential, configure the tracker to call the local QR endpoint,
-and keep all credentials/database files ignored. Never copy production data or
-sessions into a development environment. Public deployment must wait for the
-security, runtime, configuration, migration, and acceptance items in TODO.md.
-
-## Initial administrator provisioning
-
-Public `/api/auth` only accepts login; `action: "setup"` returns 403 even against
-an empty database. GET reports `needsProvisioning` so the UI asks users to contact
-their administrator instead of offering public administrator creation.
-
-An operator with shell access provisions the first account after applying tracker
-migrations. Stop the local app while performing maintenance and use the same
-local persistence directory as the dev server:
-
-```bash
-npx wrangler d1 migrations apply DB --local --config wrangler.local.json --persist-to .wrangler/state
-npm run admin:provision
-```
-
-The command prompts for username, PIN, and PIN confirmation. PIN input is hidden;
-never pass it on the command line, in environment variables, or in chat. The shared
-PIN helper creates a salted PBKDF2 hash. Wrangler reads a mode-0600 temporary SQL
-file inside a private temporary directory, which is removed after the operation.
-Wrangler logs/error details are withheld so hashes do not reach routine output.
-
-One conditional SQL INSERT creates an administrator only when **no users exist**.
-Concurrent attempts cannot create multiple initial accounts. A following ID lookup
-reports whether this attempt succeeded; it does not authorize creation. Existing
-users, including inactive/regular users, cause refusal without changing any account.
-Later account management uses the authenticated administrator UI/API. Loss of all
-active administrators requires explicit operator recovery, not public bootstrap.
-
-For an isolated test directory:
-
-```bash
-npm run admin:provision -- --persist-to /absolute/local/test-directory
-```
-
-Apply migrations to that directory first. This tool always passes `--local` and
-does not support remote D1 provisioning. The selected VM production database needs
-a trusted operator provisioning adapter during HOST-02; do not re-enable HTTP setup
-to work around an unprovisioned deployment. No live accounts are created by development tests.
-
-## Finishing a task
-
-1. Verify changes and run checks appropriate to their risk and scope.
-2. Update the journal and TODO status; include decisions, unresolved items, validation,
-   and the next step. Update other relevant documentation when behavior changes.
-3. Review `git diff --check` and ensure no secrets, data, caches, or unrelated changes
-   are staged. Commit on the task's `Dev/` branch.
-4. Push the branch and open/update a PR targeting `main`. Explain the final change,
-   test results, and any limits. Add the PR reference to the journal.
-5. Leave final review and merging to the owner.
+Review diffs and `git diff --check`; run checks appropriate to the change. Update
+journal/TODO/setup docs within the same implementation branch, commit and push,
+then open/update one focused PR. Keep runtime secrets, test databases, dumps,
+node_modules, `.next/`, legacy ignored build output, and VM-specific configuration
+out of Git. Do not merge or deploy; the owner performs final review and merging.

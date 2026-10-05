@@ -18,6 +18,8 @@ The journal records current evidence; older handoff statements may be stale.
   enable automatic merging, push directly to `main`, or bypass branch protections.
 - Keep each PR focused and reviewable. Describe the resulting behavior, relevant
   risks, validation performed, and checks that could not be completed.
+- Bundle minor documentation and journal updates with the implementation they
+  describe. The owner requested no separate PR for each small documentation edit.
 - Do not deploy to production or modify live databases as part of a development
   task unless the owner explicitly authorizes that action.
 
@@ -39,20 +41,20 @@ The journal records current evidence; older handoff statements may be stale.
   `app/api/`, PIN/session helpers in `lib/pin-auth.ts`.
 - Public QR application: `service-request/`, especially `app/page.tsx` and
   `app/api/requests/route.ts`.
-- Both applications currently build as Vinext/Cloudflare Workers and require
-  separate D1 `DB` bindings. Ordinary Node hosting is a planned migration, not a
-  completed capability. Several routes call the D1 API directly; changing only
-  `db/index.ts` is insufficient.
-- The owner prefers PostgreSQL hosted on this VM as the migration target
-  (2026-10-05). Plan HOST-01/HOST-02 around PostgreSQL; the Node runtime layout and
-  production operations still need design and implementation. Local D1 is only
-  the current development/testing environment, not the intended production backend.
-- The tracker stores most operational collections as one JSON state payload.
-  The QR application stores service requests in a separate database.
-- Initial administrator creation is operator-only: migrate an isolated local D1
-  database, then run `npm run admin:provision` in a terminal. Never reintroduce
-  public HTTP bootstrap or pass PINs as command arguments. The provisioning adapter
-  must be ported with the selected production backend during HOST-02.
+- Both applications build/run with native Next.js on Node and PostgreSQL, using
+  separate database URLs and runtime roles. No Worker/D1 binding is required.
+  `packages/database/` supplies a shared parameterized-query/transaction facade;
+  SQL uses PostgreSQL `$1` placeholders with no D1/SQLite translation.
+- The tracker retains operational collections as a JSONB state document. State,
+  history, and audit writes share a transaction/advisory lock; recovery requires
+  an expected revision. The QR application has its own request database.
+- Apply PostgreSQL migrations from `migrations/` with an operator connection;
+  web requests never run DDL. `drizzle/` directories are historical D1 records,
+  not the current migration source. Follow [self-hosting setup](docs/SELF-HOSTING.md).
+- Initial administrator creation is operator-only: migrate the tracker database,
+  then run `npm run admin:provision` in a terminal. Never reintroduce public HTTP
+  bootstrap or pass PINs as command arguments. PostgreSQL bootstrap takes a table
+  lock before checking for any existing user; a conditional INSERT alone can race.
 - Current QR links and mail drafts carry receiver/account metadata. Automatic
   server email and a Monday reporting job are not implemented.
 - An account-password value was removed from a public template under SEC-01.
@@ -86,7 +88,8 @@ The journal records current evidence; older handoff statements may be stale.
 - Dependency advisory matches identify affected versions, not proven exploitability
   of every advisory in this application. Review runtime reachability and update
   related packages together. Do not automatically run `npm audit fix --force`.
-- Preserve lockfiles for installs. Keep dependency remediation in focused tasks;
+- Preserve lockfiles for installs. Regenerate them intentionally when replacing
+  the runtime/dependency set, and validate both apps. Keep dependency remediation in focused tasks;
   do not mix package upgrades into unrelated fixes or documentation/comment work.
 - Add meaningful regression tests when fixing permissions, persistence,
   concurrency, or other consequential behavior. Documentation-only edits do not
