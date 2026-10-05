@@ -104,6 +104,16 @@ cover chunked UTF-8 body limits and malformed cookies before database work.
 The existing PIN policy/outer company authentication and shared-device cache
 behavior still need owner decisions/further implementation; see AUTH-01/DATA-04.
 
+Inventory coverage uses the same real PostgreSQL/runtime-role/server fixture.
+It checks role/method versus forged labels, ordinary assignments/services/stock,
+bulk and rental-stock bypasses, malformed/duplicate/dangling records, capacity and
+unsafe URLs, history attribution/immutability, invalid historical recovery,
+queued role changes, denied QR deletes, upstream timeout cleanup, and no-op audit
+behavior. Actual browser functions are exercised for ordered PATCH saves,
+paused/recoverable drafts, bounded queues, and stock/audit snapshot/Undo coverage.
+Full browser/mobile/printing acceptance still belongs to QA-01; Node/VM checks
+do not stand in for physical-device testing. See [the policy](INVENTORY-PERMISSIONS.md).
+
 ## Finishing implementation
 
 Review diffs and `git diff --check`; run checks appropriate to the change. Update

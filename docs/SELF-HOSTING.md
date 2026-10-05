@@ -24,11 +24,12 @@ Use two databases with separate application roles. Tracker tables are `app_users
 `app_sessions`, `app_change_log`, `app_state`, and `app_state_history`. The requests
 database contains `service_requests`. Each has operator-owned `schema_migrations`.
 
-Operational inventory remains one state document, now validated by JSONB. Native
-JSONB may reorder keys; server edit comparisons canonicalize object keys so
-unchanged records are not falsely counted as edits. Arrays and all collections,
-including rental stock, retain their content. This preserves the API data format;
-normalizing inventory into relational tables remains future work.
+Operational inventory remains one JSONB state document with explicit record and
+relationship validation on reads/saves/recovery. Native JSONB may reorder keys;
+server edit comparisons canonicalize object keys. The payload includes rental
+stock; normalizing inventory into relational tables remains future work. Read
+[inventory permissions](INVENTORY-PERMISSIONS.md) for the admin PUT/ordinary PATCH
+contract, bounds, stock/history policy, snapshots, and legacy-data reconciliation.
 
 IDs and canonical ISO date strings remain text for compatibility with existing
 clients and later authorized D1 import. Usernames have a case-insensitive unique
@@ -36,7 +37,8 @@ index, account roles/active flags are constrained, and sessions reference users.
 Request coordinates use double precision. Preserve leading-zero identifiers as
 text. No data is automatically copied from existing D1 databases.
 
-State saves and recovery share a transaction/advisory lock. The revision predicate
+State saves and recovery share account-authorization and state transaction locks,
+in that order, rechecking roles/sessions after waiting. The revision predicate
 also protects updates outside that lock; rejected updates create no history/audit.
 Recovery additionally requires the revision the administrator reviewed. A failure
 in history or audit writes rolls back the state change. The two databases still
@@ -136,8 +138,9 @@ revocation, and audit writes share one transaction; audit failure cancels the ch
 
 These protections retain the existing 4–8 digit PIN policy and 12-hour sessions.
 Company SSO/outer access controls, broader traffic throttling, browser cache
-cleanup on shared devices, and inventory permission/schema enforcement remain
-AUTH-01/DATA-04/SEC-03 tasks before deployment.
+cleanup on shared devices, and durable conflict resolution remain
+AUTH-01/DATA-04/DATA-01 tasks before deployment. Inventory permissions/schemas are
+implemented under SEC-03; reconcile incompatible source data/history under MIG-01.
 
 ## Build and run
 

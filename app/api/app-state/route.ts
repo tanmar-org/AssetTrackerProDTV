@@ -1,84 +1,11 @@
 import { db, requireUser } from "../../../lib/pin-auth";
+import { AccessInputError, accessError, readAccessBody } from "../../../lib/access-input";
+import { canonicalJson, validateInventory } from "../../../lib/inventory-state";
+import { authorizeEveryday } from "../../../lib/inventory-permissions";
 
-// Server-only PostgreSQL connections require the Node runtime and fresh responses.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-// Operational collections share one JSON payload and revision, so any edit can
-// conflict with another user's edit to an otherwise unrelated collection.
-type AppState = {
-  master: unknown[];
-  accounts: unknown[];
-  assignments: unknown[];
-  activations: unknown[];
-  receiverEvents: unknown[];
-  auditState: unknown | null;
-};
-
 const STATE_ID = "tanmar-receiver-control";
-
-// This checks only outer shapes. It does not validate individual records, links,
-// business rules, or rentalStock; stronger server validation belongs to SEC-03.
-function validState(value: unknown): value is AppState {
-  if (!value || typeof value !== "object") return false;
-  const state = value as Record<string, unknown>;
-  return (
-    Array.isArray(state.master) &&
-    Array.isArray(state.accounts) &&
-    Array.isArray(state.assignments) &&
-    Array.isArray(state.activations) &&
-    Array.isArray(state.receiverEvents) &&
-    (state.auditState === null || typeof state.auditState === "object")
-  );
-}
-
-const ADMIN_ONLY_ACTIONS = [
-  "Import receivers to account",
-  "Restore app backup",
-  "Clear all app data",
-];
-
-// JSONB can reorder object keys. Compare content canonically so a database
-// round-trip does not count every unchanged record as a regular-user edit.
-function canonicalJson(value: unknown) {
-  return JSON.stringify(value, (_key, item) => {
-    if (item && typeof item === "object" && !Array.isArray(item))
-      return Object.fromEntries(Object.keys(item).sort().map((key) => [key, item[key]]));
-    return item;
-  });
-}
-
-function changedRecordCount(before: unknown[], after: unknown[]) {
-  const beforeMap = new Map(before.map((item, index) => {
-    const record = item && typeof item === "object" ? item as Record<string, unknown> : null;
-    return [String(record?.id || index), canonicalJson(item)];
-  }));
-  const afterMap = new Map(after.map((item, index) => {
-    const record = item && typeof item === "object" ? item as Record<string, unknown> : null;
-    return [String(record?.id || index), canonicalJson(item)];
-  }));
-  const keys = new Set([...beforeMap.keys(), ...afterMap.keys()]);
-  let changed = 0;
-  for (const key of keys) if (beforeMap.get(key) !== afterMap.get(key)) changed += 1;
-  return changed;
-}
-
-// This inherited heuristic trusts client action labels and counts changed records.
-// It omits rentalStock and cannot express operation-specific permissions (SEC-03).
-function regularUserCanSave(before: AppState | null, after: AppState, action: string) {
-  if (ADMIN_ONLY_ACTIONS.includes(action) || action.startsWith("Apply ")) return false;
-  if (!before) return false;
-
-  const collections: Array<keyof Pick<AppState, "master" | "accounts" | "assignments" | "activations" | "receiverEvents">> = [
-    "master", "accounts", "assignments", "activations", "receiverEvents",
-  ];
-  let changed = canonicalJson(before.auditState) === canonicalJson(after.auditState) ? 0 : 1;
-  for (const key of collections) {
-    if (before[key].length - after[key].length > 1) return false;
-    changed += changedRecordCount(before[key], after[key]);
-  }
-  return changed <= 8;
-}
 
 export async function GET(request: Request) {
   try {
@@ -104,45 +31,39 @@ export async function GET(request: Request) {
 
     return Response.json(
       {
-        state: JSON.parse(row.payload),
+        state: validateInventory(JSON.parse(row.payload)),
         revision: row.revision,
         updatedAt: row.updated_at,
         updatedBy: row.updated_by,
       },
       { headers: { "cache-control": "no-store" } },
     );
-  } catch {
-    return Response.json(
-      { error: "Database read failed." },
-      { status: 503 },
-    );
-  }
+  } catch (error) { return accessError(error, "Database read failed."); }
 }
 
-export async function PUT(request: Request) {
+// PUT replaces the document (imports/restore/clear); PATCH permits only checked
+// everyday edits. HTTP method and persisted differences determine authority.
+async function writeState(request: Request, replacement: boolean) {
   try {
-    const auth = await requireUser(request);
-    if (auth.response) return auth.response;
-    const body = (await request.json()) as {
-      state?: unknown;
-      baseRevision?: unknown;
-      action?: unknown;
-    };
-    if (!validState(body.state))
-      return Response.json({ error: "Invalid app state." }, { status: 400 });
-
-    const state = body.state; // Preserve validation narrowing inside the transaction.
-    const baseRevision = Number(body.baseRevision);
-    if (!Number.isInteger(baseRevision) || baseRevision < 0)
+    const initial = await requireUser(request, replacement ? "admin" : undefined);
+    if (initial.response) return initial.response;
+    const body = await readAccessBody(request, { limit: 8 * 1024 * 1024, label: "Inventory" });
+    const state = validateInventory(body.state);
+    const baseRevision = body.baseRevision;
+    if (typeof baseRevision !== "number" || !Number.isSafeInteger(baseRevision) || baseRevision < 0)
       return Response.json({ error: "Invalid revision." }, { status: 400 });
 
     return await db().transaction(async (store) => {
-      // Serialize first inserts and updates, including history/audit writes.
+      // Account mutations use the first lock too. Check authorization after
+      // waiting and hold it through commit so a queued demotion cannot race us.
+      await store.prepare("SELECT pg_advisory_xact_lock(728303)").run();
+      const auth = await requireUser(request, replacement ? "admin" : undefined, store);
+      if (auth.response) return auth.response;
       await store.prepare("SELECT pg_advisory_xact_lock(728302)").run();
       const current = await store
-        .prepare("SELECT revision, payload::text AS payload FROM app_state WHERE id = $1")
+        .prepare("SELECT revision, payload::text AS payload, updated_at, updated_by FROM app_state WHERE id = $1")
         .bind(STATE_ID)
-        .first<{ revision: number; payload: string }>();
+        .first<{ revision: number; payload: string; updated_at: string; updated_by: string | null }>();
       const currentRevision = current?.revision ?? 0;
 
       if (currentRevision !== baseRevision)
@@ -151,23 +72,24 @@ export async function PUT(request: Request) {
           { status: 409 },
         );
 
-      const action = String(body.action || "Data change").slice(0, 160);
-      const currentState = current ? JSON.parse(current.payload) as AppState : null;
-      if (auth.user!.role !== "admin" && !regularUserCanSave(currentState, state, action)) {
-        await store.prepare(
-          "INSERT INTO app_change_log (id, user_id, user_name, action, created_at) VALUES ($1, $2, $3, $4, $5)",
-        ).bind(
-          crypto.randomUUID(),
-          auth.user!.id,
-          auth.user!.name,
-          `Denied: ${action}`,
-          new Date().toISOString(),
-        ).run();
-        return Response.json(
-          { error: "Administrator access is required for bulk, restore, clear, or multi-record changes." },
-          { status: 403 },
-        );
+      let action = typeof body.action === "string" ? body.action.slice(0, 160) : "Administrator inventory replacement";
+      if (!replacement) {
+        try {
+          const before = current ? validateInventory(JSON.parse(current.payload)) : null;
+          action = authorizeEveryday(before, state, auth.user!.name);
+          validateInventory(state); // Validate server-stamped attribution too.
+        } catch (error) {
+          if (!(error instanceof AccessInputError) || error.status !== 403) throw error;
+          await store.prepare("INSERT INTO app_change_log (id, user_id, user_name, action, created_at) VALUES ($1, $2, $3, $4, $5)")
+            .bind(crypto.randomUUID(), auth.user!.id, auth.user!.name, "Denied: inventory operation requires administrator", new Date().toISOString()).run();
+          return accessError(error, "Database save failed.");
+        }
       }
+
+      // Debounced/UI retries may contain no actual change. Never manufacture a
+      // revision, audit action, or recovery point from a client label alone.
+      if (current && canonicalJson(JSON.parse(current.payload)) === canonicalJson(state))
+        return Response.json({ revision: currentRevision, updatedAt: current.updated_at, updatedBy: current.updated_by });
 
       const nextRevision = currentRevision + 1;
       const updatedAt = new Date().toISOString();
@@ -229,10 +151,8 @@ export async function PUT(request: Request) {
 
       return Response.json({ revision: nextRevision, updatedAt, updatedBy });
     });
-  } catch {
-    return Response.json(
-      { error: "Database save failed." },
-      { status: 503 },
-    );
-  }
+  } catch (error) { return accessError(error, "Database save failed."); }
 }
+
+export function PUT(request: Request) { return writeState(request, true); }
+export function PATCH(request: Request) { return writeState(request, false); }

@@ -60,10 +60,16 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   all 14 tests passed, plus fresh/repeated local D1 CLI checks.
   [PR #6](https://github.com/tanmar-org/AssetTrackerProDTV/pull/6) was merged by the owner.
   The PostgreSQL operator adapter is now ported under HOST-02; HTTP bootstrap stays closed.
-- [ ] SEC-03 — Enforce explicit server permissions and record schemas. Include
+- [x] SEC-03 — Enforce explicit server permissions and record schemas. Include
   rental stock, bulk edits, restore/clear operations, assignment uniqueness, account
   capacity, and identifier/link validation. Client action labels must not grant
   authority; test regular-user bypass attempts and permitted edits.
+  Implemented on `Dev/inventory-permissions`: admin-only replacements/recovery/
+  deletion; ordinary PATCH checks actual account/receiver/service/stock changes.
+  Typed/bounded records, stock links/counts, unique assignments, 20-receiver capacity,
+  and safe identifiers/Maps URLs are enforced on reads/saves/recovery. See
+  [the implemented permission policy](docs/INVENTORY-PERMISSIONS.md). Owner PR
+  review/merge is pending; initial import requires reconciled data under MIG-01.
 - [ ] SEC-04 — Retire or safely rebuild the legacy static service form. URL and
   stored values must render as safe text/validated attributes; test HTML injection
   and unsafe links on both public and authenticated pages.
@@ -79,7 +85,7 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   sessions. Recheck administrator access inside the serialized mutation; retain at
   least one active admin under concurrent demotions. Implemented/tested on
   `Dev/account-security` in
-  [PR #17](https://github.com/tanmar-org/AssetTrackerProDTV/pull/17); owner review/merge pending.
+  [PR #17](https://github.com/tanmar-org/AssetTrackerProDTV/pull/17), merged by the owner.
 - [x] AUTH-01-LOCKOUT — Serialize login attempts with a PostgreSQL row lock through
   session issuance. Five concurrent failures trigger the existing 15-minute
   lockout; login/reset races cannot leave an old-PIN session valid. Bound access
@@ -94,6 +100,11 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 - [ ] DATA-01 — Preserve pending edits on revision conflicts and provide explicit
   conflict resolution. Browser-storage failures must not silently prevent server
   persistence; test offline/reconnect, full storage, and simultaneous users.
+- [x] DATA-01-REJECTION — Ordinary edits queue separately using acknowledged
+  revisions. Validation/permission/conflict failures pause retry/polling and retain
+  the local draft for snapshot export/manual reconciliation. Queue order remains
+  in memory (32-operation limit); durable offline edits, conflict UI, and storage
+  failures remain under DATA-01. Actual browser-function regressions pass.
 - [ ] DATA-02 — Make state/history/log writes consistent; protect recovery with
   expected revisions and coordinate QR status with tracker updates. Test concurrent
   recovery/save and failures between related writes.
@@ -102,8 +113,13 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   zero-row update, and audit-failure rollback tests pass. Coordination with the
   separate QR database remains open under DATA-02.
 - [ ] DATA-03 — Implement complete, restorable database backups for both apps,
-  including rental stock, users, requests, logs, and history. Correct export claims
-  and fix Undo's audit/rental-stock coverage. Verify restore in an isolated environment.
+  including rental stock, users, requests, logs, and history. Verify operator
+  database backups/restoration in an isolated environment; inventory exports are
+  not complete database backups.
+- [x] DATA-03-SNAPSHOT — Browser inventory snapshots and new Undo entries include
+  rental stock/audit, and clear resets stock with inventory. Restore/Undo are admin
+  actions; older missing collections receive a clearing warning. Export labels
+  describe inventory scope accurately. Actual browser-function regressions pass.
 - [ ] DATA-04 — Define browser cache/offline policy and remove sensitive operational
   caches on sign-out or isolate them by authorized user. Test shared-device behavior.
 - [ ] DATA-05 — Report import success/skips accurately, including capacity-blocked
