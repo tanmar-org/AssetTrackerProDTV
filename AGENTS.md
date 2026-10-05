@@ -73,6 +73,12 @@ The journal records current evidence; older handoff statements may be stale.
   session revocation, and audit changes together. Login locks the target user row
   through PIN verification/session issuance. Preserve those lock boundaries;
   a PIN reset must invalidate sessions even when a login races it.
+- Legacy static service-form parameters must render through fixed DOM elements
+  and textContent. Escape all cached/imported/API values used in staff HTML,
+  including IDs and enum/class attributes; server schemas do not validate older
+  browser caches or separate QR responses. Use `safeMapsLink` before Maps anchors:
+  escaping an href alone cannot block executable schemes. Regression checks live
+  in `tests/service-rendering.test.mjs` and the optional real-browser suite.
 - Current QR links and mail drafts carry receiver/account metadata. Automatic
   server email and a Monday reporting job are not implemented.
 - An account-password value was removed from a public template under SEC-01.

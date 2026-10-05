@@ -69,11 +69,17 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   Typed/bounded records, stock links/counts, unique assignments, 20-receiver capacity,
   and safe identifiers/Maps URLs are enforced on reads/saves/recovery. See
   [the implemented permission policy](docs/INVENTORY-PERMISSIONS.md).
-  [PR #19](https://github.com/tanmar-org/AssetTrackerProDTV/pull/19) awaits owner
-  review/merge; initial import requires reconciled data under MIG-01.
-- [ ] SEC-04 — Retire or safely rebuild the legacy static service form. URL and
-  stored values must render as safe text/validated attributes; test HTML injection
-  and unsafe links on both public and authenticated pages.
+  [PR #19](https://github.com/tanmar-org/AssetTrackerProDTV/pull/19) was merged by
+  the owner; initial import requires reconciled data under MIG-01.
+- [x] SEC-04 — Safely render the legacy static service form while preserving old
+  label URLs. URL details use fixed DOM elements/textContent; staff cached/API IDs,
+  status/history attributes, and audit counts are escaped. Maps anchors require
+  bounded HTTPS Google Maps URLs; QR destinations reject executable/credential URLs.
+  Five unit regressions and four Chromium scenarios plus their parent passed,
+  covering legacy, React QR, and staff pages. Implemented on
+  `Dev/safe-service-rendering`; owner review/merge pending. Legacy requests still
+  create mail drafts only; private URL metadata and public API validation remain
+  QR-01/MAIL-01/SEC-05.
 - [ ] SEC-05 — Add public-request abuse controls, size/field limits, asset lookup,
   valid coordinate/time bounds, and atomic duplicate prevention. Test malformed,
   oversized, repeated, unknown-asset, and concurrent submissions.

@@ -167,3 +167,24 @@ live records, domains, or production services are changed by this implementation
 References: [Next.js self-hosting](https://nextjs.org/docs/app/guides/self-hosting),
 [node-postgres transactions](https://node-postgres.com/features/transactions), and
 [PostgreSQL roles](https://www.postgresql.org/docs/current/sql-createrole.html).
+
+## Service-form compatibility and safe links
+
+Existing `/asset-tracker/service-request.html` links remain available. This legacy
+form now renders QR parameters as literal text; it still only opens a device email
+draft and does not save a request to the QR database. New labels use the separate
+QR application configured by `serviceRequestUrl`. Preserve printed-label/domain
+continuity during cutover (MIG-01); removing a legacy file or silently redirecting
+labels would change the request workflow.
+
+Staff pages escape cached/API values and only show GPS anchors for bounded HTTPS
+Google Maps URLs (`maps.google.com`, or `google.com` / `www.google.com` paths beginning
+with `/maps`), without credentials or nondefault ports. Invalid destinations have
+no clickable map link. This display check does not modify stored records or replace
+server schema validation. Configured QR destinations must be HTTP/HTTPS without
+embedded credentials; an invalid setting produces the existing label-generation
+error. Set approved HTTPS production URLs before printing labels (HOST-03).
+
+Ship the updated public JavaScript with the server build and have staff reload
+existing tabs. Private metadata in existing QR URLs/mail drafts, public submission
+abuse controls, and automatic server email remain QR-01/SEC-05/MAIL-01 blockers.
