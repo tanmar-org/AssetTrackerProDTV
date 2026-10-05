@@ -1722,56 +1722,18 @@ function normalizeCsvHeader(value){
   return String(value||"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
 }
 
+// CSV text is already file-size bounded. Check dimensions/cells before building
+// record previews; these limits match the spreadsheet worker's physical rows.
+function checkCsvMatrix(rows){
+  if(rows.length>20001||rows.some(row=>row.length>256)||rows.reduce((sum,row)=>sum+row.length,0)>200000)
+    throw new Error("The CSV exceeds the row, column, or cell import limits. Split it into smaller files.");
+  if(rows.some(row=>row.some(value=>value.length>8192)))throw new Error("A CSV cell exceeds 8,192 characters.");
+}
 function parseCsvText(text){
-  const rows=[];
-  let row=[];
-  let cell="";
-  let quoted=false;
-
-  for(let i=0;i<text.length;i++){
-    const ch=text[i];
-    const next=text[i+1];
-
-    if(ch==='"' && quoted && next==='"'){
-      cell+='"';
-      i++;
-      continue;
-    }
-
-    if(ch==='"'){
-      quoted=!quoted;
-      continue;
-    }
-
-    if(ch==="," && !quoted){
-      row.push(cell.trim());
-      cell="";
-      continue;
-    }
-
-    if((ch==="\n" || ch==="\r") && !quoted){
-      if(ch==="\r" && next==="\n")i++;
-      row.push(cell.trim());
-      cell="";
-      if(row.some(v=>v!==""))rows.push(row);
-      row=[];
-      continue;
-    }
-
-    cell+=ch;
-  }
-
-  row.push(cell.trim());
-  if(row.some(v=>v!==""))rows.push(row);
-
+  const rows=parseCsvMatrix(text);
   if(rows.length<2)throw new Error("The CSV does not contain any receiver rows.");
-
   const headers=rows[0].map(normalizeCsvHeader);
-  return rows.slice(1).map(values=>{
-    const record={};
-    headers.forEach((header,index)=>record[header]=values[index]??"");
-    return record;
-  });
+  return rows.slice(1).map(values=>Object.fromEntries(headers.map((header,index)=>[header,values[index]??""])));
 }
 
 function csvValue(row,aliases){
@@ -1814,7 +1776,7 @@ function openAccountImportModal(){
 
 async function prepareAccountImport(file){
   try{
-    const rawRows=parseCsvText(await file.text());
+    const rawRows=await readAccountImportRows(file);
     const records=rawRows.map(accountImportRecord);
     const currentCount=assignedFor(currentAccountId).length;
     const availableSlots=Math.max(0,20-currentCount);
@@ -2785,11 +2747,41 @@ function importValue(row,names){
   return "";
 }
 
-// XLSX is provided by the externally loaded spreadsheet library; replace its
-// vulnerable CDN version with a verified local reader under DEP-02.
+// The pinned local library supplies conversion utilities. Parsing runs in a local
+// browser worker with limits and termination, so untrusted files cannot block the
+// staff page indefinitely. Reject oversized files before allocating their bytes.
+function checkImportFile(file){
+  if(!file||!Number.isSafeInteger(file.size)||file.size<=0||file.size>10*1024*1024)
+    throw new Error("Choose a nonempty import file up to 10 MiB.");
+}
+async function readImportText(file){
+  checkImportFile(file);
+  return file.text();
+}
 async function readExcelBook(file){
-  if(typeof XLSX==="undefined")throw new Error("Excel reader did not load. Refresh while connected to the internet.");
-  return XLSX.read(await file.arrayBuffer(),{type:"array"});
+  checkImportFile(file);
+  if(typeof XLSX==="undefined")throw new Error("The local spreadsheet reader did not load. Reload the page or contact your administrator.");
+  const extension=String(file.name||"").split(".").pop().toLowerCase();
+  if(!["xlsx","xls","csv"].includes(extension))throw new Error("Choose an XLSX, XLS, or CSV file.");
+  const buffer=await file.arrayBuffer();
+  return new Promise((resolve,reject)=>{
+    const worker=new Worker(new URL("spreadsheet-worker.js?v=60",document.baseURI));
+    let timer;
+    const finish=(error,book)=>{clearTimeout(timer);worker.terminate();if(error)reject(error);else resolve(book);};
+    timer=setTimeout(()=>finish(new Error("Spreadsheet processing exceeded 15 seconds. Split the file into smaller workbooks.")),15000);
+    worker.onmessage=event=>event.data?.error?finish(new Error(event.data.error)):finish(null,event.data.book);
+    worker.onerror=()=>finish(new Error("The local spreadsheet reader could not process this file. Reload the page or contact your administrator."));
+    worker.onmessageerror=()=>finish(new Error("The spreadsheet result could not be read. Try a smaller file."));
+    try{worker.postMessage({buffer,extension},[buffer]);}catch(error){finish(error);}
+  });
+}
+async function readAccountImportRows(file){
+  // Preserve the original CSV aliases/leading zeros; advertised Excel formats
+  // use the same bounded reader as Master/West Texas/audit imports.
+  if(String(file.name||"").toLowerCase().endsWith(".csv"))return parseCsvText(await readImportText(file));
+  const book=await readExcelBook(file);
+  return XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]],{defval:"",raw:false}).map(row=>
+    Object.fromEntries(Object.entries(row).map(([key,value])=>[normalizeCsvHeader(key),value])));
 }
 
 function readNamedSheet(book,name){
@@ -2928,52 +2920,42 @@ function normalizeRentStatus(value){
 }
 
 function parseCsvMatrix(text){
+  if(typeof text!=="string"||text.length>10*1024*1024)throw new Error("Choose a CSV file up to 10 MiB.");
   const rows=[];
-  let row=[];
-  let cell="";
-  let quoted=false;
-
+  let row=[],cell="",quoted=false,cells=0;
+  const pushCell=()=>{
+    if(row.length>=256||++cells>200000)throw new Error("The CSV exceeds the column or cell import limits.");
+    row.push(cell.trim());cell="";
+  };
+  const pushRow=()=>{
+    if(row.some(value=>value!=="")){
+      if(rows.length>=20001)throw new Error("The CSV exceeds 20,001 rows. Split it into smaller files.");
+      rows.push(row);
+    }
+    row=[];
+  };
   for(let i=0;i<text.length;i++){
-    const ch=text[i];
-    const next=text[i+1];
-
-    if(ch==='"' && quoted && next==='"'){
-      cell+='"';
-      i++;
-      continue;
-    }
-
-    if(ch==='"'){
-      quoted=!quoted;
-      continue;
-    }
-
-    if(ch==="," && !quoted){
-      row.push(cell.trim());
-      cell="";
-      continue;
-    }
-
-    if((ch==="\n" || ch==="\r") && !quoted){
-      if(ch==="\r" && next==="\n")i++;
-      row.push(cell.trim());
-      cell="";
-      if(row.some(value=>value!==""))rows.push(row);
-      row=[];
-      continue;
-    }
-
-    cell+=ch;
+    const ch=text[i],next=text[i+1];
+    if(ch==='"'&&quoted&&next==='"'){cell+='"';i++;}
+    else if(ch==='"'){quoted=!quoted;}
+    else if(ch===","&&!quoted){pushCell();}
+    else if((ch==="\n"||ch==="\r")&&!quoted){
+      if(ch==="\r"&&next==="\n")i++;
+      pushCell();pushRow();
+    }else{cell+=ch;}
+    // Enforce while scanning: checking only the completed matrix can itself
+    // allocate too much memory for an oversized cell or a sea of short rows.
+    if(cell.length>8192)throw new Error("A CSV cell exceeds 8,192 characters.");
   }
-
-  row.push(cell.trim());
-  if(row.some(value=>value!==""))rows.push(row);
+  if(quoted)throw new Error("The CSV contains an unfinished quoted cell. Export a fresh file.");
+  if(cell!==""||row.length){pushCell();pushRow();}
+  checkCsvMatrix(rows);
   return rows;
 }
 
 async function prepareTqImport(file){
   try{
-    const matrix=parseCsvMatrix(await file.text());
+    const matrix=parseCsvMatrix(await readImportText(file));
     const preview=[],data=[];
     let updateCount=0,warningCount=0,ignoredCount=0,rowsRead=0;
     let columnMap=null;

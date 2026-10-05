@@ -4,8 +4,8 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/safe-service-rendering`, based on merged
-  `main` at `68e74ab`.
+- Development branch: `Dev/dependency-remediation`, based on merged
+  `main` at `e0a137f`.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -23,10 +23,13 @@
   [PR #17](https://github.com/tanmar-org/AssetTrackerProDTV/pull/17) are also merged
   by the owner. Inventory permissions/schemas in
   [PR #19](https://github.com/tanmar-org/AssetTrackerProDTV/pull/19) are also merged.
-  SEC-04 safe service rendering is implemented on `Dev/safe-service-rendering`
-  in [PR #20](https://github.com/tanmar-org/AssetTrackerProDTV/pull/20) for owner review.
+  SEC-04 safe service rendering in
+  [PR #20](https://github.com/tanmar-org/AssetTrackerProDTV/pull/20) is merged by
+  the owner. Local bounded spreadsheet parsing/dependency corrections are
+  implemented on `Dev/dependency-remediation` in
+  [PR #21](https://github.com/tanmar-org/AssetTrackerProDTV/pull/21) for owner review.
   Production deployment has not started.
-- Next task: remaining dependency/QR security work,
+- Next task: public QR validation/abuse/server lookup work and remaining lint dependency,
   and AUTH-01/DATA-01/DATA-04 access/conflict/cache requirements. Production domains/services/backups/data cutover remain
   under HOST-03/HOST-04/MIG-01. SEC-01-OWNER still needs owner confirmation.
 
@@ -652,3 +655,92 @@ notice reports four default-branch advisory matches (two high/two moderate);
 no fresh advisory/reachability assessment was performed during this rendering task.
 DEP-01/DEP-02 remain open. All temporary rendering-test servers/browser processes,
 including the failed font-diagnostic runner, were stopped. Owner reviews/merges.
+
+## 2026-10-05 18:47 CDT — DEP-01 assessment and DEP-02 local spreadsheet reader
+
+The owner merged PR #20 and authorized continued corrections. Confirmed its merge,
+fetched main `e0a137f`, and created `Dev/dependency-remediation`. Preserved the
+original checkout's unrelated authentication-comment edit. The owner previously
+approved npm advisory submission of package names/exact versions; refreshed both
+assessments using that authorization, without transmitting source or credentials.
+
+Both production-only npm assessments report zero known findings. Full audits
+initially showed five tracker and six QR affected package entries. Six underlying
+brace-expansion advisories affected the QR lint tree's two older versions. Updated
+only those QR lockfile packages within their existing ranges: 1.1.14 → 1.1.21 and
+5.0.6 → 5.0.12; tracker already used the patched versions. Reinstalled QR using the
+lockfile. No runtime framework/driver dependency version changed.
+
+One underlying braces@3.0.3 advisory remains, with no published fix. It propagates
+to five development-only chain package entries per full audit via Next ESLint /
+fast-glob / micromatch. Reviewed the installed Next lint helper: it processes a
+configured developer root-directory glob; this repository supplies no such pattern,
+and HTTP routes/file imports do not use it. Kept DEP-01 open, recorded exact evidence,
+and did not apply npm's incompatible Next-14 ESLint-config downgrade or suppress
+warnings. Current scope/sources are in [DEPENDENCY-REMEDIATION.md](docs/DEPENDENCY-REMEDIATION.md)
+and [the dated report](docs/reviews/2026-10-05-dependency-remediation.json).
+
+Replaced the runtime jsDelivr SheetJS 0.18.5 tag with local full SheetJS 0.20.3,
+verified through official documentation as the current release beyond the two
+reported fixes. Downloaded its official HTTPS standalone script and release archive;
+script bytes matched the archive member exactly, and the package version matched.
+Recorded SHA-256, page SRI, retained the upstream Apache license/notice bytes,
+and documented that these are our reproducibility digests rather than an independent
+publisher signature. The artifact remains unchanged and is verified by tests instead
+of application-style lint rules. npm audits do not include browser vendor assets.
+
+Added a same-origin **browser Web Worker on the staff device** for parsing; it is
+not a hosted worker service. Limit files to 10 MiB, parsing to 15 seconds, ZIP entries
+to 2,048, declared and actual streamed expansion to 32 MiB/entry and 64 MiB total,
+worksheets to 32 with 20,001 rows/256 columns, populated cells to 200,000, and text
+cells to 8,192 characters. Reject unsupported/encrypted/ZIP64/split/overlapping ZIP
+archives and truncated/oversized inputs; do not offer a partial import. XLSX ZIP
+preflight inspects actual deflate output, so false expansion metadata cannot bypass
+the byte limits. Parser success/failure/timeout terminates the worker. Remove formula
+source, generated rich HTML, and hyperlink objects; imports preserve literal values.
+
+Master, West Texas A:N/grouped account, and audit preamble/header mappings remain.
+Account imports now actually read the XLS/XLSX formats advertised by the existing
+picker in addition to CSV. CSV scanning enforces limits while accumulating records
+and rejects unfinished quotes, preserving aliases and leading-zero values. An exact
+200,000-field boundary test ensures a trailing newline is not counted as a phantom
+field. Spreadsheet parse raw-text mode plus formatted-cell conversion preserve
+leading zeros for CSV strings and Excel number formats. Apply semantics, report
+counts/capacity corrections, and CSV-export formula neutralization remain DATA-05.
+
+Validation:
+
+- Both native builds and TypeScript checks passed. **35 tracker unit/HTTP checks**
+  and **1 QR HTTP check** passed. Nine new default-suite tests load the actual vendor
+  and worker, exercise XLSX/XLS/CSV mappings, leading zeros, safe content, invalid
+  archives/ZIP declarations/lying compressed expansion, size/range/text/cell limits,
+  CSV quoted content/exact boundaries, and worker termination.
+- **11 Chromium checks passed** (nine scenarios plus two parents). Actual local
+  Web Worker parsing and Master/West Texas/account/audit file-input previews work
+  with all external requests blocked; earlier public/staff injection checks pass.
+  Synthetic sessions/API/GPS isolate browser behavior, with no live database or
+  real email delivery. PostgreSQL permission tests were not rerun because runtime
+  database dependencies/routes did not change. Physical iPad/mobile/label acceptance
+  remains QA-01.
+- Both full lint commands ran and retained known failures: tracker **2 vendor
+  errors/147 warnings**; QR **2 effect errors/3 image warnings**. Focused changed
+  source/helpers/tests pass; app.js retains four inherited warnings and no errors.
+  No unrelated application errors were suppressed. JS syntax/whitespace checks pass.
+- Initial failures were test-harness assumptions (cross-context async scheduling
+  and the account preview's actual record path); corrected tests now exercise the
+  implementation's actual timing/structure. No assertion was weakened.
+
+DEP-02 and the production/QR brace-expansion subtasks meet their implementation
+criteria; owner review/merge pending. DEP-01 remains open for the unpatched lint
+chain and future advisory tracking. Next substantial work is SEC-05/QR-01 public
+submission validation/abuse controls and stable server asset lookup/private metadata
+removal. Production configuration, data reconciliation, backups, and company access
+remain deployment work. No production service/database/deployment was changed.
+
+Pushed `Dev/dependency-remediation` and opened
+[PR #21](https://github.com/tanmar-org/AssetTrackerProDTV/pull/21), targeting `main`.
+All implementation, evidence, comments, and documentation share this PR. Rendering/
+spreadsheet test servers and browser threads closed after tests; the private
+PostgreSQL test cluster was not started or changed. The owner performs final review
+and merging. GitHub's push notice still reflects the default branch before this
+QR lockfile correction; the fresh npm evidence above is scoped separately.

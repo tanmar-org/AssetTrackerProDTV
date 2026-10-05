@@ -48,10 +48,29 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   lockfiles intentionally, and pass builds and meaningful regression checks.
   Baseline: 18 package names, 74 unique advisories; see the dated review artifact.
   Owner merged [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2),
-  upgrading the QR service's Next.js to 16.3.8. Broader remediation remains open.
-- [ ] DEP-02 — Replace CDN-loaded SheetJS `0.18.5` with a patched, verified local
-  asset or maintained alternative. Test XLSX/XLS/CSV imports with representative
-  files and bounded malformed input; no spreadsheet-reader runtime CDN dependency.
+  upgrading the QR service's Next.js to 16.3.8; later owner merges also repaired
+  framework/tool transitive packages. The fresh check now reports zero npm
+  production findings for both apps. One underlying unpatched development-only
+  braces advisory remains as five affected chain packages per full audit. See
+  [current evidence and scope](docs/DEPENDENCY-REMEDIATION.md); DEP-01 remains open.
+- [x] DEP-01-PRODUCTION — Both runtime npm trees report zero known advisory matches
+  on 2026-10-05. This result excludes vendored browser assets/application flaws;
+  future checks and the unpatched development chain remain necessary.
+- [x] DEP-01-QR-BRACES-EXPANSION — Update the QR lint tree's brace-expansion to
+  compatible 1.1.21/5.0.12; tracker already has them. Installs/builds/checks pass.
+- [ ] DEP-01-DEVELOPMENT — Resolve the unpatched braces@3.0.3 chain when an
+  appropriate patch/replacement is available. It handles ESLint developer root-dir
+  glob configuration, with no HTTP/file-import path identified in this application.
+  Do not force an incompatible framework/lint downgrade or suppress the advisory.
+- [x] DEP-02 — Replace CDN-loaded SheetJS 0.18.5 with verified local full 0.20.3,
+  retained Apache license/provenance, digest regression and page SRI. Parsing uses
+  a local browser worker with file/time/ZIP/worksheet/cell limits. XLSX/XLS/CSV,
+  leading-zero/formatted identifiers, Master/West Texas/account/audit mappings,
+  malformed inputs and actual browser upload previews pass with outside requests
+  blocked. Implemented on `Dev/dependency-remediation` in
+  [PR #21](https://github.com/tanmar-org/AssetTrackerProDTV/pull/21); owner
+  review/merge pending.
+  See [dependency/import limits](docs/DEPENDENCY-REMEDIATION.md).
 - [x] SEC-02 — Replace public first-admin setup with controlled provisioning.
   Admin creation must be atomic and unavailable to unauthenticated users after
   provisioning; test fresh DB, concurrent requests, and already-initialized DB.
@@ -79,7 +98,7 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   covering legacy, React QR, and staff pages. Implemented on
   `Dev/safe-service-rendering` in
   [PR #20](https://github.com/tanmar-org/AssetTrackerProDTV/pull/20); owner
-  review/merge pending. Legacy requests still
+  merged by the owner. Legacy requests still
   create mail drafts only; private URL metadata and public API validation remain
   QR-01/MAIL-01/SEC-05.
 - [ ] SEC-05 — Add public-request abuse controls, size/field limits, asset lookup,

@@ -188,3 +188,19 @@ error. Set approved HTTPS production URLs before printing labels (HOST-03).
 Ship the updated public JavaScript with the server build and have staff reload
 existing tabs. Private metadata in existing QR URLs/mail drafts, public submission
 abuse controls, and automatic server email remain QR-01/SEC-05/MAIL-01 blockers.
+
+## Local spreadsheet assets
+
+Serve `public/asset-tracker/vendor/xlsx-0.20.3.full.min.js`, its license/provenance,
+and `public/asset-tracker/spreadsheet-worker.js` with the rest of the staff UI.
+The script and browser worker are local application assets; no hosted parsing
+service is required. If adding a content security policy, allow same-origin scripts
+and workers so imports remain functional. The worker preflights ZIP expansion,
+limits parsing, and is terminated on completion/failure or after 15 seconds.
+
+Both production npm advisory checks are currently clean; the remaining unpatched
+lint dependency affects development configuration. Review
+[the current dependency assessment/import limits](DEPENDENCY-REMEDIATION.md),
+refresh advisory checks as part of release preparation, and retain the pinned
+vendor digest/SRI/license checks. Larger/wider source workbooks need intentional
+splitting/reconciliation before import; no live data was fetched for these tests.

@@ -73,6 +73,12 @@ The journal records current evidence; older handoff statements may be stale.
   session revocation, and audit changes together. Login locks the target user row
   through PIN verification/session issuance. Preserve those lock boundaries;
   a PIN reset must invalidate sessions even when a login races it.
+- Spreadsheet imports use pinned local SheetJS 0.20.3 and the same-origin
+  `spreadsheet-worker.js` browser worker. Keep vendor bytes/license/SRI/digests
+  consistent; never restore a runtime CDN fallback. Preserve file/time/ZIP/range/
+  cell limits and formatted/leading-zero identifiers. See
+  [dependency/import evidence](docs/DEPENDENCY-REMEDIATION.md). Worker parsing runs
+  on the staff device and is unrelated to Cloudflare/server workers.
 - Legacy static service-form parameters must render through fixed DOM elements
   and textContent. Escape all cached/imported/API values used in staff HTML,
   including IDs and enum/class attributes; server schemas do not validate older
