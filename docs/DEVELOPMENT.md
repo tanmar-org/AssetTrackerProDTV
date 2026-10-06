@@ -199,6 +199,29 @@ See [the public request policy](PUBLIC-REQUEST-SECURITY.md).
 Full browser/mobile/printing acceptance still belongs to QA-01; Node/VM checks
 do not stand in for physical-device testing. See [the policy](INVENTORY-PERMISSIONS.md).
 
+## Backup tooling checks
+
+The root operator commands `db:backup` and `db:restore` use the already installed
+`psql`, `pg_dump` and `pg_restore`; no new npm dependency is required. They require
+private service/passfiles and explicit environment configuration. See
+[the recovery runbook](DATABASE-BACKUPS.md); never run a development drill against
+production connections.
+
+`tests/postgresql-backups.test.mjs` covers private-path/environment guards,
+redacted diagnostics, cancellation and timeouts. The integration suite includes
+`tests/integration/database-backups.test.mjs`: it creates isolated source/empty
+recovery databases, dumps and restores every table, verifies permissions and starts
+both existing application builds under restored runtime credentials. The fixture
+uses a SELECT-only backup role and removes synthetic databases/roles afterward.
+Tests reject corrupt/private-permission violations and unsafe/nonempty targets,
+and exercise consistent dumps during continuing writes.
+
+For operator-script-only changes, run the default and complete PostgreSQL suites
+plus focused lint/syntax checks. Existing matching app builds can be used for the
+HTTP drill when application source/dependencies have not changed; record that
+choice instead of claiming a new build/browser run. Rebuild if runtime source or
+installed dependencies change. Do not rebuild while integration tests serve `.next/`.
+
 ## Finishing implementation
 
 Review diffs and `git diff --check`; run checks appropriate to the change. Update

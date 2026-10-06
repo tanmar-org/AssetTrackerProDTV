@@ -14,6 +14,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit --incremental false",
     "db:migrate": "node --env-file-if-exists=.env.migrate scripts/migrate-database.mjs tracker",
+    "db:backup": "node scripts/backup-databases.mjs",
+    "db:restore": "node scripts/restore-databases.mjs",
     "admin:provision": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/provision-admin.mjs",
     "test:integration": "node --experimental-strip-types --test tests/integration/*.test.mjs",
     "test:browser": "node --test tests/browser/*.test.mjs"
