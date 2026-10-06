@@ -1,0 +1,43 @@
+[Unit]
+Description=Asset Tracker private TLS gateway for Nginx Proxy Manager
+Wants=network-online.target assettracker-staff.service assettracker-qr.service
+After=network-online.target assettracker-staff.service assettracker-qr.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+User=assettracker-gateway
+Group=assettracker-gateway
+# Port 8443 needs no root capability. Private key/config read permission belongs
+# only to this UID's group; application and operator DB secrets remain root-only.
+RuntimeDirectory=assettracker-gateway
+RuntimeDirectoryMode=0700
+StateDirectory=assettracker-gateway
+StateDirectoryMode=0700
+ExecStartPre=/usr/sbin/nginx -t -p /var/lib/assettracker-gateway -c /etc/assettracker/gateway/main.conf
+ExecStart=/usr/sbin/nginx -p /var/lib/assettracker-gateway -c /etc/assettracker/gateway/main.conf -g "daemon off;"
+# No reload action: normal restart runs the syntax/certificate preflight again.
+Restart=on-failure
+RestartSec=5s
+KillSignal=SIGQUIT
+KillMode=mixed
+TimeoutStopSec=30s
+UMask=0077
+UnsetEnvironment=NODE_OPTIONS NODE_PATH LD_PRELOAD LD_LIBRARY_PATH
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ProtectProc=invisible
+TasksMax=64
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

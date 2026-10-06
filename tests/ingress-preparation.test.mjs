@@ -51,8 +51,10 @@ test("operator settings reject directive injection, public binds, duplicate name
   ]) await assert.rejects(renderIngress({ ...settings, ...change }, "/private/output"));
 });
 test("source-IP restriction is optional but uses a validated single private address when supplied", async () => {
-  const files = await renderIngress({ ...settings, proxySourceAddress: "10.0.0.10" }, "/private/output");
+  const files = await renderIngress({ ...settings, proxySourceAddress: "10.0.0.10", vmQrInclude: "/etc/assettracker/gateway/vm-qr-upstream.conf" }, "/private/output");
   assert.ok(files["vm.conf"].includes('if ($realip_remote_addr != "10.0.0.10") { return 403; }'));
+  assert.ok(files["vm.conf"].includes("include /etc/assettracker/gateway/vm-qr-upstream.conf;"));
+  await assert.rejects(renderIngress({ ...settings, vmQrInclude: "/etc/gateway.conf;return 200" }, "/private/output"));
 });
 test("staging refuses readable settings, symlinks and output in another Git worktree", async t => {
   const { directory, input, output } = await fixture(t);

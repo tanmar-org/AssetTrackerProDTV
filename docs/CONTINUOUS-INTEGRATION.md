@@ -95,3 +95,8 @@ Authoritative setup references: [GitHub service networking](https://docs.github.
 [official PostgreSQL Ubuntu packages](https://www.postgresql.org/download/linux/ubuntu/),
 [Playwright CI setup](https://playwright.dev/docs/ci-intro) and
 [actionlint release](https://github.com/rhysd/actionlint/releases/tag/v1.7.12).
+
+Managed service checks also run in this workflow: default protected-credential/
+readiness scenarios, actual restricted-PostgreSQL launcher and worker cases, and
+`test:services` offline systemd unit/timer verification after installing test-only
+Nginx. CI never installs/enables the supplied production units or uses company AD.

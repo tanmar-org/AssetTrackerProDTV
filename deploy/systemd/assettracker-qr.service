@@ -1,0 +1,39 @@
+[Unit]
+Description=Asset Tracker public QR application
+Wants=network-online.target
+After=network-online.target postgresql.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+User=assettracker-qr
+Group=assettracker-qr
+WorkingDirectory=/opt/assettracker/current/service-request
+# QR receives its own DB/ingress settings, never the AD reader or tracker URL.
+LoadCredential=runtime.json:/etc/assettracker/qr-runtime.json
+Environment=ASSETTRACKER_STAFF_PORT=5173 ASSETTRACKER_QR_PORT=5174
+ExecStart=/opt/assettracker/node/bin/node /opt/assettracker/current/scripts/run-managed-service.mjs qr
+Restart=on-failure
+RestartSec=5s
+KillMode=mixed
+TimeoutStopSec=30s
+UMask=0077
+UnsetEnvironment=NODE_OPTIONS NODE_PATH LD_PRELOAD LD_LIBRARY_PATH
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ProtectProc=invisible
+ReadWritePaths=/opt/assettracker/current/service-request/.next/cache
+TasksMax=128
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target

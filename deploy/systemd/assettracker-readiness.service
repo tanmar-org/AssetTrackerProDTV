@@ -1,0 +1,20 @@
+[Unit]
+Description=Asset Tracker private readiness check
+After=assettracker-staff.service assettracker-qr.service
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+Environment=ASSETTRACKER_STAFF_PORT=5173 ASSETTRACKER_QR_PORT=5174
+ExecStart=/opt/assettracker/node/bin/node /opt/assettracker/current/scripts/check-managed-readiness.mjs
+TimeoutStartSec=15s
+UMask=0077
+UnsetEnvironment=NODE_OPTIONS NODE_PATH LD_PRELOAD LD_LIBRARY_PATH
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# No credential file, automatic DB writes or dependency-triggered app restarts.

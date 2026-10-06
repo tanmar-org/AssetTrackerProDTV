@@ -19,13 +19,14 @@ decision is recorded explicitly. The owner reviews and merges all changes from
    an explicit reviewed administrator GUID link. Owner normal-password sign-in
    succeeds with active admin access and a later real directory-status recheck.
    Owner sign-out/relogin also pass, with the original session removed and a fresh
-   AD session retaining admin access. Next prepare the approved HTTPS hostnames
-   and trusted ingress, then complete recovery-admin and real policy acceptance.
+   AD session retaining admin access. Owner merged HTTPS ingress preparation in PR #36 at `b67f962`. Next prepare
+   supervised production services, then complete recovery-admin and real policy acceptance.
    Owner selected both public names and confirmed an existing reverse proxy;
    public DNS is unresolved. Nginx Proxy Manager and an existing wildcard certificate
    are confirmed; source-IP restriction is optional per owner direction. Protected
    ingress preparation and real synthetic proxy validation are complete; deployment
-   configuration and acceptance remain pending.
+   configuration and acceptance remain pending. Production service preparation is
+   complete on `Dev/production-service-preparation`, pending owner review.
    Preserve existing app roles, recovery ownership and shared-device sign-out.
    Internet staff access is not enabled; public customer QR access remains separate.
 2. **Retain automated validation (QA-01-CI).** Owner merged PR #32 at `396be11`.
@@ -394,13 +395,21 @@ approval; unresolved owner/operational items remain listed below.
   separate authenticated client-IP credentials, both-hop private-route denial and
   the deployment-only QR HTTPS destination. Owner-specific protected files are
   staged outside Git in [PR #36](https://github.com/tanmar-org/AssetTrackerProDTV/pull/36);
-  four operator and ten real proxy checks pass. Source-IP
+  owner merged it at `b67f962`; final hosted run 37544501862 passed all 320
+  checks with zero skips/failures and zero remaining SQL fixtures. Source-IP
   restriction is optional, TLS/secrets mandatory. See [the runbook](docs/HTTPS-INGRESS.md).
 - [ ] HOST-03-INGRESS-ROLLOUT — Review/merge the preparation PR, install the VM
   leaf/key and trusted issuer bundle, configure actual NPM hosts and loopback web
   services with matching credentials, set public DNS to the existing proxy entry
   point and complete HTTPS/header/route/phone acceptance during approved deployment.
   Both names currently return NXDOMAIN. No production ingress is activated.
+- [x] HOST-04-PREPARE — Supply six reviewed systemd units/timer, distinct non-login
+  UIDs, isolated JSON credentials, least-privilege startup checks, worker shutdown
+  and private readiness monitoring. Native unit/gateway validation and real
+  restricted-PostgreSQL startup/stop tests pass. A transient user-systemd smoke
+  also verifies credential delivery and crash restart. See [service setup](docs/PRODUCTION-SERVICES.md).
+  Production installation, actual UID/sandbox/boot acceptance and alert delivery
+  remain HOST-04; no production service or database was installed.
 - [ ] HOST-04 — Provision production web and QR reconciliation services
   (`service:reconcile -- --watch`), least-privilege credentials, startup/
   restart supervision, health checks, monitoring, backup retention, and a documented

@@ -335,3 +335,12 @@ Run `npm run test:ingress` for real loopback-only proxy/TLS fixtures using OpenS
 missing tools fail instead of silently skipping. Root default tests also cover
 protected operator staging. See [the runbook](HTTPS-INGRESS.md); rendered secrets
 stay outside Git/web roots, and preparation never activates internet access.
+
+## Managed service checks
+
+Default tests cover protected runtime JSON, exact password preservation, service
+credential isolation, clean releases and redacted readiness. SQL integration tests
+run real managed startup/worker shutdown with separate synthetic roles and built
+apps. `npm run test:services` requires systemd-analyze and Nginx and validates all
+supplied units without installing them; CI runs it after test-tool installation.
+Read [the service runbook](PRODUCTION-SERVICES.md) before changing this contract.

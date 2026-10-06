@@ -1,0 +1,42 @@
+[Unit]
+Description=Asset Tracker staff application
+Wants=network-online.target assettracker-qr.service
+After=network-online.target postgresql.service
+# Recover after prolonged dependency outages; retries remain five seconds apart.
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+User=assettracker-staff
+Group=assettracker-staff
+WorkingDirectory=/opt/assettracker/current
+LoadCredential=runtime.json:/etc/assettracker/staff-runtime.json
+LoadCredential=ad-ca.pem:/etc/assettracker/ad-ca.pem
+Environment=ASSETTRACKER_STAFF_PORT=5173 ASSETTRACKER_QR_PORT=5174
+ExecStart=/opt/assettracker/node/bin/node /opt/assettracker/current/scripts/run-managed-service.mjs staff
+Restart=on-failure
+RestartSec=5s
+# Forward TERM to the child first; kill remaining processes after the deadline.
+KillMode=mixed
+TimeoutStopSec=30s
+UMask=0077
+UnsetEnvironment=NODE_OPTIONS NODE_PATH LD_PRELOAD LD_LIBRARY_PATH
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ProtectProc=invisible
+ReadWritePaths=/opt/assettracker/current/.next/cache
+TasksMax=128
+MemoryMax=1G
+# V8 needs executable JIT memory: MemoryDenyWriteExecute would break Node.
+
+[Install]
+WantedBy=multi-user.target

@@ -4,8 +4,8 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/https-ingress-preparation`, based on `origin/main` at
-  `00b9b3f` (owner merged PR #35). AD sign-in, explicit identity linking, bounded
+- Development branch: `Dev/production-service-preparation`, based on `origin/main` at
+  `b67f962` (owner merged PR #36). AD sign-in, explicit identity linking, bounded
   session rechecks and domain-scope searches are merged. An isolated empty preview
   now runs from a separate protected checkout of that exact merge. Its fresh
   administrator is explicitly linked to the nominated, reverified directory GUID.
@@ -2506,3 +2506,63 @@ point. Those steps make the approved URLs reachable; real HTTPS/AD/GPS acceptanc
 recovery admins, original-data/old-label reconciliation and off-server backups
 remain deployment prerequisites. No DNS/firewall/public listener, live database,
 existing NPM or private preview service was changed during preparation.
+
+## 2026-10-06 — Production service preparation (America/Chicago)
+
+Owner merged PR #36 at `b67f962`; fetched and branched current main as
+`Dev/production-service-preparation`. Its final-head hosted run 37544501862 at
+`c694e1e` passed 320 actual checks: staff 108, QR 4, ingress 10, PostgreSQL/HTTP
+143 and Chromium 55, both builds/types/lint, workflow/vendor checks and zero
+fixture leftovers. That evidence is saved privately and now bundled here.
+
+Added commented systemd units for staff, QR, reconciler and the private Nginx
+gateway, plus a one-minute readiness service/timer and non-login account catalog.
+Distinct UIDs and per-service LoadCredential JSON keep QR/worker away from AD,
+ingress/migration credentials they do not need. Launcher starts from an allowed
+child environment, preserves exact JSON password characters, fixes loopback and
+AD-only production mode, refuses dotenv credentials/Node-pin mismatch and performs
+read-only SQL catalog preflight before launching. Owner/elevated memberships,
+persistent DDL, relation/database ownership and migration-table grants fail closed.
+No migrations, provisioning or directory writes run in a service startup.
+
+Crash/startup failures retry after five seconds; explicit stop is respected.
+TERM reaches the child before systemd's forced-stop deadline, preserving bounded
+worker completion. Root-owned releases are read-only except individual app caches;
+capabilities are empty, home/temp/process access is restricted and V8 JIT retained.
+The gateway runs non-root on the private high port with only its group-protected
+TLS/config files. A full Nginx main config includes the prepared policy and confines
+temporary/state files to its service directories. Ingress preparation now accepts
+a validated optional final VM QR include path so protected staging can stay outside
+system directories while installed non-root gateway paths remain correct.
+
+Readiness uses unauthenticated loopback GET only, requires both no-store 200
+responses, rejects redirects and never prints private response bodies. It reports
+local failures rather than restarting apps because a dependency is down; approved
+alert delivery, live AD/upstream/backlog/backup monitoring remain operational work.
+The runbook covers root-owned release selection, protected JSON/CA, gateway traversal
+and read permissions, activation/reboot checks and compatible release rollback;
+source settings remain unreadable to runtime accounts. It never authorizes database
+rollback or automatic replay of restored intents.
+
+Verification: full staff defaults pass 113 checks, seven new real-PostgreSQL
+startup/role/worker checks pass, two native unit/gateway checks pass, existing
+ten real proxy checks and four operator staging checks pass. Zero-warning lint,
+vendor verification, actionlint and diff checks pass. Synthetic fixture count is
+zero. A separately generated transient user-systemd unit delivered credentials,
+ran the actual worker, restarted after a controlled main-process crash and stopped
+cleanly; its journal contains two aggregate reconciliation passes and no startup
+failures. That unit was removed. This is not proof of full installed system-unit
+UID/sandbox/reboot behavior. Full final-head hosted validation remains pending at
+this commit; its result/PR reference will be reported and evidence saved privately.
+
+No production units/users, root packages, database, migration, listener, NPM/DNS
+setting or certificate was installed/activated. Both private previews remain
+separate. Requested the owner's empty-versus-existing-data launch decision while
+continuing independent preparation; no import/empty-production assumption made.
+
+Next prepare production database/service installation against the owner's data
+decision, provide the backend leaf/key/trust bundle and configure actual NPM/DNS.
+These make the approved URLs usable and services return after reboot. Public
+activation still needs owner-approved deployment, working recovery admins, original
+data/old-label handling, encrypted off-server backups and actual HTTPS/GPS/boot
+acceptance. Local readiness is not an alerting or backup system.
