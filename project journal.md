@@ -1714,3 +1714,8 @@ by this PR; checks do not replace owner review or physical acceptance.
 Company access/email requirements, HTTPS/domains, VM web/reconciler supervision,
 monitored encrypted off-server backups, real-data/old-label continuity, owner
 credential rotation and actual device acceptance remain deployment work.
+
+Publication: implementation commit `6144e72` pushed to `Dev/lint-baseline`; opened
+and attached [PR #31](https://github.com/tanmar-org/AssetTrackerProDTV/pull/31).
+Publication references are bundled into the same PR. Owner review/merge remains
+pending; no merge or deployment was performed.

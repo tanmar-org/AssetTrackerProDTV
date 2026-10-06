@@ -330,5 +330,6 @@ approval; unresolved owner/operational items remain listed below.
   Removed unused staff helpers/state reads and made checkbox selection explicit;
   QR branding uses original local unoptimized images with explicit dimensions.
   Meaningful tamper/warning-gate and actual browser label/image checks pass.
-  Builds and separate TypeScript scopes pass. Implemented on `Dev/lint-baseline`;
-  owner review/merge pending. Vendor versions/bytes and lockfiles are unchanged.
+  Builds and separate TypeScript scopes pass. Implemented on `Dev/lint-baseline` in
+  [PR #31](https://github.com/tanmar-org/AssetTrackerProDTV/pull/31), awaiting owner
+  review/merge. Vendor versions/bytes and lockfiles are unchanged.
