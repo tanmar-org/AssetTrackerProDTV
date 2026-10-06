@@ -35,8 +35,9 @@
   QR source-map dependency correction (DEP-01-SOURCE-MAP) in
   [PR #25](https://github.com/tanmar-org/AssetTrackerProDTV/pull/25) is merged by
   the owner. GitHub reports alert 162 fixed. DATA-01 explicit conflict review and
-  account-owned server recovery copies are implemented on the current Dev branch
-  for owner review/merge. Production deployment has not started.
+  account-owned server recovery copies are implemented in
+  [PR #26](https://github.com/tanmar-org/AssetTrackerProDTV/pull/26) for owner
+  review/merge. Production deployment has not started.
 - Next task: DATA-03 complete operator backups and verified restoration. Inventory
   downloads omit users, QR requests, logs, history and draft copies; back up both
   PostgreSQL databases and prove recovery using isolated synthetic copies before
@@ -1161,3 +1162,9 @@ retention still need the deployment configuration; no live restore is authorized
 Then DATA-05: fix capacity-blocked import counts and prevent spreadsheet formulas
 from exported text while retaining leading-zero identifiers. These directly affect
 whether staff can trust inventory/reporting after an import.
+
+Publication: implementation commit `8417f24` pushed to
+`Dev/inventory-conflict-recovery`; opened and attached
+[PR #26](https://github.com/tanmar-org/AssetTrackerProDTV/pull/26). Publication
+references are bundled into the same PR. Owner review/merge and any later approved
+production rollout remain pending; this branch has not been merged or deployed.

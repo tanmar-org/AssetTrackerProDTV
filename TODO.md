@@ -176,7 +176,9 @@ approval; unresolved owner/operational items remain listed below.
   preserve unedited shared fields, require refreshed revision/version, enforce
   existing ordinary permissions, and commit state/history/audit/copy closure
   atomically. Export full comparisons; reject partial reviews above 200 choices.
-  Implemented on `Dev/inventory-conflict-recovery`; owner review/merge pending.
+  Implemented on `Dev/inventory-conflict-recovery` in
+  [PR #26](https://github.com/tanmar-org/AssetTrackerProDTV/pull/26); owner
+  review/merge pending.
 - [x] DATA-01-COPIES — Paused edits attempt owner-only PostgreSQL copies (five
   active, 20 retained IDs, seven-day expiry). Copy CAS, closed-ID tombstones,
   lost-acknowledgement handling, reload listing, discard and session cleanup are
