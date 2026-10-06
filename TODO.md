@@ -49,13 +49,21 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   Baseline: 18 package names, 74 unique advisories; see the dated review artifact.
   Owner merged [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2),
   upgrading the QR service's Next.js to 16.3.8; later owner merges also repaired
-  framework/tool transitive packages. The fresh check now reports zero npm
-  production findings for both apps. One underlying unpatched development-only
+  framework/tool transitive packages. npm reports zero production findings for
+  both apps, but GitHub flags QR source-map-js under DEP-01-SOURCE-MAP below.
+  One underlying unpatched development-only
   braces advisory remains as five affected chain packages per full audit. See
   [current evidence and scope](docs/DEPENDENCY-REMEDIATION.md); DEP-01 remains open.
-- [x] DEP-01-PRODUCTION — Both runtime npm trees report zero known advisory matches
-  on 2026-10-05. This result excludes vendored browser assets/application flaws;
-  future checks and the unpatched development chain remain necessary.
+- [ ] DEP-01-PRODUCTION — Reconcile all runtime advisory sources and install the
+  patched lockfiles. Earlier npm scans reported zero findings; GitHub now flags
+  QR source-map-js@1.2.1 despite npm still reporting zero. Scanner results exclude
+  vendored browser assets/application flaws; regular rechecks remain necessary.
+- [ ] DEP-01-SOURCE-MAP — Prioritize the QR runtime source-map-js@1.2.1 alert
+  [GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
+  Update to compatible patched 1.2.2 in a focused dependency task, review application
+  reachability, install from both lockfiles, and validate both apps. The tracker
+  lock already pins 1.2.2; npm's zero findings do not override GitHub's reviewed
+  advisory/alert. No exploit through this application's HTTP paths is established.
 - [x] DEP-01-QR-BRACES-EXPANSION — Update the QR lint tree's brace-expansion to
   compatible 1.1.21/5.0.12; tracker already has them. Installs/builds/checks pass.
 - [ ] DEP-01-DEVELOPMENT — Resolve the unpatched braces@3.0.3 chain when an
@@ -161,7 +169,9 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   cookies. Failed sign-out stays locked across reload until acknowledgement.
   Same-owner draft recovery is export-only with sync paused; legacy records have
   administrator export/removal controls. Implemented on
-  `Dev/shared-device-sessions`; see [policy](docs/SHARED-DEVICE-SESSIONS.md).
+  `Dev/shared-device-sessions` in
+  [PR #24](https://github.com/tanmar-org/AssetTrackerProDTV/pull/24) for owner
+  review; see [policy](docs/SHARED-DEVICE-SESSIONS.md).
 - [ ] DATA-04-ROLLOUT — Export/reconcile/remove older caches on previously used
   devices, deploy server/UI together and reload old tabs/integrations. Confirm
   shared-device acceptance in target browsers. New memory-only drafts do not survive

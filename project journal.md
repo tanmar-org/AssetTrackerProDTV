@@ -31,8 +31,11 @@
   security and QR metadata removal in
   [PR #23](https://github.com/tanmar-org/AssetTrackerProDTV/pull/23) are also merged
   by the owner. Shared-device session/cache corrections (DATA-04) are implemented
-  on `Dev/shared-device-sessions` for owner review. Production deployment has not started.
-- Next task: DATA-01 explicit conflict reconciliation/draft handling, with the
+  on `Dev/shared-device-sessions` in
+  [PR #24](https://github.com/tanmar-org/AssetTrackerProDTV/pull/24) for owner review.
+  Production deployment has not started.
+- Next task: DEP-01-SOURCE-MAP, the newly surfaced QR dependency alert, then DATA-01
+  explicit conflict reconciliation/draft handling, with the
   remaining lint/dependency work and AUTH-01 company access requirements tracked.
   QR-01 still needs old-label/domain continuity and mobile GPS acceptance; MAIL-01
   still needs approved delivery settings. Production domains/services/backups/data
@@ -938,3 +941,28 @@ DATA-01 explicit reconciliation/durable recovery is the next useful implementati
 Company access/login traffic policy, operator backups/services/domains, live-data
 migration, old labels, delivery settings and mobile/printing acceptance remain open.
 The owner alone reviews/merges; no production service or live database was changed.
+
+Publication: implementation commit `ba5a8a7` pushed to
+`Dev/shared-device-sessions`; opened and attached
+[PR #24](https://github.com/tanmar-org/AssetTrackerProDTV/pull/24) for owner review.
+The PR remains open; no merge/deployment was performed. Cleanup confirmed zero
+disposable databases and runtime roles; the private PostgreSQL test cluster was
+stopped. Publication references are bundled into this same PR.
+
+Publication follow-up: GitHub surfaced open high runtime alert 162 for the QR
+lockfile's `source-map-js@1.2.1` (GHSA-68fv-2mgg-jv7q; patched 1.2.2).
+Fresh production npm queries still return zero for both apps; that does not cover
+GitHub's reviewed finding. The tracker lock already pins 1.2.2, but its local
+installed copy was older; restored the root install from the unchanged lockfile
+with `npm run install:ci`. QR's lock/installed 1.2.1 requires the next focused
+DEP-01-SOURCE-MAP correction. HTTP exploitability is not established. Updated
+current dependency/setup/TODO statements rather than treating the alert as fixed
+or repeating an unqualified clean-runtime claim. See the linked advisory and
+`docs/DEPENDENCY-REMEDIATION.md`; package upgrades remain outside this PR.
+
+After restoring the tracker install from its lockfile, `npm test` again passed the
+production build and all **39** regressions; type checking passed. Complete
+PostgreSQL and Chromium reruns again passed **68** and **22** checks, respectively;
+focused changed-file lint remained **0 errors / 4 inherited warnings**. Final
+cleanup again confirmed zero disposable databases/runtime roles and stopped the
+private test cluster. No lockfile/package changes were made by the reinstall.

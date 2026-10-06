@@ -216,8 +216,9 @@ service is required. If adding a content security policy, allow same-origin scri
 and workers so imports remain functional. The worker preflights ZIP expansion,
 limits parsing, and is terminated on completion/failure or after 15 seconds.
 
-Both production npm advisory checks are currently clean; the remaining unpatched
-lint dependency affects development configuration. Review
+Both production npm advisory checks report zero findings, but GitHub flags the QR
+source-map-js lockfile version separately. Resolve that alert before deployment;
+the remaining unpatched lint dependency affects development configuration. Review
 [the current dependency assessment/import limits](DEPENDENCY-REMEDIATION.md),
 refresh advisory checks as part of release preparation, and retain the pinned
 vendor digest/SRI/license checks. Larger/wider source workbooks need intentional
