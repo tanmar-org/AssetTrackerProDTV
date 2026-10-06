@@ -7,18 +7,15 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 
 ## Implementation order and why
 
-1. **Finish the source-map dependency patch (DEP-01-SOURCE-MAP).** A known affected
-   QR package has a compatible security update. Remove that avoidable dependency
-   risk before extending workflows; owner merge and GitHub rescan follow the PR.
-2. **Make conflicting/unsaved edits easier to recover (DATA-01).** If two employees
-   edit the same server revision, the second save currently pauses and requires
-   exporting/reconciling a snapshot. Closing that tab can lose unsaved work. Add
-   clear conflict/recovery choices while preserving both the committed records and
-   the employee's draft; durable recovery must preserve shared-device privacy.
-3. **Add complete backups and prove restoration (DATA-03).** Inventory downloads
+1. **Review conflict recovery (DATA-01-REVIEW).** Paused drafts now have account-owned
+   server copies and original/draft/shared comparisons with explicit choices.
+   Owner review/merge follows this PR. Offline edits still require an export;
+   copies protect only acknowledged edits and expire after seven days.
+2. **Add complete backups and prove restoration (DATA-03).** Inventory downloads
    omit users, request records, logs and server history. Back up both PostgreSQL
-   databases and test restoring synthetic copies before importing real records.
-4. **Verify imports and spreadsheet exports (DATA-05).** A full account can block
+   databases (including recovery copies) and test restoring synthetic copies before
+   importing real records. An outage should not strand staff with incomplete data.
+3. **Verify imports and spreadsheet exports (DATA-05).** A full account can block
    imported assignments, and exported text may be interpreted as a spreadsheet
    formula. Show accurate accepted/skipped counts and keep exported values inert
    so staff can trust the records and reports they use to make decisions.
@@ -73,25 +70,24 @@ approval; unresolved owner/operational items remain listed below.
   Owner merged [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2),
   upgrading the QR service's Next.js to 16.3.8; later owner merges also repaired
   framework/tool transitive packages. npm reports zero production findings for
-  both apps; source-map-js is patched in the current branch below. GitHub's main
-  alert will require owner merge/rescan.
+  both apps; source-map-js is patched on main and GitHub reports alert 162 fixed.
   One underlying unpatched development-only
   braces advisory remains as five affected chain packages per full audit. See
   [current evidence and scope](docs/DEPENDENCY-REMEDIATION.md); DEP-01 remains open.
 - [x] DEP-01-PRODUCTION — Reconcile known runtime advisory sources and install
   patched lockfiles. Both lockfiles/installs now use source-map-js@1.2.2 and
-  production npm scans report zero. GitHub main alert closure awaits merge/rescan;
+  production npm scans report zero. GitHub main alert 162 is fixed;
   scanner results exclude vendor assets/application flaws and need regular rechecks.
 - [x] DEP-01-SOURCE-MAP — Correct the QR runtime source-map-js@1.2.1 alert
   [GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
   Updated only QR's transitive entry to compatible patched 1.2.2; tracker already
   pins it. Both apps check malformed/nested offsets, bounded sparse-map conversion,
   and valid PostCSS mapping. Implemented on `Dev/qr-source-map-security` in
-  [PR #25](https://github.com/tanmar-org/AssetTrackerProDTV/pull/25) for owner review.
+  [PR #25](https://github.com/tanmar-org/AssetTrackerProDTV/pull/25), merged by the owner.
   PostCSS consumes maps for CSS processing; application request/import code does
   not pass submitted records into it. HTTP exploitability is not established.
-- [ ] DEP-01-SOURCE-MAP-MERGE — Owner merges the patch and GitHub rescans main to
-  resolve alert 162. Do not manually dismiss it as a substitute for patched code.
+- [x] DEP-01-SOURCE-MAP-MERGE — Owner merged PR #25 at `9710f13`; GitHub
+  reports alert 162 fixed at 2026-10-06 01:19:36 UTC. No manual dismissal.
 - [x] DEP-01-QR-BRACES-EXPANSION — Update the QR lint tree's brace-expansion to
   compatible 1.1.21/5.0.12; tracker already has them. Installs/builds/checks pass.
 - [ ] DEP-01-DEVELOPMENT — Resolve the unpatched braces@3.0.3 chain when an
@@ -168,13 +164,30 @@ approval; unresolved owner/operational items remain listed below.
 ## Data preservation and correctness
 
 - [ ] DATA-01 — Preserve pending edits on revision conflicts and provide explicit
-  conflict resolution. Browser-storage failures must not silently prevent server
-  persistence; test offline/reconnect, full storage, and simultaneous users.
+  conflict resolution. Implemented server-confirmed recovery below; fully offline
+  drafts still require an export before tab closure. Automatic offline replay and
+  larger/multiple-operation guided reconciliation remain future work.
 - [x] DATA-01-REJECTION — Ordinary edits queue separately using acknowledged
   revisions. Validation/permission/conflict failures pause retry/polling and retain
   the local draft for snapshot export/manual reconciliation. Queue order remains
-  in memory (32-operation limit); durable offline edits, conflict UI, and storage
-  failures remain under DATA-01. Actual browser-function regressions pass.
+  in memory (32-operation limit). Fully offline edits remain tab-only; conflict
+  review/server-confirmed copies are implemented below. Browser regressions pass.
+- [x] DATA-01-REVIEW — Add explicit original/draft/shared comparison and choices;
+  preserve unedited shared fields, require refreshed revision/version, enforce
+  existing ordinary permissions, and commit state/history/audit/copy closure
+  atomically. Export full comparisons; reject partial reviews above 200 choices.
+  Implemented on `Dev/inventory-conflict-recovery` in
+  [PR #26](https://github.com/tanmar-org/AssetTrackerProDTV/pull/26); owner
+  review/merge pending.
+- [x] DATA-01-COPIES — Paused edits attempt owner-only PostgreSQL copies (five
+  active, 20 retained IDs, seven-day expiry). Copy CAS, closed-ID tombstones,
+  lost-acknowledgement handling, reload listing, discard and session cleanup are
+  covered. Failed/unconfirmed copies explicitly require an exported snapshot.
+  No device-wide operational cache or automatic replay is introduced. See
+  [recovery policy](docs/DRAFT-RECOVERY.md).
+- [ ] DATA-01-OFFLINE — Decide whether full offline recovery is needed beyond
+  exported snapshots; any durable device storage requires a reviewed shared-device
+  privacy design. Do not imply that server copies can protect disconnected edits.
 - [ ] DATA-02 — Make state/history/log writes consistent; protect recovery with
   expected revisions and coordinate QR status with tracker updates. Test concurrent
   recovery/save and failures between related writes.
@@ -195,7 +208,8 @@ approval; unresolved owner/operational items remain listed below.
   legacy upload. Lock scrubs private DOM, cancels work, and ignores late results.
   Cross-tab changes and server context headers prevent old-tab writes under new
   cookies. Failed sign-out stays locked across reload until acknowledgement.
-  Same-owner draft recovery is export-only with sync paused; legacy records have
+  Same-owner memory drafts remain paused until export or explicit DATA-01 review;
+  legacy records have
   administrator export/removal controls. Implemented on
   `Dev/shared-device-sessions` in
   [PR #24](https://github.com/tanmar-org/AssetTrackerProDTV/pull/24), merged by
@@ -203,7 +217,7 @@ approval; unresolved owner/operational items remain listed below.
 - [ ] DATA-04-ROLLOUT — Export/reconcile/remove older caches on previously used
   devices, deploy server/UI together and reload old tabs/integrations. Confirm
   shared-device acceptance in target browsers. New memory-only drafts do not survive
-  reload; durable recovery/conflict UI remains DATA-01.
+  reload. Confirmed server copies and explicit review are DATA-01-COPIES/REVIEW.
 - [ ] DATA-05 — Report import success/skips accurately, including capacity-blocked
   West Texas assignments; preserve required fields and history; neutralize exported
   CSV formulas. Test representative workbooks, leading-zero IDs, and report exports.

@@ -21,7 +21,8 @@ on every path. This is not a D1 emulator or a SQL translation layer.
 ## Data layout and compatibility
 
 Use two databases with separate application roles. Tracker tables are `app_users`,
-`app_sessions`, `app_change_log`, `app_state`, and `app_state_history`. The requests
+`app_sessions`, `app_change_log`, `app_state`, `app_state_history`, and
+`app_inventory_drafts`. The requests
 database contains `service_requests` and `request_rate_limits`. Each has operator-owned `schema_migrations`.
 
 Operational inventory remains one JSONB state document with explicit record and
@@ -72,7 +73,7 @@ GRANT CONNECT ON DATABASE assettracker TO assettracker_runtime;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO assettracker_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON
-  app_users, app_sessions, app_change_log, app_state, app_state_history
+  app_users, app_sessions, app_change_log, app_state, app_state_history, app_inventory_drafts
   TO assettracker_runtime;
 ```
 
@@ -165,7 +166,7 @@ and both installed lockfiles, including the relative database package.
 Run `npm start` for each built application. Defaults bind only loopback. A later
 production setup must add approved HTTPS domains/reverse proxy, restricted service
 users, startup/restart supervision, logging/monitoring, and environment handling.
-`/api/health` checks the selected database and an application table, returning a
+`/api/health` checks the selected database and required application tables, returning a
 small no-cache 200/503 response without connection details. Use it for readiness.
 Phone GPS and Secure session cookies require proper HTTPS outside local testing.
 
@@ -223,3 +224,14 @@ the remaining unpatched lint dependency affects development configuration. Revie
 refresh advisory checks as part of release preparation, and retain the pinned
 vendor digest/SRI/license checks. Larger/wider source workbooks need intentional
 splitting/reconciliation before import; no live data was fetched for these tests.
+
+## Inventory draft recovery rollout
+
+Tracker migration `0003_inventory_drafts.sql` adds account-owned recovery copies.
+Apply it with the migration owner and add `app_inventory_drafts` to the existing
+tracker runtime role grants before shipping the updated server/UI. Readiness checks
+access to the new table. Reload older staff tabs (asset version 63). Copies have
+seven-day visibility, five-active/20-retained-ID account quotas, and are included
+in complete tracker database backups. Successful owner recovery requests remove
+expired rows; scheduled expiry cleanup and backup retention remain operator work.
+See [draft recovery](DRAFT-RECOVERY.md) for privacy, permissions, and offline limits.

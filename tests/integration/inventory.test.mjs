@@ -51,7 +51,7 @@ test("inventory permissions, validation, and recovery", async (t) => {
   };
   const save = (cookie, state, baseRevision, method = "PATCH", action = "Client label") => api("/api/app-state", method, { state, baseRevision, action }, cookie);
   const setup = async (state = inventory()) => {
-    await tracker.database.prepare("TRUNCATE app_sessions, app_users, app_change_log, app_state, app_state_history").run();
+    await tracker.database.prepare("TRUNCATE app_inventory_drafts, app_sessions, app_users, app_change_log, app_state, app_state_history").run();
     await provisionAdmin(tracker.database, { name: "testadmin", pin: "482631" });
     const admin = await signin("testadmin", "482631");
     assert.equal((await api("/api/users", "POST", { name: "testuser", pin: "593742" }, admin)).status, 200);

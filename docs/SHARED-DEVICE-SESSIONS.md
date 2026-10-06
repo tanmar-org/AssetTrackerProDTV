@@ -15,16 +15,21 @@ and inventory exports are not database backups.
 
 Keep a tab with unsaved work open. Before closing, reloading, or signing out, use
 **Settings → Download Snapshot**. A before-unload prompt warns about pending work,
-but browser/OS termination can still lose it. Durable drafts and explicit conflict
-resolution remain DATA-01; do not describe this as an offline-capable application.
+but browser/OS termination can still lose it. Paused drafts now attempt an
+account-owned server copy; **Recovery copy confirmed** protects only acknowledged
+edits across reload. **Settings → Review Paused Edits** offers explicit three-way
+comparison and apply/discard. See [draft recovery](DRAFT-RECOVERY.md) for seven-day
+expiry, quotas, role checks and lost-acknowledgement handling. Fully offline edits
+still need an export; this is not an offline-capable application.
 
 On session expiry, verification failure, another tab's user switch, or a frozen
 page leaving the screen, the page clears private display and locks. An unsaved
 draft can remain quarantined in memory for the original employee's stable user ID.
-After that employee signs in again, the draft is available for export with sync
-paused. It is never automatically replayed against the new session/revision.
+After that employee signs in again, the draft is available for export or explicit
+review with sync paused. It is never automatically replayed against the new session/revision.
 A different employee must confirm discarding it or cancel so its owner can export.
-This recovery does not survive reload/tab closure. It is a workflow boundary,
+The memory quarantine does not survive reload/tab closure; confirmed server copies
+remain accessible only to their owner. It is a workflow boundary,
 not protection from someone controlling the browser or its developer tools.
 
 Sign-out locks immediately, clears inventory/Undo/previews/selections, resets
@@ -33,6 +38,7 @@ aborts staff requests, and cancels save/poll timers. Every awaited staff respons
 and file import also checks its session generation, so a late result cannot refill
 the display or change the next employee's workspace. A submitted save may already
 have committed before sign-out; clearing the tab does not undo a server commit.
+Sign-out does not delete account-owned recovery copies.
 
 ## Confirming sign-out and changes in other tabs
 

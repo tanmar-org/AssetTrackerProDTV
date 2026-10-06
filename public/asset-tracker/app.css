@@ -919,3 +919,15 @@ tr.search-return>td:last-child{box-shadow:inset -1px 0 0 rgba(244,189,75,.45)}
 body.auth-locked .modal-backdrop,body.auth-locked .profile-menu,body.auth-locked .undo-history-panel{display:none!important}
 #accessActions[hidden]{display:none}
 @media print{body.auth-locked .app-shell{display:none!important}}
+/* Recovery values can be long imported text. Keep the comparison inside its
+   own scroll area and wrap cells so it does not widen the staff workspace. */
+#draftPanel>p,#draftPanel>.form-actions{margin:14px 18px;line-height:1.5}
+#draftPanel>.form-actions{display:flex;flex-wrap:wrap;gap:10px}
+#draftPanel>.primary-button,#draftPanel>.secondary-button{margin:12px 18px}
+#draftPanel .recovery-item{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border)}
+#draftPanel .recovery-item>div{flex:1;min-width:200px}
+#draftPanel .recovery-item p{color:var(--muted);font-size:.8rem}
+#draftReviewTable{overflow:auto;max-height:600px;margin:14px 18px}
+#draftReviewTable table{table-layout:fixed;min-width:1000px;width:100%}
+#draftReviewTable th,#draftReviewTable td{white-space:pre-wrap;overflow-wrap:anywhere;vertical-align:top}
+#draftReviewTable select{max-width:100%;padding:8px;color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:6px}

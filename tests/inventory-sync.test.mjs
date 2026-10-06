@@ -15,6 +15,8 @@ async function browser(fetch) {
   const context = vm.createContext({
     sessionEpoch: 0, sessionContext: "1".repeat(64), currentUser: { id: "synthetic-user", role: "user" }, currentCloudAction: "Data change", cloudReady: true,
     cloudQueued: false, cloudSaving: false, cloudWriteBlocked: false, cloudCaptureQueued: false,
+    draftBusy: false, draftGeneration: 0, draftReview: null, cloudBaseState: inventory(),
+    $: () => ({}), scheduleDraftCopy() {},
     cloudPendingStates: [], cloudRevision: 1, cloudSaveTimer: null,
     CLOUD_STATE_API: "/api/app-state", navigator: { onLine: true }, structuredClone, queueMicrotask,
     setTimeout: (callback, delay) => { timers.push({ callback, delay }); return timers.length; }, clearTimeout() {},
@@ -82,6 +84,21 @@ async function functionsNamed(names) {
   const parsed = ts.createSourceFile("app.js", source, ts.ScriptTarget.Latest, true);
   return parsed.statements.filter((node) => ts.isFunctionDeclaration(node) && names.includes(node.name?.text)).map((node) => node.getText(parsed)).join("\n");
 }
+
+test("a recovery list action resumes an ordinary save timer without replaying a paused draft",async()=>{
+  for(const blocked of [false,true]){
+    const timers=[],shell={inert:false};let saves=0;
+    const context=vm.createContext({draftBusy:false,cloudSaving:false,cloudQueued:true,cloudWriteBlocked:blocked,cloudSaveTimer:null,
+      sessionEpoch:1,navigator:{onLine:true},document:{querySelector:()=>shell},sessionActive:()=>true,
+      revealWorkspace:()=>{shell.inert=false;},toast(){},clearTimeout(){},
+      setTimeout:(callback,delay)=>{timers.push({callback,delay});},flushCloudSave:()=>{saves++;}});
+    vm.runInContext(await functionsNamed(["runDraftAction"]),context);
+    await context.runDraftAction(async()=>assert.equal(shell.inert,true));
+    assert.equal(shell.inert,false);assert.equal(context.draftBusy,false);
+    if(blocked)assert.equal(timers.length,0);
+    else{assert.equal(timers[0].delay,450);timers[0].callback();assert.equal(saves,1);}
+  }
+});
 
 test("downloaded inventory snapshots contain rental stock and audit with accurate scope", async () => {
   const state = inventory(); state.rentalStock.batches = [{ id: "synthetic-export-batch" }];

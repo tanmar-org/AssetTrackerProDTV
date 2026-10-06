@@ -62,11 +62,14 @@ The journal records current evidence; older handoff statements may be stale.
   bounded to five seconds and uses the same account-authorization lock.
 - Regular browser operations queue separately. A permanent rejection/conflict
   pauses sync and retains the draft for export; do not silently overwrite it or
-  resume failed operations after loading another revision/user. Durable conflict
-  handling remains DATA-01 work. New browser data is tab-memory-only; do not
+  resume failed operations after loading another revision/user. Explicit recovery
+  uses owner-only `/api/drafts`, copy-version CAS and a fresh inventory revision;
+  reuse `lib/inventory-merge.ts` and `lib/inventory-store.ts`, with existing role
+  checks and atomic state/history/audit/copy closure. See
+  [draft recovery](docs/DRAFT-RECOVERY.md). New browser data is tab-memory-only; do not
   restore device-wide operational caching or auto-upload old caches. See
   [shared-device policy](docs/SHARED-DEVICE-SESSIONS.md): retain expired drafts
-  only for same-user reauthentication/export with sync paused; discard late
+  only for same-user reauthentication/export/explicit review with sync paused; discard late
   responses/imports using session generations and cancel workers on lock.
 - Staff mutations require `x-tracker-session-context` matching the real session
   cookie; the context is non-bearer and never grants access. Preserve checks on

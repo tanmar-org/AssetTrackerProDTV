@@ -28,7 +28,7 @@ test("account security and concurrency", async (t) => {
   };
   const user = (name = staff.name) => tracker.database.prepare("SELECT * FROM app_users WHERE name = $1").bind(name).first();
   const reset = async () => {
-    await tracker.database.prepare("TRUNCATE app_sessions, app_users, app_change_log").run();
+    await tracker.database.prepare("TRUNCATE app_inventory_drafts, app_sessions, app_users, app_change_log").run();
     await provisionAdmin(tracker.database, credentials);
     return signIn();
   };

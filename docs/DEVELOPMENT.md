@@ -118,7 +118,10 @@ removal, empty-server startup, private DOM cleanup, failed sign-out/reload/retry
 denied storage without blocking a save, BroadcastChannel user switches, original-
 owner draft export, late reads/imports/saves, restored-page events and paused-session
 expiry. Frozen-page events are simulated; target-device acceptance is still QA-01.
-See [the session/cache policy](SHARED-DEVICE-SESSIONS.md).
+See [the session/cache policy](SHARED-DEVICE-SESSIONS.md). Recovery Chromium checks
+also cover confirmed copies across reload, owner-only listing, explicit choices,
+stale/denied apply, failed/lost acknowledgements, late session responses and discard
+that waits for a shared read. See [draft recovery](DRAFT-RECOVERY.md).
 
 The browser suite also uploads synthetic XLSX/XLS/CSV through the actual Master,
 West Texas, account, and audit inputs, and exercises the real local parser worker.
@@ -181,6 +184,11 @@ unsafe URLs, history attribution/immutability, invalid historical recovery,
 queued role changes, denied QR deletes, upstream timeout cleanup, and no-op audit
 behavior. Actual browser functions are exercised for ordered PATCH saves,
 paused/recoverable drafts, bounded queues, and stock/audit snapshot/Undo coverage.
+Draft recovery integration verifies owner-only access (including administrators),
+version CAS, streamed size limits, active-copy quotas, expiry, tombstones, regular
+bulk denial, merged-schema rejection, stale revisions, atomic rollback, simultaneous
+apply/no-op closure and authorization after a lock wait. Pure merge regressions
+cover field overlap, absence/deletion/addition and whole audit/stock choices.
 Public-request integration tests verify private/public response separation, fresh
 inventory snapshots, old-label compatibility, stable IDs across renames, malformed
 input, independent-process duplicate/rate races, conflicting status reopens,

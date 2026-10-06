@@ -47,6 +47,9 @@ let currentUser=null;
 let authNeedsProvisioning=false;
 let currentCloudAction="Data change";
 let activityRecords=[];
+// Baseline is the last acknowledged server copy, never the latest unsaved UI.
+let cloudBaseState=null;
+let draftCopy=null,draftSavePromise=null,draftSaveTimer=null,draftGeneration=0,draftSavedGeneration=-1,draftReview=null,draftBusy=false;
 let cloudRevision=0;
 let cloudReady=false;
 let cloudSaving=false;
@@ -195,10 +198,11 @@ async function readCloudState({quiet=false}={}){
   if(cloudQueued||cloudSaving||cloudWriteBlocked)return null;
   if(result.state&&Number(result.revision)>cloudRevision){
     persistCloudState(result.state);
+    cloudBaseState=structuredClone(result.state);
     cloudRevision=Number(result.revision)||0;
     renderCloudState();
     if(!quiet)toast("Shared inventory loaded.");
-  }else if(!result.state){cloudRevision=0;}
+  }else if(!result.state){cloudRevision=0;cloudBaseState=structuredClone(cloudState());}
   return result;
 }
 
@@ -207,7 +211,9 @@ function scheduleCloudSave(action="Data change"){
   const epoch=sessionEpoch;
   currentCloudAction=action||currentCloudAction;
   cloudQueued=true;
-  if(cloudWriteBlocked)return;
+  draftGeneration++;draftReview=null;
+  $("applyDraftButton").hidden=true;$("draftReviewNotice").textContent="";$("draftReviewTable").textContent="";
+  if(cloudWriteBlocked){scheduleDraftCopy();return;}
   if(currentUser?.role!=="admin"&&!cloudCaptureQueued){
     cloudCaptureQueued=true;
     // Capture after this event's synchronous mutations/reconciliation finish.
@@ -217,6 +223,7 @@ function scheduleCloudSave(action="Data change"){
       cloudCaptureQueued=false;
       if(cloudPendingStates.length>=32){
         cloudWriteBlocked=true;
+        scheduleDraftCopy();
         setCloudStatus("error","Sync paused: too many pending edits. Download an inventory snapshot before reloading; ask an administrator to reconcile it.");
         return;
       }
@@ -232,25 +239,27 @@ function scheduleCloudSave(action="Data change"){
 // validation, or revision rejection pauses retries and retains the local draft;
 // loading a conflicting server copy here would silently discard those edits.
 async function flushCloudSave(){
-  if(!currentUser||!cloudReady||cloudSaving||!cloudQueued||cloudWriteBlocked||cloudCaptureQueued)return;
+  if(!currentUser||!cloudReady||cloudSaving||!cloudQueued||cloudWriteBlocked||cloudCaptureQueued||draftBusy)return;
   const epoch=sessionEpoch;
   cloudQueued=false;
   cloudSaving=true;
   let succeeded=false;
   const pending=currentUser?.role!=="admin"?cloudPendingStates[0]:null;
+  const submitted=structuredClone(pending?.state||cloudState());
   setCloudStatus("saving");
   try{
     const {response,result}=await staffRequest(CLOUD_STATE_API,{
       method:currentUser?.role==="admin"?"PUT":"PATCH",
       headers:{"content-type":"application/json"},
-      body:JSON.stringify({state:pending?.state||cloudState(),baseRevision:cloudRevision,action:pending?.action||currentCloudAction})
+      body:JSON.stringify({state:submitted,baseRevision:cloudRevision,action:pending?.action||currentCloudAction})
     });
     if(response.status>=400&&response.status<500){
       cloudWriteBlocked=true;
-      throw new Error(`${result.error||"Save rejected."} Sync paused; download an inventory snapshot before reloading or ask an administrator to reconcile it.`);
+      throw new Error(`${result.error||"Save rejected."} Sync paused. Open Settings → Review Paused Edits, or download a snapshot before leaving.`);
     }
     if(!response.ok)throw new Error("Cloud is unavailable. This browser is holding the latest changes and will retry.");
     cloudRevision=Number(result.revision)||cloudRevision;
+    cloudBaseState=submitted;
     if(pending)cloudPendingStates.shift();
     cloudQueued=cloudQueued||cloudPendingStates.length>0;
     succeeded=true;
@@ -262,6 +271,7 @@ async function flushCloudSave(){
   }finally{
     if(sessionActive(epoch)){
       cloudSaving=false;
+      if(cloudWriteBlocked)scheduleDraftCopy();
       if(cloudQueued&&!cloudWriteBlocked&&navigator.onLine)cloudSaveTimer=setTimeout(()=>{if(sessionActive(epoch))flushCloudSave();},succeeded?0:2500);
     }
   }
@@ -279,7 +289,8 @@ async function initializeCloudSync(){
     renderCloudState();
     revealWorkspace();
     startSessionPolling();
-    setCloudStatus("error","Your unsaved draft is paused. Download a snapshot and ask an administrator to reconcile it before reloading.");
+    setCloudStatus("error","Your draft is paused. Open Settings to review it before applying changes.");
+    loadSavedDrafts().catch(()=>{});scheduleDraftCopy();
     return;
   }
   setCloudStatus("connecting");
@@ -297,8 +308,175 @@ async function initializeCloudSync(){
     return;
   }
   startSessionPolling();
+  loadSavedDrafts().catch(()=>{});
 }
 const $=id=>document.getElementById(id);
+
+// Recovery copies are acknowledged, account-owned server records. No inventory
+// or draft payload is written into localStorage. A failed checkpoint leaves the
+// tab's work intact and explicitly reports that the latest edits are unprotected.
+function scheduleDraftCopy(){
+  const epoch=sessionEpoch;
+  $("draftStatus").textContent="Latest edits are only in this tab until the recovery copy is confirmed.";
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer=setTimeout(()=>{if(sessionActive(epoch))saveDraftCopy().catch(()=>{});},600);
+}
+async function saveDraftCopy(){
+  const epoch=sessionEpoch;
+  if(draftSavePromise){await draftSavePromise.catch(()=>{});if(!sessionActive(epoch))throw new Error("Session changed.");}
+  if(!currentUser||!cloudReady||!cloudBaseState)throw new Error("Shared baseline is unavailable. Download a snapshot.");
+  if(draftCopy&&draftSavedGeneration===draftGeneration){
+    $("draftStatus").textContent=`Recovery copy confirmed ${new Date(draftCopy.updatedAt).toLocaleString()}. Expires ${new Date(draftCopy.expiresAt).toLocaleString()}. Saving this copy did not update shared inventory.`;
+    return draftCopy;
+  }
+  const generation=draftGeneration;
+  const copy=draftCopy||{id:crypto.randomUUID(),version:0};
+  draftCopy=copy; // Retain the ID if the server commits but its acknowledgement is lost.
+  const work=(async()=>{
+    try{
+      const {response,result}=await staffRequest("/api/drafts",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({
+        id:copy.id,version:copy.version,baseRevision:cloudRevision,baseState:cloudBaseState,draftState:cloudState(),label:currentCloudAction
+      })});
+      if(!response.ok)throw new Error(result.error||"Recovery copy could not be saved.");
+      if(result.id!==copy.id||!Number.isInteger(result.version)||result.version!==copy.version+1)throw new Error("Recovery acknowledgement is invalid.");
+      draftCopy=result;draftSavedGeneration=generation;
+      $("draftStatus").textContent=generation===draftGeneration?`Recovery copy confirmed ${new Date(result.updatedAt).toLocaleString()}. Expires ${new Date(result.expiresAt).toLocaleString()}. Saving this copy did not update shared inventory.`:"Recovery copy confirmed for earlier edits. Latest edits remain only in this tab.";
+      return result;
+    }catch(error){
+      if(sessionActive(epoch))$("draftStatus").textContent=`Latest edits remain only in this tab. ${error.message} Download a snapshot before leaving.`;
+      throw error;
+    }
+  })();
+  draftSavePromise=work;
+  try{return await work;}finally{if(sessionActive(epoch)&&draftSavePromise===work)draftSavePromise=null;}
+}
+async function loadSavedDrafts(){
+  const {response,result}=await staffRequest("/api/drafts");
+  if(!response.ok||!Array.isArray(result.drafts))throw new Error(result.error||"Saved drafts could not be listed.");
+  $("savedDraftList").innerHTML=result.drafts.length?result.drafts.map(item=>`<div class="recovery-item">
+    <div><strong>${esc(item.label||"Paused inventory edits")}</strong><p>Updated ${esc(new Date(item.updatedAt).toLocaleString())}; expires ${esc(new Date(item.expiresAt).toLocaleString())}</p></div>
+    <button class="secondary-button" type="button" data-open-draft="${esc(item.id)}">Open for Review</button>
+    <button class="secondary-button" type="button" data-discard-draft="${esc(item.id)}" data-draft-version="${esc(item.version)}">Discard Copy</button></div>`).join(""):"<p>No saved drafts for your account.</p>";
+}
+function draftValue(cell){
+  if(!cell.exists)return "(absent)";
+  const text=typeof cell.value==="string"?cell.value:JSON.stringify(cell.value);
+  return text.length>600?`${text.slice(0,600)}… (download comparison for full values)`:text;
+}
+function draftChangeLabel(row){
+  const names={master:"Master registry",accounts:"Accounts",assignments:"Assignments",activations:"Service requests",receiverEvents:"Receiver history",auditState:"Audit results",rentalStock:"Rental stock"};
+  const record=cloudBaseState?.[row.collection]?.find?.(item=>item.id===row.id)||cloudState()[row.collection]?.find?.(item=>item.id===row.id);
+  const receiver=record&&(assetById(record.assetId||record.receiverId));
+  const label=record?.assetNumber||record?.number||receiver?.assetNumber||row.id;
+  const field=row.field?row.field.replace(/([a-z])([A-Z])/g,"$1 $2"):"whole record/collection";
+  return `${names[row.collection]||row.collection}${label?` · ${label}`:""} · ${field}`;
+}
+async function reviewDraftCopy(){
+  if(!cloudQueued&&!cloudWriteBlocked)throw new Error("There are no unsaved edits to review. Open a saved draft below.");
+  // Stop automatic inventory retries before taking the comparison. A review is
+  // an explicit workflow; it never implicitly reapplies rejected queued edits.
+  cloudWriteBlocked=true;clearTimeout(cloudSaveTimer);clearTimeout(draftSaveTimer);
+  const copy=await saveDraftCopy();
+  const {response,result}=await staffRequest(`/api/drafts?id=${encodeURIComponent(copy.id)}&preview=1`);
+  if(!response.ok||!Array.isArray(result.changes))throw new Error(result.error||"Review could not be loaded.");
+  draftReview={...result,generation:draftGeneration};
+  $("draftReviewNotice").textContent=`Comparing against shared revision ${result.expectedRevision}. ${result.changes.length} changed fields/records; ${result.unresolved} conflicts require a choice. Other shared changes are preserved. Regular users may apply one everyday operation at a time; mixed/bulk changes need administrator review.`;
+  // Bound DOM allocation for very large imports. The full comparison remains on
+  // the server; applying a partially displayed review is deliberately disabled.
+  $("draftReviewTable").innerHTML=`<table><thead><tr><th>Record / field</th><th>Original</th><th>Your draft</th><th>Shared now</th><th>Keep</th></tr></thead><tbody>${result.changes.slice(0,200).map((row,index)=>`<tr>
+    <td>${esc(draftChangeLabel(row))}${row.conflict?" — conflict":""}</td>
+    <td>${esc(draftValue(row.base))}</td><td>${esc(draftValue(row.mine))}</td><td>${esc(draftValue(row.shared))}</td>
+    <td><select aria-label="Choice ${index+1}" data-draft-choice="${index}">${row.conflict?'<option value="">Choose…</option>':""}<option value="mine">Your draft</option><option value="shared">Shared value</option></select></td></tr>`).join("")}</tbody></table>`;
+  if(result.changes.length>200)$("draftReviewNotice").textContent+=" This draft exceeds the 200-choice review limit. Download a snapshot and ask an administrator to reconcile it.";
+  $("applyDraftButton").hidden=result.changes.length>200;
+  await loadSavedDrafts();
+}
+function acceptRecoveredState(result){
+  persistCloudState(result.state||{master:[],accounts:[],assignments:[],activations:[],receiverEvents:[],auditState:null,rentalStock:{batches:[]}});
+  cloudBaseState=structuredClone(cloudState());cloudRevision=Number(result.revision)||0;
+  cloudQueued=false;cloudWriteBlocked=false;cloudPendingStates=[];undoHistory=[];persistUndoHistory();
+  draftCopy=null;draftSavedGeneration=-1;draftGeneration++;draftReview=null;
+  $("draftReviewTable").textContent="";$("draftReviewNotice").textContent="";$("applyDraftButton").hidden=true;
+  $("draftStatus").textContent="No active draft in this tab.";
+  renderCloudState();updateUndoControls();setCloudStatus("synced","Shared inventory loaded. Reviewed draft is closed.");
+}
+async function applyReviewedDraft(){
+  const plan=draftReview;
+  if(!plan||plan.generation!==draftGeneration||plan.id!==draftCopy?.id||plan.version!==draftCopy?.version)throw new Error("Your draft changed. Save and review again.");
+  const choices={};
+  $("draftReviewTable").querySelectorAll("[data-draft-choice]").forEach(select=>{choices[plan.changes[Number(select.dataset.draftChoice)].key]=select.value;});
+  if(Object.keys(choices).length!==plan.changes.length||Object.values(choices).some(choice=>!choice))throw new Error("Choose a value for every conflict before applying.");
+  if(!confirm("Apply these choices to shared inventory and close this recovery copy? Changes marked Shared value will be discarded from your draft. Download a snapshot first if you need to retain them."))return;
+  const {response,result}=await staffRequest("/api/drafts",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:plan.id,version:plan.version,expectedRevision:plan.expectedRevision,choices})});
+  if(!response.ok){draftReview=null;$("applyDraftButton").hidden=true;throw new Error(`${result.error||"Apply failed."} Your draft is retained. Save and review again.`);}
+  acceptRecoveredState(result);await loadSavedDrafts();
+}
+async function discardCurrentDraft(){
+  if(!confirm("Discard this tab's unsaved edits and its recovery copy, then load shared inventory? Download a snapshot first if needed."))return;
+  clearTimeout(cloudSaveTimer);clearTimeout(draftSaveTimer);
+  if(draftSavePromise)await draftSavePromise;
+  // Read before deleting: a connection failure cannot destroy the only copy.
+  const {response,result}=await staffRequest(CLOUD_STATE_API);
+  if(!response.ok)throw new Error("Shared inventory could not be loaded. Draft retained.");
+  if(draftCopy){
+    // A lost save acknowledgement leaves version zero locally. Resolve the
+    // owned ID before closing it, and tolerate an already absent/expired copy.
+    const found=await staffRequest(`/api/drafts?id=${encodeURIComponent(draftCopy.id)}`);
+    if(found.response.status!==404){
+      if(!found.response.ok)throw new Error(found.result.error||"Draft status could not be checked. Draft retained.");
+      if(draftCopy.version>0&&found.result.version!==draftCopy.version)throw new Error("This saved copy changed in another tab. Refresh saved drafts before discarding it.");
+      const closed=await staffRequest("/api/drafts",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({id:draftCopy.id,version:found.result.version})});
+      if(!closed.response.ok||closed.result.ok!==true)throw new Error(closed.result.error||"Draft could not be discarded.");
+    }
+  }
+  acceptRecoveredState(result);await loadSavedDrafts();
+}
+async function openSavedDraft(id){
+  if(cloudQueued||cloudWriteBlocked){
+    const sameCopy=draftCopy?.id===id;
+    if(!confirm(sameCopy?"Open the server copy and replace this tab's draft? The copy may omit your latest edits or a save whose acknowledgement was lost. Cancel and download a snapshot first if needed.":"Save this tab's current draft privately before opening the selected copy? Automatic inventory saving will pause."))return;
+    cloudWriteBlocked=true;clearTimeout(cloudSaveTimer);clearTimeout(draftSaveTimer);
+    if(draftSavePromise)await draftSavePromise.catch(()=>{});
+    if(!sameCopy)await saveDraftCopy();
+  }
+  const {response,result}=await staffRequest(`/api/drafts?id=${encodeURIComponent(id)}`);
+  if(!response.ok)throw new Error(result.error||"Draft could not be opened.");
+  persistCloudState(result.draftState);cloudBaseState=result.baseState;cloudRevision=result.baseRevision;
+  draftCopy=result;draftGeneration++;draftSavedGeneration=draftGeneration;draftReview=null;
+  cloudQueued=true;cloudWriteBlocked=true;cloudPendingStates=[];undoHistory=[];persistUndoHistory();
+  renderCloudState();updateUndoControls();await reviewDraftCopy();
+}
+async function runDraftAction(task){
+  if(draftBusy||cloudSaving){toast("Wait for the current save to finish before reviewing a draft.");return;}
+  const epoch=sessionEpoch;draftBusy=true;document.querySelector(".app-shell").inert=true;
+  try{await task();}catch(error){if(sessionActive(epoch))$("draftReviewNotice").textContent=error.message||"Recovery is unavailable. Export your draft.";}
+  finally{if(sessionActive(epoch)){
+    draftBusy=false;revealWorkspace();
+    // A list refresh can outlast the ordinary save timer. Resume that timer
+    // after releasing the UI, unless explicit review has paused inventory writes.
+    if(cloudQueued&&!cloudWriteBlocked&&!cloudSaving&&navigator.onLine){clearTimeout(cloudSaveTimer);cloudSaveTimer=setTimeout(()=>{if(sessionActive(epoch))flushCloudSave();},450);}
+  }}
+}
+$("reviewDraftButton").addEventListener("click",()=>runDraftAction(reviewDraftCopy));
+$("refreshDraftsButton").addEventListener("click",()=>runDraftAction(loadSavedDrafts));
+$("applyDraftButton").addEventListener("click",()=>runDraftAction(applyReviewedDraft));
+$("downloadDraftReviewButton").addEventListener("click",()=>{
+  if(!draftReview||draftReview.generation!==draftGeneration){toast("Save and review a draft first.");return;}
+  // Explicit export contains private inventory comparison values, no credentials.
+  downloadFile("inventory-draft-comparison.json",JSON.stringify(draftReview,null,2),"application/json");
+});
+$("useSharedButton").addEventListener("click",()=>runDraftAction(discardCurrentDraft));
+$("savedDraftList").addEventListener("click",event=>{
+  const open=event.target.closest("[data-open-draft]"),discard=event.target.closest("[data-discard-draft]");
+  if(open)runDraftAction(()=>openSavedDraft(open.dataset.openDraft));
+  if(discard)runDraftAction(async()=>{
+    if(discard.dataset.discardDraft===draftCopy?.id)throw new Error("Use Discard Draft and Load Shared to discard this tab's active copy.");
+    if(!confirm("Permanently discard this saved copy? Shared inventory will not change."))return;
+    const {response,result}=await staffRequest("/api/drafts",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({id:discard.dataset.discardDraft,version:Number(discard.dataset.draftVersion)})});
+    if(!response.ok)throw new Error(result.error||"Draft could not be discarded.");
+    await loadSavedDrafts();
+  });
+});
 const privateDomDefaults=[...document.querySelectorAll(".app-shell [id],.modal-backdrop [id],.profile-menu [id],.undo-history-panel [id]")]
   .filter(node=>!node.querySelector("[id]")&&!node.matches("form,section,main,aside"))
   .map(node=>[node,node.innerHTML,node.getAttribute("title")]);
@@ -3350,15 +3528,18 @@ function scrubPrivateDom(){
 function lockSession(retainDraft=false,message=""){
   if(retainDraft&&currentUser&&(cloudQueued||cloudSaving||cloudWriteBlocked)){
     lockedDraft={ownerId:currentUser.id,state:structuredClone(cloudState()),revision:cloudRevision,
+      base:structuredClone(cloudBaseState),copy:draftCopy,generation:draftGeneration,savedGeneration:draftSavedGeneration,
       undo:structuredClone(undoHistory),pending:structuredClone(cloudPendingStates),cache:new Map(cacheEntries)};
   }else if(!retainDraft){lockedDraft=null;}
   sessionEpoch++;sessionContext="";currentUser=null;
-  clearTimeout(cloudSaveTimer);clearInterval(cloudPollTimer);
+  clearTimeout(cloudSaveTimer);clearInterval(cloudPollTimer);clearTimeout(draftSaveTimer);
   sessionRequests.forEach(controller=>controller.abort());sessionRequests.clear();
   importCancellations.forEach(cancel=>cancel());importCancellations.clear();
   master=[];accounts=[];assignments=[];activations=[];receiverEvents=[];rentalStock={batches:[]};auditState=null;
   remoteActivations=[];remoteActivationLoading=false;undoHistory=[];activityRecords=[];cacheEntries.clear();
   cloudReady=false;cloudQueued=false;cloudSaving=false;cloudCaptureQueued=false;cloudPendingStates=[];cloudWriteBlocked=false;cloudRevision=0;
+  cloudBaseState=null;draftCopy=null;draftSavePromise=null;draftGeneration=0;draftSavedGeneration=-1;draftReview=null;draftBusy=false;
+  $("applyDraftButton").hidden=true;
   currentAccountId=null;currentReceiverInfoId=null;receiverHistoryExpanded=false;pendingAuditIssueId=null;
   pendingAccountImport=null;pendingAuditImport=null;pendingDataImport=null;deactivationBatches=[];
   expandedAccountIds.clear();selectedLabelIds.clear();selectedOverdueIds.clear();
@@ -3398,7 +3579,7 @@ function applyUserAccess(user,context){
   showInventoryWait("Loading your current shared inventory…");
   if(lockedDraft){
     const draft=lockedDraft;lockedDraft=null;
-    persistCloudState(draft.state);cloudRevision=draft.revision;undoHistory=draft.undo;cloudPendingStates=draft.pending;
+    persistCloudState(draft.state);cloudRevision=draft.revision;cloudBaseState=draft.base;draftCopy=draft.copy;draftGeneration=draft.generation;draftSavedGeneration=draft.savedGeneration;undoHistory=draft.undo;cloudPendingStates=draft.pending;
     cacheEntries.clear();draft.cache.forEach((value,key)=>cacheEntries.set(key,value));
     cloudQueued=true;cloudWriteBlocked=true;
   }
@@ -3435,7 +3616,7 @@ async function confirmSignOut(){
 async function signOut(){
   const context=sessionContext||readSignOutMarker()?.context;
   if(!context)return;
-  if((cloudQueued||cloudSaving||lockedDraft||legacyBrowserKeys().length)&&!confirm("Sign out and discard unsaved edits and older browser data on this device? Cancel to download a snapshot or have an administrator export older data first. Already submitted saves may have completed."))return;
+  if((cloudQueued||cloudSaving||lockedDraft||legacyBrowserKeys().length)&&!confirm("Sign out and discard this tab’s unsaved edits and older browser data on this device? Account-owned recovery copies remain available after signing in. Cancel to download a snapshot or have an administrator export older data first. Already submitted saves may have completed."))return;
   const erased=purgeLegacyBrowserData();
   writeSignOutMarker({state:"pending",context,cleanupFailed:!erased});signalSession("logout",context);
   lockSession(false,erased?"":"Older browser data could not be erased. Clear this site's data before handing over the device.");
