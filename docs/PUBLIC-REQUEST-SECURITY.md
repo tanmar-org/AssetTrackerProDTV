@@ -183,3 +183,8 @@ upstream redirects and limits response bodies to two MiB within five seconds.
 Apply requests migration `0003_request_pagination.sql` for ordered indexes;
 existing request security constraints and tombstone handling remain in force.
 See [record browsing policy](RECORD-LISTS.md) for the private API and UI scope.
+
+The [Nginx Proxy Manager ingress runbook](HTTPS-INGRESS.md) supplies both-hop
+public-route restrictions, matching authenticated headers, verified backend TLS
+and the deployment-only HTTPS label destination. Its preparer changes no running
+service or DNS; phone/GPS/printed-label acceptance is still required.

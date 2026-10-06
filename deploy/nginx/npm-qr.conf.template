@@ -1,0 +1,21 @@
+# Paste the rendered file in this host's Advanced tab, with NO Custom Locations.
+# The only public APIs are current receiver lookup and request creation.
+client_max_body_size 8k;
+client_body_timeout 15s;
+send_timeout 30s;
+# Overrides this host's NPM access logging without changing other proxy hosts.
+access_log off;
+
+location = /api/asset {
+    if ($request_method != GET) { return 405; }
+    include @@NPM_QR_UPSTREAM@@;
+}
+location = /api/requests {
+    if ($request_method != POST) { return 405; }
+    include @@NPM_QR_UPSTREAM@@;
+}
+location ~* ^/api(?:/|$) { return 404; }
+location / {
+    if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+    include @@NPM_QR_UPSTREAM@@;
+}

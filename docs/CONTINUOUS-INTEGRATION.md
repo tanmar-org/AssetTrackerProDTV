@@ -19,15 +19,18 @@ version in `.nvmrc`, with a 30-minute limit. It:
 4. Runs `npm test` separately for staff and QR: production webpack builds and
    default synthetic/HTTP regressions. Both dependencies are installed first.
 5. Checks both TypeScript scopes after the builds finish replacing `.next/types`.
-6. Runs the complete `test:integration` suite against actual PostgreSQL with
+6. Installs test-only Nginx/OpenSSL with package-service startup blocked, then runs
+   the actual loopback HTTPS ingress suite with synthetic certificates/echo origins.
+   No live proxy or company infrastructure is used.
+7. Runs the complete `test:integration` suite against actual PostgreSQL with
    restricted fixture roles, including permission/concurrency/migration tests,
    durable QR recovery and real paired `pg_dump`/`pg_restore` drills.
-7. Checks for leftover generated fixture databases/roles, including after an
+8. Checks for leftover generated fixture databases/roles, including after an
    integration failure. GitHub destroys the whole test service when the job ends.
-8. Installs test-only Playwright 1.58.2/Chromium outside the application trees and
+9. Installs test-only Playwright 1.58.2/Chromium outside the application trees and
    runs the complete existing `test:browser` suite with synthetic APIs/GPS and
    outside application requests blocked.
-9. Checks diffs and that tracked/unignored repository files stayed unchanged.
+10. Checks diffs and that tracked/unignored repository files stayed unchanged.
 
 Builds finish before either SQL or browser tests serve `.next/`. A failed step
 fails the check; there is no `continue-on-error`, automatic merge or deployment.

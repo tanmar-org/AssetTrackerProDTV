@@ -14,11 +14,20 @@ decision is recorded explicitly. The owner reviews and merges all changes from
    linking are implemented in [PR #34](https://github.com/tanmar-org/AssetTrackerProDTV/pull/34)
    merged by the owner at `b2c63a9`. Real TLS/reader/one reviewed identity now pass
    owner-authorized read-only checks. Domain-root continuation references exposed
-   a compatibility issue, corrected on `Dev/ad-domain-scope`. After owner review,
-   configure the intended application database and reviewed GUID mappings, then
-   verify personal-password login and actual policy behavior before enabling it.
+   a compatibility issue, corrected in owner-merged PR #35 at `00b9b3f`.
+   An empty private preview now has separate restricted PostgreSQL databases and
+   an explicit reviewed administrator GUID link. Owner normal-password sign-in
+   succeeds with active admin access and a later real directory-status recheck.
+   Owner sign-out/relogin also pass, with the original session removed and a fresh
+   AD session retaining admin access. Next prepare the approved HTTPS hostnames
+   and trusted ingress, then complete recovery-admin and real policy acceptance.
+   Owner selected both public names and confirmed an existing reverse proxy;
+   public DNS is unresolved. Nginx Proxy Manager and an existing wildcard certificate
+   are confirmed; source-IP restriction is optional per owner direction. Protected
+   ingress preparation and real synthetic proxy validation are complete; deployment
+   configuration and acceptance remain pending.
    Preserve existing app roles, recovery ownership and shared-device sign-out.
-   AD sign-in is not active yet; public customer QR access remains separate.
+   Internet staff access is not enabled; public customer QR access remains separate.
 2. **Retain automated validation (QA-01-CI).** Owner merged PR #32 at `396be11`.
    Both full hosted runs passed 250 checks plus builds/types/lint. Keep the same
    complete checks for authentication changes; required branch rules remain an
@@ -178,16 +187,32 @@ approval; unresolved owner/operational items remain listed below.
   search, preventing normal domain-root partition references without following
   referrals or relaxing rejection of unexpected references/unsupported controls.
   Implemented on `Dev/ad-domain-scope` in
-  [PR #35](https://github.com/tanmar-org/AssetTrackerProDTV/pull/35); owner review/merge pending. Synthetic
+  [PR #35](https://github.com/tanmar-org/AssetTrackerProDTV/pull/35), merged by the
+  owner at `00b9b3f`. Final hosted run 37537506761 passed all 306 checks. Synthetic
   wire and HTTP/cache regressions accompany separate successful read-only real
-  reader/GUID acceptance. No directory write, user-password login or app mapping.
+  reader/GUID acceptance. No directory write or user-password login in that task.
+- [x] AUTH-01-PREVIEW — Prepare an isolated empty preview of exact owner-merged main:
+  socket-only authenticated PostgreSQL, separate owner/runtime roles and reviewed
+  administrator GUID link; both Node listeners remain loopback-only for SSH access.
+  Builds, effective role restrictions, readiness, locked AD UI and synthetic
+  localhost Secure-cookie handling pass. Settings/identity/logs are private outside
+  Git. Owner personal-password login now passes below; no internet/production cutover.
+- [x] AUTH-01-FIRST-LOGIN — Owner signed in using their normal AD password. Read-only
+  preview evidence confirms one active AD session, the reviewed identity link,
+  active app administrator role and a successful later directory-status recheck.
+  No password, bearer token or token hash was read/logged for acceptance.
+- [x] AUTH-01-SESSION-ACCEPTANCE — Owner confirms sign-out and sign-in worked.
+  Read-only SQL confirms the original session row is gone, exactly one later
+  unexpired AD session exists and the reviewed identity/active admin role remain.
+  Real policy changes, recovery admins and internet cutover remain rollout work.
 - [ ] AUTH-01-ROLLOUT — Operator approves/configures actual private LDAPS endpoint,
   scope, trusted CA, restricted reader and required attribute permissions. Migrate,
   map reviewed GUIDs to existing app IDs, verify working linked recovery admins,
   validate real lockout/expiry/reset/disablement/outage/replication behavior and
   preserved roles/draft ownership. Configure trusted HTTPS ingress and block direct
   backend access before internet cutover. Do not paste reader/user passwords into
-  chat or commit them. No application deployment or live database configuration performed.
+  chat or commit them. Preview setup is complete; production configuration/cutover
+  is separate and remains unperformed.
   Follow [the AD setup and acceptance runbook](docs/STAFF-AUTHENTICATION.md).
   Owner supplied the target directory and nominated the initial administrator.
   Owner-exported public CA now passes strict controller chain/hostname verification
@@ -196,8 +221,14 @@ approval; unresolved owner/operational items remain listed below.
   retry now passes reader bind and domain-base verification. One eligible nominated
   account plus three partition references exposed the domain-scope bug above;
   the corrected production adapter successfully rereads that account by GUID with
-  all required attributes. Personal-password login, explicit app mapping, policy
-  acceptance and working recovery admins remain unverified. Actual
+  all required attributes. The empty private preview now has an explicit reviewed
+  administrator link and successful owner personal-password login with a later
+  directory-status recheck. Owner sign-out/relogin now pass with old-session removal
+  and a fresh AD session. Real policy changes, intended production mappings and
+  working recovery admins remain unverified. Staff/QR HTTPS hostnames are approved;
+  Nginx Proxy Manager and its existing wildcard are confirmed. Public DNS is
+  unresolved; source-IP filtering is optional per owner direction. No public ingress
+  was configured. Actual
   infrastructure/account identifiers are kept in protected VM notes outside Git.
 - [x] AUTH-01-TRAFFIC — PostgreSQL counters limit eligible sign-ins before account
   lookup/PIN hashing/directory work: 300 global, 60 authenticated client, 30 canonical username
@@ -356,6 +387,20 @@ approval; unresolved owner/operational items remain listed below.
   Remove localhost/old-host assumptions; verify generated URLs and font assets.
   Native static serving/system fonts and removal of the old Sites CORS allowlist
   are complete. Production domains, HTTPS, secrets, and QR destination remain open.
+- [x] HOST-03-NAMES — Owner selected separate public staff and QR hostnames and
+  confirmed an existing reverse proxy. Actual names remain in protected VM notes.
+  This records decisions only; it does not provision DNS, TLS or internet access.
+- [x] HOST-03-INGRESS — Prepare Nginx Proxy Manager/private VM TLS gateway files,
+  separate authenticated client-IP credentials, both-hop private-route denial and
+  the deployment-only QR HTTPS destination. Owner-specific protected files are
+  staged outside Git in [PR #36](https://github.com/tanmar-org/AssetTrackerProDTV/pull/36);
+  four operator and ten real proxy checks pass. Source-IP
+  restriction is optional, TLS/secrets mandatory. See [the runbook](docs/HTTPS-INGRESS.md).
+- [ ] HOST-03-INGRESS-ROLLOUT — Review/merge the preparation PR, install the VM
+  leaf/key and trusted issuer bundle, configure actual NPM hosts and loopback web
+  services with matching credentials, set public DNS to the existing proxy entry
+  point and complete HTTPS/header/route/phone acceptance during approved deployment.
+  Both names currently return NXDOMAIN. No production ingress is activated.
 - [ ] HOST-04 — Provision production web and QR reconciliation services
   (`service:reconcile -- --watch`), least-privilege credentials, startup/
   restart supervision, health checks, monitoring, backup retention, and a documented

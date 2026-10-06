@@ -87,6 +87,15 @@ jobs:
           # Builds replace .next/types; finish them before standalone checks.
           npm run typecheck
           npm --prefix service-request run typecheck
+      # The ingress check uses real sockets/TLS, never a live proxy or cert.
+      - name: Validate real HTTPS ingress with synthetic proxies
+        run: |
+          # Prevent package scripts starting a service on the disposable runner.
+          printf '#!/bin/sh\nexit 101\n' | sudo tee /usr/sbin/policy-rc.d > /dev/null
+          sudo chmod 755 /usr/sbin/policy-rc.d
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends nginx openssl
+          npm run test:ingress
       - name: Install matching PostgreSQL backup clients
         run: |
           # Only the ephemeral runner changes. PGDG's signed Ubuntu repository

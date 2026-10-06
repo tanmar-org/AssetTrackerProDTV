@@ -1,0 +1,75 @@
+# Include in the VM nginx http context. Node apps stay loopback-only.
+# This is a private TLS gateway, not an additional public certificate issuer.
+# Authenticated headers gate EVERY route, including static files; IP restriction
+# is additional protection when the operator provides the proxy source address.
+server {
+    listen @@VM_LISTEN@@:@@VM_PORT@@ ssl default_server;
+    server_name _;
+    ssl_reject_handshake on;
+}
+
+server {
+    listen @@VM_LISTEN@@:@@VM_PORT@@ ssl;
+    server_name @@STAFF_HOST@@;
+    ssl_certificate @@VM_CERT@@;
+    ssl_certificate_key @@VM_KEY@@;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    @@SOURCE_RESTRICTION@@
+    if ($host != "@@STAFF_HOST@@") { return 421; }
+    if ($http_x_login_proxy_secret != "@@LOGIN_SECRET@@") { return 403; }
+    client_max_body_size 17m;
+    client_body_timeout 15s;
+    client_header_timeout 15s;
+    send_timeout 30s;
+    # Query strings can contain receiver/GPS details. Do not log them here.
+    access_log off;
+    location ~* ^/api/service-assets(?:/|$) { return 404; }
+    location / {
+        proxy_pass http://127.0.0.1:@@STAFF_PORT@@;
+        proxy_set_header Host @@STAFF_HOST@@;
+        proxy_set_header X-Forwarded-Proto https;
+        # Only the authenticated NPM hop may supply these two rate-limit fields.
+        proxy_set_header X-Login-Client-IP $http_x_login_client_ip;
+        proxy_set_header X-Login-Proxy-Secret $http_x_login_proxy_secret;
+        proxy_set_header X-Request-Client-IP "";
+        proxy_set_header X-Request-Proxy-Secret "";
+        proxy_set_header X-Forwarded-For "";
+        proxy_set_header X-Real-IP "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_next_upstream off;
+        proxy_cache off;
+    }
+}
+
+server {
+    listen @@VM_LISTEN@@:@@VM_PORT@@ ssl;
+    server_name @@QR_HOST@@;
+    ssl_certificate @@VM_CERT@@;
+    ssl_certificate_key @@VM_KEY@@;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    @@SOURCE_RESTRICTION@@
+    if ($host != "@@QR_HOST@@") { return 421; }
+    if ($http_x_request_proxy_secret != "@@REQUEST_SECRET@@") { return 403; }
+    client_max_body_size 8k;
+    client_body_timeout 15s;
+    client_header_timeout 15s;
+    send_timeout 30s;
+    access_log off;
+    location = /api/asset {
+        if ($request_method != GET) { return 405; }
+        include @@VM_QR_UPSTREAM@@;
+    }
+    location = /api/requests {
+        if ($request_method != POST) { return 405; }
+        include @@VM_QR_UPSTREAM@@;
+    }
+    location ~* ^/api(?:/|$) { return 404; }
+    location / {
+        if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+        include @@VM_QR_UPSTREAM@@;
+    }
+}
