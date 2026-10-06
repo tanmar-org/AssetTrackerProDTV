@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { Client, EqualityFilter } from "ldapts";
 import { adConfiguration, authenticationMode, canonicalAdUsername, guidBytes, guidText, verifyAdPassword, lookupAdGuid, directoryDeadlineMs } from "../lib/ad-auth.ts";
 import { createLdapDirectory, directoryBytes, directoryGuid, syntheticAdEntry } from "./helpers/ldap-directory.mjs";
 
@@ -23,7 +24,27 @@ test("private LDAPS credential and status adapter", { timeout: 30000 }, async t 
   const directory = await createLdapDirectory(), config = adConfiguration(directory.env), model = directory.model;
   t.after(async () => { await directory.close(); assert.deepEqual(directory.errors, []); });
   const reset = () => { model.entries = [syntheticAdEntry()]; model.requests = []; model.onUserBind = null;
-    model.stall = false; model.duplicate = false; model.referral = false; model.omit = null; model.operationDelayMs = 0; };
+    model.stall = false; model.duplicate = false; model.referral = false; model.domainPartitions = true;
+    model.rejectDomainScope = false; model.omit = null; model.operationDelayMs = 0; };
+  await t.test("domain-root user plus three partition referrals succeeds only with a scoped adapter search", async () => {
+    reset(); const client = new Client({ url: config.url, timeout: 2000, connectTimeout: 2000,
+      tlsOptions: { ca: config.ca, servername: config.hostname, rejectUnauthorized: true } });
+    try {
+      await client.bind(config.reader, config.password);
+      const unscoped = await client.search(config.base, { scope: "sub",
+        filter: new EqualityFilter({ attribute: "sAMAccountName", value: "j.doe" }) });
+      assert.equal(unscoped.searchEntries.length, 1); assert.equal(unscoped.searchReferences.length, 3);
+    } finally { await client.unbind(); }
+    model.requests = []; assert.equal((await lookupAdGuid(config, directoryGuid)).guid, directoryGuid);
+    assert.ok(model.requests.every(value => value.type !== "bind" || value.reader));
+  });
+  await t.test("unsupported critical domain scope denies sign-in without fallback or user credential bind", async () => {
+    reset(); model.rejectDomainScope = true;
+    await assert.rejects(verifyAdPassword(config, "j.doe", model.entries[0].password),
+      { status: 503, message: "Directory sign-in unavailable." });
+    assert.equal(model.requests.filter(value => value.type === "search").length, 1);
+    assert.ok(model.requests.every(value => value.type !== "bind" || value.reader));
+  });
   await t.test("valid password binds the returned DN and searches exact binary GUID under bounded options", async () => {
     reset(); const entry = model.entries[0], identity = await verifyAdPassword(config, entry.username, entry.password);
     assert.equal(identity.guid, directoryGuid); assert.equal(identity.passwordStamp, entry.stamp);
@@ -32,6 +53,7 @@ test("private LDAPS credential and status adapter", { timeout: 30000 }, async t 
     for (const search of searches) {
       assert.equal(search.sizeLimit, 2); assert.equal(search.timeLimit, 2); assert.equal(search.aliases, 0);
       assert.ok(search.attributes.includes("msDS-User-Account-Control-Computed"));
+      assert.deepEqual(search.controls, [{ type: "1.2.840.113556.1.4.1339", critical: true }]);
     }
     assert.deepEqual(searches[1].conditions.find(value => value.attribute === "objectguid").value, directoryBytes);
     assert.equal((await lookupAdGuid(config, directoryGuid)).guid, directoryGuid);

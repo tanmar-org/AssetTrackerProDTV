@@ -34,6 +34,7 @@ test("AD sign-in, explicit account ownership and session revocation", { timeout:
   const setup = async ({ linked = true, adBootstrap = false } = {}) => {
     await tracker.database.prepare("TRUNCATE app_service_operations,app_inventory_drafts,app_sessions,app_users,app_state,app_state_history,app_change_log,app_login_rate_limits").run();
     model.entries = [syntheticAdEntry()]; model.requests = []; model.stall = false; model.onUserBind = null; model.omit = null;
+    model.domainPartitions = true; model.rejectDomainScope = false; model.referral = false;
     const provisioned = await provisionAdmin(tracker.database, { name: "appadmin", pin: "482631" }, { mode: adBootstrap ? "ad" : "pin" });
     userId = provisioned.id;
     if (linked) await linkAdIdentity(tracker.database, { userId, guid: directoryGuid, directory: directory.env.AD_DIRECTORY_ID });
@@ -41,6 +42,22 @@ test("AD sign-in, explicit account ownership and session revocation", { timeout:
   const ageSessions = () => tracker.database.prepare("UPDATE app_sessions SET directory_checked_at = $1 WHERE auth_method='ad'")
     .bind(Math.floor(Date.now() / 1000) - 61).run();
   const link = options => linkAdIdentity(tracker.database, { userId, guid: directoryGuid, directory: directory.env.AD_DIRECTORY_ID, ...options });
+
+  // Both unsupported controls and unexpected referrals deny HTTP access;
+  // neither failure may issue a session or refresh an expired approval cache.
+  await t.test("domain scope failures deny login and stale-session access without extending approval", async () => {
+    for (const failure of ["rejectDomainScope", "referral"]) {
+      await setup(); model[failure] = true;
+      const denied = await login(); assert.equal(denied.status, 503);
+      assert.equal(denied.headers.has("set-cookie"), false); assert.equal(await count("app_sessions"), 0);
+      model[failure] = false; const session = await signIn(); await ageSessions();
+      const before = await tracker.database.prepare("SELECT directory_checked_at FROM app_sessions").first();
+      model[failure] = true;
+      assert.equal((await api(second, "/api/app-state", "GET", undefined, session.cookie)).status, 503);
+      assert.deepEqual(await tracker.database.prepare("SELECT directory_checked_at FROM app_sessions").first(), before);
+      model[failure] = false;
+    }
+  });
 
   await t.test("AD bootstrap creates an unlinked role record without a PIN; matching names do not grant access", async () => {
     await setup({ linked: false, adBootstrap: true });

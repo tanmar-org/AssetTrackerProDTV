@@ -120,7 +120,10 @@ The journal records current evidence; older handoff statements may be stale.
   private on-premises AD and no MFA. Opt-in AD mode requires verified private LDAPS,
   mandatory CA/hostname validation, structured/binary equality filters, bounded
   five-second I/O, computed AD account flags and explicit operator directory/GUID
-  links. Never auto-link by username/email, store/log passwords, mutate AD, add a
+  links. Every identity/status search requires the critical AD DOMAIN_SCOPE
+  control with no value, restricting it to one naming context; preserve rejection
+  of unsupported controls and unexpected referrals without following/fallback.
+  Never auto-link by username/email, store/log passwords, mutate AD, add a
   PIN fallback or reintroduce public bootstrap. Preserve existing IDs/roles/drafts.
   AD status approval is cached at most 60 seconds in SQL across processes; outages
   must not extend it, and late checks must not resurrect/revoke newer credential

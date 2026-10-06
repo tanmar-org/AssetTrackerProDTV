@@ -4,13 +4,15 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/ad-password-signin`, based on `origin/main` at
-  `1650417` (owner merged PR #33). Current task implements opt-in private LDAPS
-  password sign-in, explicit immutable identity linking and bounded session
-  rechecks. Documentation is bundled; company AD configuration/acceptance and
-  deployment remain separate operator work. Published
-  [PR #34](https://github.com/tanmar-org/AssetTrackerProDTV/pull/34) for owner review;
-  see the latest dated entry and final PR check/description for evidence.
+- Development branch: `Dev/ad-domain-scope`, based on `origin/main` at
+  `b2c63a9` (owner merged PR #34). Private LDAPS password sign-in, explicit identity
+  linking and bounded session rechecks are merged; actual company AD setup and
+  acceptance remain AUTH-01-ROLLOUT. A real read-only reader/identity check found
+  normal AD partition referrals blocking the strict domain-root search; critical
+  DOMAIN_SCOPE corrects it while retaining referral/unsupported-control rejection.
+  Real reader and production-adapter GUID lookup now pass. No application mapping,
+  personal-password verification or deployment. Merge notes are bundled with this fix.
+  [PR #35](https://github.com/tanmar-org/AssetTrackerProDTV/pull/35) awaits owner review/merge.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -63,7 +65,8 @@
   private, certificate-validated LDAPS username/password verification; existing
   app permissions and stable identity ownership must survive the transition.
   Shared login traffic counters are merged in PR #33; opt-in AD sign-in is now
-  implemented for review, with synthetic fixtures only. It is not configured/live.
+  merged in PR #34. Separate owner-directed read-only checks now verify trusted
+  TLS, the real reader and one nominated identity; the application is not live.
   Earlier broker/MFA recommendations are superseded by these confirmed choices.
   Public customer QR access remains separate.
   Prepare actual directory acceptance and trusted HTTPS ingress,
@@ -2077,3 +2080,187 @@ This bundled documentation follow-up records the PR reference. The final-head
 full hosted check and its exact results are recorded in the PR description after
 verification; consult the latest `Validate applications` result, not an earlier
 head or the VM-only totals. Owner retains final review and merging.
+
+## 2026-10-06 — AD rollout preparation after owner merge (America/Chicago)
+
+Owner merged PR #34 at `b2c63a92d97e1030195513b0b25577c77380bdd1` on
+2026-10-06 15:48 CDT. Fetched current main and started `Dev/ad-rollout-preparation`
+from that merge with a clean working tree. The merged tree matches the reviewed
+AD implementation; no dependency reinstall or repeated runtime checks were needed
+for these documentation-only merge notes. Preserve the original checkout's unrelated
+auth comment edit. No documentation-only PR is being opened.
+
+Final PR head `8902b9e` passed
+[hosted run 37528356444](https://github.com/tanmar-org/AssetTrackerProDTV/actions/runs/37528356444):
+staff 102, QR 4, PostgreSQL/HTTP/backup 142 and Chromium 55, **303 total**, zero
+failed/canceled/skipped checks and zero remaining fixture databases/roles. Both
+builds, TypeScript scopes, zero-warning lint, workflow verification, repository
+cleanliness and teardown passed; named logs and the final PR head were verified.
+The merge's separate main run
+[37529218056](https://github.com/tanmar-org/AssetTrackerProDTV/actions/runs/37529218056)
+was still running when preparation began; this note does not claim that result.
+
+Reviewed the AD/setup/development runbooks. OpenSSL, DNS lookup, bounded-command
+and PostgreSQL tools are already available on this VM. Requested the AD domain,
+private controller/LDAPS hostname, port-636 availability, CA certificate location,
+restricted reader-account availability and initial administrator usernames. No
+passwords were requested; do not put reader credentials or real directory identity
+details into public documentation. These facts are needed to select the intended
+directory and validate trust instead of guessing from repository code.
+
+AUTH-01-ROLLOUT is now the next operational task: establish the real private
+connection/certificate, configure a restricted reader privately, approve exact
+GUID-to-app-ID mappings and verify actual policies/recovery administrators before
+staff internet cutover. The implementation remains unconfigured against company
+AD. No actual directory connection/scan/write, live database/service configuration,
+production migration or deployment has been performed. Merge notes remain local
+on the Dev branch to bundle with the next substantive task; diff checks pass.
+
+### Owner-supplied directory and read-only preflight
+
+Owner supplied the AD domain/controller, expected port 636 and initial admin
+username, and confirmed no dedicated reader exists. The CA response supplied a
+controller hostname, not an exported certificate. With that target, performed
+bounded DNS and strict TLS checks only. DNS resolves privately and TCP 636 presents
+a certificate with the matching DNS SAN and currently valid dates. Strict chain
+validation fails with OpenSSL error 20 (unable to get local issuer certificate);
+this is reachability evidence, not a verified authenticated directory connection.
+The presented issuer identifies an internal CA. Do not trust the leaf or bypass
+verification to continue.
+
+Saved the actual infrastructure/account identifiers and certificate observations
+in mode-0600 private VM notes under the user's private tools area, outside Git.
+These public journal notes intentionally omit those identifiers. No credentials
+were supplied/sent, LDAP bind/search or AD write performed, CA trust edited, app
+identity linked or live database/service configured. Next obtain the public
+trusted CA bundle through Windows administration and create a dedicated non-admin
+reader, with its password configured privately. Then verify the trusted connection,
+required attribute access and the nominated user's reviewed GUID before explicit
+app mapping. No new code/dependency changes or documentation-only PR.
+
+The merged main run
+[37529218056](https://github.com/tanmar-org/AssetTrackerProDTV/actions/runs/37529218056)
+subsequently completed successfully on `b2c63a9`. The prior final PR's 303 named
+checks remain the recorded detailed evidence; no new runtime checks were needed
+for these local documentation updates. Diff checks pass.
+
+### Owner-exported CA and verified TLS
+
+Owner supplied the public root CA export from a trusted domain PC. Checked its
+PEM format, CA constraints/signing usage, self-issued subject/issuer and current
+validity; self-verification passes. Strict OpenSSL verification of the controller's
+chain and DNS hostname passes with this CA. A separate Node TLS connection using
+application-equivalent CA/servername/verification/minimum TLS 1.2 also reports
+authorized=true. Both negotiate TLS 1.3. No credentials or LDAP bind/search sent;
+this proves trusted TLS connectivity, not reader access or staff authentication.
+
+Stored the public CA, candidate nonsecret directory settings and updated actual
+identifiers/fingerprints in the protected VM area outside Git. No system trust or
+application runtime environment changed. The reader screenshot shows a different
+account name from the earlier suggestion in the default Users container; its
+actual creation/DN still require verification. Private notes record the proposed
+DN without publishing it.
+
+Prepared a private local password-entry helper: interactive reader-DN review and
+hidden password/confirmation, mode-0600 JSON in a mode-0700 directory, exclusive
+creation and no password arguments, shell parsing or chat entry. It performs no
+network operation or deployment. Checked help, Python syntax, file/directory modes
+and refusal of non-TTY input. No actual reader secret has been saved/read yet.
+Await owner entry before verifying reader bind/required attributes and the nominated
+administrator's GUID. No repository code/dependency changes or new PR; these
+documentation updates will be bundled with the next substantive task.
+
+### Reader credentials entered; first bind rejected
+
+Owner confirmed hidden local password entry completed. Verified private settings,
+CA and reader-secret file permissions without printing the password. One bounded
+reader bind over certificate-validated LDAPS returned InvalidCredentialsError.
+Stopped after that attempt, before RootDSE/admin attribute/GUID reads. This does
+not establish whether the cause is the account DN, password or account state.
+No application identity/session/mapping, AD write or database/service change made.
+
+Prepared read-only Windows account-status verification against the same controller;
+actual identifiers remain in protected notes. Avoid repeated unchanged binds until
+the account's exact DN, completion/enabled/unlocked status and password requirements
+are verified. The private helper now supports explicit --replace for corrected
+local entry, with atomic mode-0600 replacement. Synthetic checks passed for exact
+whitespace/quote/backslash handling, file mode, overwrite refusal, mismatch
+preservation and atomic replacement/temporary cleanup. Real credentials were not
+changed by those checks. Repository code/dependencies remain unchanged; notes stay
+bundled on the current Dev branch, without a documentation-only PR.
+
+## 2026-10-06 — Correct AD domain-root searches after owner retry (America/Chicago)
+
+### Real read-only acceptance and cause
+
+Owner requested another reader verification attempt. Certificate-validated LDAPS
+reader bind now passes; RootDSE confirms the configured default naming context.
+A targeted search returned exactly one eligible nominated account with all six
+required attributes, plus three continuation references. The adapter correctly
+refused unexpected references, but the request did not limit normal AD domain-root
+searches to their naming context. No referral was followed, user password tested,
+directory account modified or application identity/session created.
+
+Renamed the unpushed preparation branch to `Dev/ad-domain-scope`, retaining base
+`b2c63a9` and bundling the accumulated merge/preflight notes with this correction.
+Every identity/status search now sends critical `LDAP_SERVER_DOMAIN_SCOPE_OID`
+(`1.2.840.113556.1.4.1339`, no value). This prevents ordinary partition references
+while preserving rejection of unsupported controls, unexpected references,
+ambiguity and missing attributes. No fallback, referral following, TLS relaxation,
+dependency/schema change or new directory write was added. Microsoft documents
+the control as limiting searches to one naming context without generating referrals;
+the authentication runbook links that primary reference.
+
+One additional bounded read through the corrected production `lookupAdGuid`
+successfully returned the same reviewed GUID, DN and username with eligible status.
+The real evidence, settings, CA and reader secret remain mode-0600 in a private
+mode-0700 VM directory outside Git. Public notes omit actual company endpoints,
+account identifiers and GUIDs. This is reader/identity evidence, not proof of the
+nominated user's password or an application login. No live database migration,
+mapping, service configuration or deployment occurred.
+
+### Regression coverage and verification
+
+The synthetic TLS/LDAP helper independently decodes wire controls and normally
+returns three partition references for an unscoped domain-root search. Tests
+demonstrate the original result shape and corrected GUID lookup, verify criticality
+and absent control data, reject unsupported controls without fallback/user bind,
+and retain malformed/ambiguous/unexpected-reference rejection. PostgreSQL/HTTP
+checks prove unsupported controls and unexpected references cannot issue sessions
+or extend stale approval, including requests through a second application process.
+All automated fixtures use synthetic accounts/certificates/data, never company AD.
+
+Both production builds, standalone TypeScript checks and zero-warning lint gates
+pass. Actual named local checks passed with suitable child-process/socket permissions:
+
+- Staff default: **104/104**.
+- QR default: **4/4**.
+- Complete PostgreSQL/HTTP/backup: **143/143**.
+- Chromium: **55/55**.
+- Total: **306**, zero failures/canceled/skipped checks. The focused 15-check AD
+  subset is included in the staff total, not counted again.
+
+Private PostgreSQL cleanup returned **0** remaining fixture databases/roles; the
+socket-only test cluster was stopped after verification.
+Updated AGENTS, development/authentication runbooks, TODO and this journal; no
+documentation-only PR. The original checkout's unrelated auth comment remains.
+
+### Next priority
+
+After owner review/merge, prepare the intended protected application database and
+configuration, then explicitly link the reviewed directory GUID to the correct
+application user ID. A successful reader search alone grants no application role;
+the mapping is what connects AD identity to retained app ownership/permissions.
+Verify an actual personal-password login, another working recovery administrator,
+session revocation and real account policies in a controlled HTTPS preview before
+internet access. Approved hostnames/trusted ingress, production supervision,
+scheduled off-server backups and real data/device acceptance remain rollout work.
+
+### Publication and hosted validation
+
+Committed implementation `2db20b1`, pushed `Dev/ad-domain-scope` and opened
+[PR #35](https://github.com/tanmar-org/AssetTrackerProDTV/pull/35) targeting main.
+Attached the PR to this task. This bundled follow-up records its reference; the
+final-head hosted run and exact evidence are recorded in the PR description after
+verification. Do not use an earlier head's result to approve the latest change.
+Owner alone reviews/merges; no main push, auto-merge or deployment occurred.

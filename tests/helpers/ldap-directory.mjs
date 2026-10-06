@@ -41,7 +41,8 @@ export async function createLdapDirectory({ certificateHost = "localhost" } = {}
     await execute("openssl", ["x509", "-req", "-in", join(directory, "server.csr"), "-CA", caFile,
       "-CAkey", join(directory, "ca.key"), "-CAcreateserial", "-out", certFile, "-days", "2", "-extfile", join(directory, "extensions")]);
     const model = { entries: [syntheticAdEntry()], reader: "CN=Synthetic Reader,DC=example,DC=invalid",
-      readerPassword: "Synthetic reader password!", requests: [], stall: false, duplicate: false, referral: false, omit: null, onUserBind: null, operationDelayMs: 0 };
+      readerPassword: "Synthetic reader password!", requests: [], stall: false, duplicate: false, referral: false,
+      domainPartitions: true, rejectDomainScope: false, omit: null, onUserBind: null, operationDelayMs: 0 };
     const filters = reader => {
       const tag = reader.readSequence(), end = reader.offset + reader.length;
       if (tag === 0xa0) { const result = []; while (reader.offset < end) result.push(...filters(reader)); return result; }
@@ -71,8 +72,30 @@ export async function createLdapDirectory({ certificateHost = "localhost" } = {}
         const sizeLimit = reader.readInt(), timeLimit = reader.readInt(); reader.readBoolean();
         const conditions = filters(reader); reader.readSequence(); const end = reader.offset + reader.length, attributes = [];
         while (reader.offset < end) attributes.push(reader.readString());
-        model.requests.push({ type: "search", base, scope, aliases, sizeLimit, timeLimit, attributes, conditions });
+        // Decode the actual wire control independently, including criticality
+        // and absence of a value; importing the production control would mask bugs.
+        const controls = [];
+        if (reader.offset < packet.length) {
+          if (reader.readSequence() !== 0xa0) throw new Error("Unexpected LDAP message extension.");
+          const controlsEnd = reader.offset + reader.length;
+          while (reader.offset < controlsEnd) {
+            if (reader.readSequence() !== 0x30) throw new Error("Malformed LDAP control.");
+            const controlEnd = reader.offset + reader.length, type = reader.readString();
+            const critical = reader.peek() === 0x01 ? reader.readBoolean() : false;
+            const value = reader.offset < controlEnd ? reader.readString(0x04, true) : undefined;
+            if (reader.offset !== controlEnd) throw new Error("Unexpected LDAP control data.");
+            controls.push({ type, critical, ...(value === undefined ? {} : { value }) });
+          }
+          if (reader.offset !== controlsEnd || controlsEnd !== packet.length) throw new Error("Trailing LDAP control data.");
+        }
+        model.requests.push({ type: "search", base, scope, aliases, sizeLimit, timeLimit, attributes, conditions, controls });
         if (!bound) { socket.write(result(messageId, 0x65, 50)); return; }
+        const domainScope = controls.find(control => control.type === "1.2.840.113556.1.4.1339");
+        if (model.rejectDomainScope && domainScope?.critical) { socket.write(result(messageId, 0x65, 12)); return; }
+        // Normal AD domain-root continuation references accompany an otherwise
+        // valid user. A separate switch simulates a server violating DOMAIN_SCOPE.
+        if (model.domainPartitions && !domainScope) for (const partition of ["ForestDnsZones", "DomainDnsZones", "OtherPartition"])
+          socket.write(response(messageId, 0x73, writer => writer.writeString(`ldaps://outside.example.invalid/${partition}`)));
         if (model.referral) socket.write(response(messageId, 0x73, writer => writer.writeString("ldaps://outside.example.invalid")));
         const matches = model.entries.filter(entry => conditions.every(({ attribute, value }) => {
           if (attribute === "objectguid") return entry.bytes.equals(value);
