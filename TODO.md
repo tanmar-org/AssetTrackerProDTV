@@ -408,6 +408,7 @@ approval; unresolved owner/operational items remain listed below.
   and private readiness monitoring. Native unit/gateway validation and real
   restricted-PostgreSQL startup/stop tests pass. A transient user-systemd smoke
   also verifies credential delivery and crash restart. See [service setup](docs/PRODUCTION-SERVICES.md).
+  Prepared in [PR #37](https://github.com/tanmar-org/AssetTrackerProDTV/pull/37).
   Production installation, actual UID/sandbox/boot acceptance and alert delivery
   remain HOST-04; no production service or database was installed.
 - [ ] HOST-04 — Provision production web and QR reconciliation services

@@ -2553,7 +2553,10 @@ ran the actual worker, restarted after a controlled main-process crash and stopp
 cleanly; its journal contains two aggregate reconciliation passes and no startup
 failures. That unit was removed. This is not proof of full installed system-unit
 UID/sandbox/reboot behavior. Full final-head hosted validation remains pending at
-this commit; its result/PR reference will be reported and evidence saved privately.
+this commit. Opened [PR #37](https://github.com/tanmar-org/AssetTrackerProDTV/pull/37)
+for owner review/merge. Its full hosted run 37547040889 passed at `feda111`;
+inspect the final head after this handoff update. Final hosted evidence is saved
+privately/reported to the owner, then bundled in the next substantive journal update.
 
 No production units/users, root packages, database, migration, listener, NPM/DNS
 setting or certificate was installed/activated. Both private previews remain
