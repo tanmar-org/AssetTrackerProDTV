@@ -177,7 +177,8 @@ approval; unresolved owner/operational items remain listed below.
 - [x] AUTH-01-DOMAIN-SCOPE — Require critical AD DOMAIN_SCOPE on every identity/status
   search, preventing normal domain-root partition references without following
   referrals or relaxing rejection of unexpected references/unsupported controls.
-  Implemented on `Dev/ad-domain-scope`; owner review/merge pending. Synthetic
+  Implemented on `Dev/ad-domain-scope` in
+  [PR #35](https://github.com/tanmar-org/AssetTrackerProDTV/pull/35); owner review/merge pending. Synthetic
   wire and HTTP/cache regressions accompany separate successful read-only real
   reader/GUID acceptance. No directory write, user-password login or app mapping.
 - [ ] AUTH-01-ROLLOUT — Operator approves/configures actual private LDAPS endpoint,

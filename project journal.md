@@ -12,6 +12,7 @@
   DOMAIN_SCOPE corrects it while retaining referral/unsupported-control rejection.
   Real reader and production-adapter GUID lookup now pass. No application mapping,
   personal-password verification or deployment. Merge notes are bundled with this fix.
+  [PR #35](https://github.com/tanmar-org/AssetTrackerProDTV/pull/35) awaits owner review/merge.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -2254,3 +2255,12 @@ Verify an actual personal-password login, another working recovery administrator
 session revocation and real account policies in a controlled HTTPS preview before
 internet access. Approved hostnames/trusted ingress, production supervision,
 scheduled off-server backups and real data/device acceptance remain rollout work.
+
+### Publication and hosted validation
+
+Committed implementation `2db20b1`, pushed `Dev/ad-domain-scope` and opened
+[PR #35](https://github.com/tanmar-org/AssetTrackerProDTV/pull/35) targeting main.
+Attached the PR to this task. This bundled follow-up records its reference; the
+final-head hosted run and exact evidence are recorded in the PR description after
+verification. Do not use an earlier head's result to approve the latest change.
+Owner alone reviews/merges; no main push, auto-merge or deployment occurred.
