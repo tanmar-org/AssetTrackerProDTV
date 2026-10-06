@@ -50,6 +50,12 @@ durable intent, versioned receipts and a VM reconciler for recovery; there is st
 
 ## Database ownership and permissions
 
+For a fresh production installation, use the guarded
+[paired database preparation command](PRODUCTION-DATABASES.md): offline credential
+staging by default, a separate approved initialization step, explicit grants and
+failure containment. It never adopts existing databases or imports records. The
+manual examples below remain useful for development and separately reviewed upgrades.
+
 For development, use an isolated PostgreSQL 18 server with synthetic data. For
 production, provisioning the service and credentials is an operator task under
 HOST-04, following owner review. The user-local test cluster is not production.
