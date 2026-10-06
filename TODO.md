@@ -9,8 +9,8 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 
 1. **Prepare internet staff authentication (AUTH-01).** Owner confirmed AD-only
    infrastructure, private VM-to-AD connectivity and password-only sign-in with
-   no MFA. First bound login traffic before account reads; next implement private,
-   certificate-validated LDAPS authentication and explicit stable identity linking.
+   no MFA. Shared login traffic protection is implemented in PR #33. Next implement
+   private, certificate-validated LDAPS authentication and explicit stable identity linking.
    Preserve existing app roles, recovery ownership and shared-device sign-out.
    AD sign-in is not active yet; public customer QR access remains separate.
 2. **Retain automated validation (QA-01-CI).** Owner merged PR #32 at `396be11`.
@@ -170,8 +170,9 @@ approval; unresolved owner/operational items remain listed below.
   missing counter schema or configured ingress fails closed. Unknown accounts,
   success, incorrect credentials and account-read failures consume reservations.
   Tracker migration 0006, runtime/backup grants and production trusted ingress
-  are required before rollout. Implemented on `Dev/ad-authentication`; see
-  [staff login policy](docs/STAFF-AUTHENTICATION.md). This does not enable AD or
+  are required before rollout. Implemented on `Dev/ad-authentication` in
+  [PR #33](https://github.com/tanmar-org/AssetTrackerProDTV/pull/33); 269 local and
+  hosted checks pass. See [staff login policy](docs/STAFF-AUTHENTICATION.md). This does not enable AD or
   establish internet deployment readiness.
 - [x] AUTH-01-ACCOUNTS — Account updates, session revocation, and audit writes commit
   together. PIN resets, role changes, and activation changes revoke all target

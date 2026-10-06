@@ -6,7 +6,9 @@
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
 - Development branch: `Dev/ad-authentication`, based on merged
   `main` at `396be11` (owner merged PR #32). Current task implements shared login
-  traffic protection ahead of AD integration; documentation is bundled.
+  traffic protection ahead of AD integration in
+  [PR #33](https://github.com/tanmar-org/AssetTrackerProDTV/pull/33); documentation
+  is bundled. Initial hosted validation passes 269 checks; owner review is pending.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -1933,7 +1935,7 @@ passed. The original checkout's unrelated auth edit remains untouched.
 
 ### Next priority and limits
 
-Publish this login-protection PR for owner review and inspect fresh hosted checks
+Published this login-protection PR for owner review; inspect fresh hosted checks
 on its final commit. After owner merge, implement the bounded private LDAPS
 adapter and password UI, explicitly map AD identities to app users and define
 session invalidation/directory rechecks/operator recovery. This replaces the
@@ -1942,3 +1944,22 @@ AD sign-in is not enabled by this task. Fixed-window budgets can admit boundary
 bursts and temporarily delay legitimate users under abuse; they do not replace
 edge limits or guarantee compliance with AD's lockout policy. No production
 exposure, deployment, live migration or AD connection was performed.
+
+### Publication and independent hosted evidence
+
+Committed implementation `83d2882` and pushed `Dev/ad-authentication`; opened
+[PR #33](https://github.com/tanmar-org/AssetTrackerProDTV/pull/33) targeting main and
+attached it to this task. GitHub's GraphQL create endpoint failed twice and the
+first REST attempt returned an empty response; read-only checks confirmed no PR
+before each retry. The next REST attempt created one PR successfully. No duplicate
+PR, merge, auto-merge or main push occurred.
+
+[Hosted run 37521819264](https://github.com/tanmar-org/AssetTrackerProDTV/actions/runs/37521819264)
+for implementation `83d2882` completed successfully: staff **89**, QR **4**, SQL
+**125**, Chromium **51**, total **269**, zero failed/canceled/skipped. Verified
+named scenario logs and **0** remaining synthetic fixture databases/roles. Both
+builds/types/lint, workflow validation, repository cleanliness and teardown pass.
+This is fresh hosted evidence, separate from the VM totals. The bundled final
+documentation commit triggers a new full run; review its latest check result in
+PR #33. The PR description records that final result after verification. Owner
+retains final review/merge; production and AD remain untouched.
