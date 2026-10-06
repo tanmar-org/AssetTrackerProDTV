@@ -48,8 +48,9 @@
   [PR #30](https://github.com/tanmar-org/AssetTrackerProDTV/pull/30) are merged by
   the owner. QA-02's zero-warning lint/vendor baseline in
   [PR #31](https://github.com/tanmar-org/AssetTrackerProDTV/pull/31) is merged by
-  the owner. QA-01-CI automated validation is implemented on this branch, with
-  hosted verification and owner review/merge pending. No application runtime code,
+  the owner. QA-01-CI automated validation is implemented on this branch in
+  [PR #32](https://github.com/tanmar-org/AssetTrackerProDTV/pull/32). The full hosted
+  check passed; owner review/merge is pending. No application runtime code,
   migration, dependency version or lockfile changes are included in the CI task.
   Production deployment has not started; scheduled/off-server backups are not configured.
 - Next task after CI review: confirm AUTH-01 staff access policy. Existing PINs
@@ -1778,10 +1779,9 @@ pass. No system package/service or production database was installed on this VM.
 The workflow uses that same verified tool archive for its syntax check.
 
 Bundled AGENTS, README, TODO, development/CI guidance and this journal. No runtime
-code, database/migration or application dependency/lockfile changed. Hosted checks
-will establish fresh build/default/SQL/browser evidence; prior VM totals remain
-historical evidence until a run is observed. Do not equate YAML validation with a
-successful hosted workflow.
+code, database/migration or application dependency/lockfile changed. The observed
+hosted results below establish fresh evidence separately from earlier VM totals.
+Do not equate YAML validation with a successful hosted workflow.
 
 ### Next useful action
 
@@ -1792,3 +1792,23 @@ from that answer while retaining the separate public QR application. HTTPS/domai
 approved email delivery, supervised web/reconciler processes, monitored encrypted
 off-server recovery, real-data/old-label continuity and physical-device acceptance
 remain separate owner/operator deployment work.
+
+### Observed hosted validation and publication (11:44 America/Chicago)
+
+Implementation commit `b9db77c` pushed to `Dev/github-validation`; opened and
+attached [PR #32](https://github.com/tanmar-org/AssetTrackerProDTV/pull/32).
+[GitHub run 37497396747](https://github.com/tanmar-org/AssetTrackerProDTV/actions/runs/37497396747)
+completed successfully on that implementation at 11:41:55 CDT (test completion).
+Fresh hosted staff default **84/84**, QR default **4/4**, real PostgreSQL/HTTP
+**111/111**, Chromium **51/51**; all four suites reported **0 failed, canceled
+or skipped**. Both webpack builds, TypeScript scopes, zero-warning lint gates,
+workflow syntax, clean-tree/diff checks and container teardown passed. The cleanup
+query reported **0** remaining generated databases/roles. This is actual hosted
+execution, not a restatement of prior VM test counts. No CI implementation change
+was needed after the first run.
+
+Publication references and observed results are bundled into this same PR; the
+final documentation commit triggers another full check. Review the latest PR
+commit's result, since the linked run above proves the implementation commit.
+Owner review/merge and optional required-check rules remain separate. The hosting
+VM's private PostgreSQL cluster stayed stopped; no deployment was performed.

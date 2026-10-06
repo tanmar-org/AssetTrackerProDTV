@@ -9,7 +9,7 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 
 1. **Review automated PR validation (QA-01-CI).** The new GitHub check installs
    both lockfiles, runs lint/types/builds/default tests, real PostgreSQL/backup
-   drills and Chromium on a disposable runner. Hosted validation is being verified;
+   drills and Chromium on a disposable runner. The initial full hosted run passes;
    owner review/merge and required-check rules remain separate. QA-02 was merged
    by the owner in PR #31.
 2. **Decide the staff access policy (AUTH-01).** Existing application PINs do not
@@ -321,9 +321,10 @@ approval; unresolved owner/operational items remain listed below.
 - [ ] QA-01 — Add meaningful API/permission/concurrency/import/backup tests; validate
   iPad/phone GPS and email flows, Brother label dimensions/cutting and actual scanning,
   staff workflows, production-like deployment, and owner acceptance before cutover.
-- [ ] QA-01-CI — Add automated GitHub PR checks for both apps' zero-warning lint,
-  types/builds and synthetic regression suites. Implemented on `Dev/github-validation`;
-  hosted-run validation and owner review/merge pending. Includes actual PostgreSQL
+- [x] QA-01-CI — Add automated GitHub PR checks for both apps' zero-warning lint,
+  types/builds and synthetic regression suites. Implemented on `Dev/github-validation`
+  in [PR #32](https://github.com/tanmar-org/AssetTrackerProDTV/pull/32); the full
+  hosted run passes, owner review/merge pending. Includes actual PostgreSQL
   permission/concurrency/backup drills and Chromium, with no production secrets/VM
   runner. See [CI operations](docs/CONTINUOUS-INTEGRATION.md). CI status alone does
   not enforce branch protection or replace owner review/actual-device acceptance.
