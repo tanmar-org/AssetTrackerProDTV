@@ -33,7 +33,8 @@
   by the owner. Shared-device session/cache corrections (DATA-04) in
   [PR #24](https://github.com/tanmar-org/AssetTrackerProDTV/pull/24) are also merged.
   QR source-map dependency correction (DEP-01-SOURCE-MAP) is implemented on
-  `Dev/qr-source-map-security` for owner review.
+  `Dev/qr-source-map-security` in
+  [PR #25](https://github.com/tanmar-org/AssetTrackerProDTV/pull/25) for owner review.
   Production deployment has not started.
 - Next task: DATA-01 explicit conflict reconciliation/draft handling. The second
   employee saving an older revision currently has to export/reconcile a paused
@@ -1064,3 +1065,9 @@ Company access/login traffic policy, lint/development dependency work, approved
 email delivery, HTTPS/domains/services, live export migration, old printed labels
 and target-device acceptance remain release requirements. This task opens a focused
 PR for the owner's review/merge; no production deployment or live data access.
+
+Publication: implementation commit `c402e80` pushed to
+`Dev/qr-source-map-security`; opened and attached
+[PR #25](https://github.com/tanmar-org/AssetTrackerProDTV/pull/25). Publication
+references are bundled into this same PR. Owner review/merge and GitHub's main
+alert rescan remain pending; the branch is not merged or deployed.

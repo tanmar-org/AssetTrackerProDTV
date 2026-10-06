@@ -86,7 +86,8 @@ approval; unresolved owner/operational items remain listed below.
   [GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
   Updated only QR's transitive entry to compatible patched 1.2.2; tracker already
   pins it. Both apps check malformed/nested offsets, bounded sparse-map conversion,
-  and valid PostCSS mapping. Implemented on `Dev/qr-source-map-security` for review.
+  and valid PostCSS mapping. Implemented on `Dev/qr-source-map-security` in
+  [PR #25](https://github.com/tanmar-org/AssetTrackerProDTV/pull/25) for owner review.
   PostCSS consumes maps for CSS processing; application request/import code does
   not pass submitted records into it. HTTP exploitability is not established.
 - [ ] DEP-01-SOURCE-MAP-MERGE — Owner merges the patch and GitHub rescans main to
