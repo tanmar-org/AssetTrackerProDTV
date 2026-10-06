@@ -17,6 +17,8 @@ as their implementation.
 - Session-protected staff APIs and a separate public QR form/request API.
 - PostgreSQL migrations, operator-only administrator provisioning, graphics,
   QR/barcode libraries, and dependency lockfiles.
+- Public asset lookup, bounded/rate-limited requests, and atomic pending uniqueness;
+  see [public request security](docs/PUBLIC-REQUEST-SECURITY.md).
 
 Production records, database credentials, users, and inventory exports are not
 included. Browser sample records remain. A code migration is not a production
@@ -65,7 +67,7 @@ cd service-request
 npm run install:ci
 cp .env.example .env.local
 cp .env.example .env.migrate
-# Configure its separate database URLs and the matching shared secret.
+# Configure separate database URLs, matching secret, and TRACKER_ASSET_API_URL.
 npm run db:migrate
 npm run dev
 ```

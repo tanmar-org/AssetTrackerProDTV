@@ -6,12 +6,19 @@ import { setTimeout as delay } from "node:timers/promises";
 
 // Exercise the production Node build over real HTTP, not a Worker export or mock.
 // Bind only loopback; use an available ephemeral port for independent test runs.
-export async function startNext(directory, env = {}) {
+export async function unusedPort() {
   const probe = createServer();
   probe.listen(0, "127.0.0.1");
   await once(probe, "listening");
   const port = probe.address().port;
   await new Promise((resolve) => probe.close(resolve));
+  return port;
+}
+
+// A preselected port supports two apps whose private endpoints point at each
+// other. Tests still bind loopback only; a bind race fails rather than reusing it.
+export async function startNext(directory, env = {}, options = {}) {
+  const port = options.port ?? await unusedPort();
   const child = spawn(process.execPath, [
     resolve(directory, "node_modules/next/dist/bin/next"), "start",
     "--hostname", "127.0.0.1", "--port", String(port),

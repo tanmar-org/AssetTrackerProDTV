@@ -29,6 +29,9 @@ test("public and staff pages safely render malicious label/cache/API values in C
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (!origins.includes(url.origin)) return route.abort();
+    if (url.pathname === "/asset-tracker/config.js") return route.fulfill({ contentType: "application/javascript",
+      body: `window.TANMAR_CONFIG = { serviceRequestUrl: ${JSON.stringify(qr.url)} };` });
+    if (url.pathname === "/api/asset") return route.fulfill({ json: { id: "receiver-01", assetNumber: attack } });
     if (url.pathname === "/api/auth") return route.fulfill({ json: { user: { id: "test-admin", name: "testadmin", role: "admin" } } });
     if (url.pathname === "/api/app-state") return route.fulfill({ status: 503, json: { error: "Synthetic offline state retains the cache." } });
     if (url.pathname === "/api/service-requests") return route.fulfill({ json: { requests: [remoteRequest] } });
@@ -47,19 +50,17 @@ test("public and staff pages safely render malicious label/cache/API values in C
     assert.equal(await page.locator('[href^="javascript:"], [href^="data:"]').count(), 0);
   }
 
-  await t.test("legacy labels display text and preserve valid GPS/mail controls", async () => {
+  await t.test("legacy labels redirect to the verified form without private metadata", async () => {
     const page = await context.newPage();
     try {
-      const query = new URLSearchParams({ a: attack, m: attack, t: attack, s: "000001", r: "000002", c: "000003",
-        rs: attack, an: "000004", ac: attack, al: attack, ao: attack });
+      const query = new URLSearchParams({ a: "TEST-01", m: attack, s: "000001", an: "000004", ac: attack, al: attack });
       await page.goto(`${tracker.url}/asset-tracker/service-request.html?${query}`);
-      await page.waitForFunction(() => document.getElementById("locationTitle").textContent === "GPS location captured");
-      assert.equal(await page.locator("#assetNumber").textContent(), attack);
-      assert.equal(await page.locator("#receiverDetails dd").count(), 10);
-      assert.equal(await page.locator("#receiverDetails dd").nth(0).textContent(), attack);
-      assert.equal(await page.locator("#receiverDetails dd").nth(2).textContent(), "000001");
-      await page.locator("#errorCode").fill("771");
-      assert.equal(await page.locator("#emailButton").isEnabled(), true);
+      await page.waitForURL(`${qr.url}/?id=receiver-01`);
+      assert.equal(await page.locator(".receiver-summary strong").textContent(), attack);
+      assert.deepEqual([...new URL(page.url()).searchParams], [["id", "receiver-01"]]);
+      assert.equal(await page.locator("#receiverDetails").count(), 0);
+      assert.equal(await page.locator("button.primary").isEnabled(), false);
+      assert.equal(await page.locator('meta[name="referrer"]').getAttribute("content"), "no-referrer");
       await assertSafe(page);
     } finally { await page.close(); }
   });
@@ -72,14 +73,33 @@ test("public and staff pages safely render malicious label/cache/API values in C
       assert.equal(await page.locator(".receiver-summary strong").textContent(), attack);
       for (const id of ["requesterName", "requesterPhone", "operatorName", "rigFrac", "lease", "errorCode"])
         await page.locator(`#${id}`).fill(id === "requesterPhone" ? "555-0100" : attack.slice(0, 70));
+      await page.locator("button.secondary").click();
       await page.waitForFunction(() => document.querySelector(".location-panel").classList.contains("ready"));
-      // Avoid invoking a device email client: inspect the real page's submission
-      // payload, then abort external protocols through the isolated context.
+      // Public submissions use only the stable ID and requester claims. No email
+      // navigation or private receiver/account metadata is available in the page.
       await page.locator("button.primary").click();
       await page.waitForFunction(() => document.querySelector("button.primary").textContent.includes("Submitted"));
-      assert.equal(savedRequest.assetNumber, attack);
-      assert.equal(savedRequest.serialNumber, "000001");
-      assert.equal(savedRequest.accountName, attack);
+      assert.equal(savedRequest.assetId, "receiver-01");
+      for (const key of ["assetNumber", "serialNumber", "rid", "accessCard", "accountNumber", "accountName"])
+        assert.equal(Object.hasOwn(savedRequest, key), false);
+      assert.deepEqual([...new URL(page.url()).searchParams], [["id", "receiver-01"]]);
+      assert.match(await page.locator(".privacy-note").textContent(), /staff review/);
+      await assertSafe(page);
+    } finally { await page.close(); }
+  });
+
+  await t.test("GPS denial explains staff fallback and cannot submit an empty location", async () => {
+    const page = await context.newPage();
+    try {
+      await page.addInitScript(() => {
+        navigator.geolocation.getCurrentPosition = (_success, failure) => failure({ code: 1 });
+      });
+      await page.goto(`${qr.url}/?id=receiver-01`);
+      await page.waitForFunction(() => document.querySelector(".receiver-summary strong").textContent !== "—");
+      await page.locator("button.secondary").click();
+      await page.waitForFunction(() => document.querySelector(".location-panel").classList.contains("error"));
+      assert.match(await page.locator(".location-panel").textContent(), /contact TanMar/);
+      assert.equal(await page.locator("button.primary").isEnabled(), false);
       await assertSafe(page);
     } finally { await page.close(); }
   });

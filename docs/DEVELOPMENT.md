@@ -58,8 +58,15 @@ assets. Tracker regressions also verify hidden bootstrap UI, operator validation
 and credential-free deactivation drafts/served JavaScript. After an unchanged
 successful build, run `node --experimental-strip-types --test tests/*.test.mjs`.
 On 2026-10-05 both builds/type checks passed. Inherited lint issues remain under
-QA-02: root vendor errors/browser warnings and QR effect-state errors/image warnings.
+QA-02: root vendor errors/browser warnings. QR lint now passes with three
+image warnings; the public-form rewrite removed its two effect-state errors.
 Changed server/helper code passes focused lint checks.
+
+On this VM, the Codex tool sandbox needs suitable child-process/local-socket
+permissions for real verification. Restricted attempts can fail TypeScript
+--showConfig parsing or report only test-file successes without running registered
+subtests. Check that actual named scenarios executed; the journal records only
+verified full/subset results, not those misleading sandbox attempts.
 
 ## Optional real-browser rendering checks
 
@@ -87,12 +94,14 @@ npm run test:browser
 The suite starts two isolated loopback Node servers with no database connection.
 It supplies synthetic GPS, cache records, and session/API fixtures, blocks external
 requests, and closes servers/browser. The spreadsheet reader is now served locally.
-Four scenarios cover malicious legacy QR parameters, React QR text/submission,
-staff cached record IDs/history/audit counts, and unsafe versus valid Maps links.
+Five service scenarios cover private-field-free legacy redirects, React QR
+text/submission, GPS denial and staff fallback, staff cached record IDs/history/audit
+counts, and unsafe versus valid Maps links.
 These checks prove rendering behavior; PostgreSQL suites separately verify actual
 authentication/authorization. Mobile GPS, email delivery, and physical label scanning
-still require QA-01 acceptance. Five fast rendering/mail-draft/URL unit regressions
-also run in the default tracker suite without Playwright.
+still require QA-01 acceptance. Six fast redirect/rendering/stable-identity/URL
+regressions and three public-input tests run without Playwright in the default
+tracker suite.
 
 The browser suite also uploads synthetic XLSX/XLS/CSV through the actual Master,
 West Texas, account, and audit inputs, and exercises the real local parser worker.
@@ -152,6 +161,13 @@ unsafe URLs, history attribution/immutability, invalid historical recovery,
 queued role changes, denied QR deletes, upstream timeout cleanup, and no-op audit
 behavior. Actual browser functions are exercised for ordered PATCH saves,
 paused/recoverable drafts, bounded queues, and stock/audit snapshot/Undo coverage.
+Public-request integration tests verify private/public response separation, fresh
+inventory snapshots, old-label compatibility, stable IDs across renames, malformed
+input, independent-process duplicate/rate races, conflicting status reopens,
+trusted ingress headers, denied-attempt persistence, expiry, lookup errors and
+atomic failure/retry of the requests migration on historical duplicates/bad GPS.
+See [the public request policy](PUBLIC-REQUEST-SECURITY.md).
+
 Full browser/mobile/printing acceptance still belongs to QA-01; Node/VM checks
 do not stand in for physical-device testing. See [the policy](INVENTORY-PERMISSIONS.md).
 

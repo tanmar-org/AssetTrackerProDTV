@@ -79,14 +79,24 @@ The journal records current evidence; older handoff statements may be stale.
   cell limits and formatted/leading-zero identifiers. See
   [dependency/import evidence](docs/DEPENDENCY-REMEDIATION.md). Worker parsing runs
   on the staff device and is unrelated to Cloudflare/server workers.
-- Legacy static service-form parameters must render through fixed DOM elements
-  and textContent. Escape all cached/imported/API values used in staff HTML,
-  including IDs and enum/class attributes; server schemas do not validate older
-  browser caches or separate QR responses. Use `safeMapsLink` before Maps anchors:
-  escaping an href alone cannot block executable schemes. Regression checks live
-  in `tests/service-rendering.test.mjs` and the optional real-browser suite.
-- Current QR links and mail drafts carry receiver/account metadata. Automatic
-  server email and a Monday reporting job are not implemented.
+- Public labels contain only a stable receiver ID; legacy asset-number links use
+  current server lookup. The old static page redirects to the configured QR app,
+  discarding private parameters and mail-only behavior. Public responses contain
+  only ID/asset number; never expose private snapshots or accept them in POST.
+  See [public request policy](docs/PUBLIC-REQUEST-SECURITY.md).
+- QR submissions use 8-KiB streamed JSON bounds, field/GPS/time validation,
+  PostgreSQL rate counters shared by all processes, and unique pending indexes.
+  Preserve atomic INSERT/reopen conflicts and the fail-closed authenticated lookup.
+  Never trust forwarded client IPs without authenticated, overwritten ingress
+  headers. Production ingress/configuration and mobile acceptance remain required.
+- Escape all cached/imported/API values used in staff HTML, including IDs and
+  enum/class attributes; server schemas do not validate older browser caches or
+  separate QR responses. Use `safeMapsLink` before Maps anchors: escaping an href
+  alone cannot block executable schemes. Regression checks live in
+  `tests/service-rendering.test.mjs` and the optional real-browser suite.
+- Public submissions save requests for staff review; no email draft/delivery is
+  attempted. GPS remains required, with a contact-staff fallback on failure.
+  Automatic server email and a Monday reporting job are not implemented.
 - An account-password value was removed from a public template under SEC-01.
   Never reintroduce credentials in browser code or email drafts, or copy historical
   values into documentation, logs, tests, issues, or PR bodies. Removal does not
