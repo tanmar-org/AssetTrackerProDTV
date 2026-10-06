@@ -1923,13 +1923,14 @@ function openAccountImportModal(){
 }
 
 async function prepareAccountImport(file){
-  const epoch=sessionEpoch;
+  const epoch=sessionEpoch,accountId=currentAccountId;
   try{
     const rawRows=await readAccountImportRows(file);
     if(!sessionActive(epoch))return;
+    if(currentAccountId!==accountId||!accountById(accountId)){toast("The target account changed. Open a new import preview.");return;}
     const records=rawRows.map(accountImportRecord);
     const currentCount=assignedFor(currentAccountId).length;
-    const availableSlots=Math.max(0,20-currentCount);
+    const availableSlots=Math.min(Math.max(0,20-currentCount),currentUser?.role==="admin"?20:1);
     const seen=new Set();
     const preview=[];
     let newToMaster=0;
@@ -1939,13 +1940,13 @@ async function prepareAccountImport(file){
     for(let i=0;i<records.length;i++){
       const record=records[i];
 
-      if(!record.assetNumber){
+      if(receiverImportProblem(record)){
         warnings++;
         preview.push({
           asset:`Row ${i+2}`,
           master:"Blocked",
           assignment:"Blocked",
-          detail:"Missing Asset Number",
+          detail:receiverImportProblem(record),
           canApply:false
         });
         continue;
@@ -1989,7 +1990,7 @@ async function prepareAccountImport(file){
           asset:record.assetNumber,
           master:existingMaster ? "Existing" : "New",
           assignment:"Blocked",
-          detail:"Would exceed the 20-receiver account limit",
+          detail:currentCount+ready>=20?"Would exceed the 20-receiver account limit":"Regular users can import one receiver at a time",
           canApply:false
         });
         continue;
@@ -2008,7 +2009,7 @@ async function prepareAccountImport(file){
       });
     }
 
-    pendingAccountImport={fileName:file.name,preview};
+    pendingAccountImport={fileName:file.name,accountId,preview};
 
     $("accountImportStart").hidden=true;
     $("accountImportPreview").hidden=false;
@@ -2017,7 +2018,7 @@ async function prepareAccountImport(file){
     $("accountImportNew").textContent=newToMaster;
     $("accountImportReady").textContent=ready;
     $("accountImportWarnings").textContent=warnings;
-    $("accountImportMessage").textContent=`This account currently has ${currentCount} receiver${currentCount===1?"":"s"} and ${availableSlots} available slot${availableSlots===1?"":"s"}. Only rows marked Ready will be applied.`;
+    $("accountImportMessage").textContent=`This account currently has ${currentCount} receiver${currentCount===1?"":"s"} and ${20-currentCount} available slot${20-currentCount===1?"":"s"}. ${currentUser?.role!=="admin"?"Regular users can import one receiver at a time. ":""}Only rows marked Ready will be applied; capacity is checked again at Apply.`;
     $("applyAccountImport").disabled=ready===0;
 
     $("accountImportPreviewRows").innerHTML=preview.map(item=>{
@@ -2037,58 +2038,29 @@ async function prepareAccountImport(file){
 }
 
 function applyAccountImport(){
-  if(!pendingAccountImport)return;
-
-  let applied=0;
-  let newMasterCount=0;
-
+  if(!pendingAccountImport||!currentUser||!cloudReady)return;
+  if(cloudWriteBlocked){toast("Resolve or export the paused draft before applying another import.");return;}
+  const account=accountById(pendingAccountImport.accountId);
+  if(!account||currentAccountId!==account.id){toast("The target account changed. Open a new import preview.");return;}
+  let applied=0,newMasterCount=0,skipped=0;
   for(const item of pendingAccountImport.preview){
-    if(!item.canApply)continue;
-
+    if(!item.canApply){skipped++;continue;}
     const record=item.record;
     let receiver=master.find(x=>x.assetNumber.toUpperCase()===record.assetNumber);
-
-    if(!receiver){
-      receiver={
-        id:makeId(),
-        assetNumber:record.assetNumber,
-        model:record.model,
-        accessCard:record.accessCard,
-        rid:record.rid,
-        serial:record.serial,
-        type:record.type,
-        rentState:"Off Rent",
-        offRentSince:new Date().toISOString()
-      };
-      master.push(receiver);
-      newMasterCount++;
-    }else{
-      receiver.model=record.model||receiver.model;
-      receiver.accessCard=record.accessCard||receiver.accessCard;
-      receiver.rid=record.rid||receiver.rid;
-      receiver.serial=record.serial||receiver.serial;
-      receiver.type=record.type||receiver.type;
-    }
-
-    if(!assignmentForAsset(receiver.id)){
-      assignments.push({
-        id:makeId(),
-        assetId:receiver.id,
-        accountId:currentAccountId,
-        assignedAt:new Date().toISOString()
-      });
-      applied++;
-    }
+    // A preview can age while the tab changes. Check before adding/updating Master
+    // so a newly full account or assigned receiver leaves all its data untouched.
+    if(receiverImportProblem(record)||assignedFor(account.id).length>=20||
+      receiver&&assignmentForAsset(receiver.id)||currentUser.role!=="admin"&&applied>=1){skipped++;continue;}
+    if(!receiver){receiver=newImportedReceiver(record);master.push(receiver);newMasterCount++;}
+    else updateImportedReceiver(receiver,record);
+    const now=new Date().toISOString();
+    assignments.push({id:makeId(),assetId:receiver.id,accountId:account.id,assignedAt:now});applied++;
+    logReceiverEvent(receiver.id,`Assigned to Account ${account.number}`,"Account receiver import","assignment",now);
   }
-
-  save("Import receivers to account");
-  closeModal("accountImportModal");
-  resetAccountImportModal();
-  renderAccountDetail();
-  renderAccounts();
-  renderMaster();
-  renderDashboard();
-  toast(`${applied} receiver${applied===1?"":"s"} assigned. ${newMasterCount} added to Master Registry.`);
+  if(applied)save("Import receivers to account");
+  closeModal("accountImportModal");resetAccountImportModal();
+  renderAccountDetail();renderAccounts();renderMaster();renderDashboard();
+  toast(`${applied} assigned, ${newMasterCount} added to Master Registry, ${skipped} skipped. ${applied?"Awaiting sync confirmation.":"No inventory changes."}`);
 }
 
 $("importAccountReceiversButton").addEventListener("click",openAccountImportModal);
@@ -2735,11 +2707,19 @@ function renderReports(){
   $("reportOffRentEmpty").hidden=offRentRows.length!==0;
 }
 
-// CSV quoting preserves separators/newlines but does not neutralize spreadsheet
-// formulas in untrusted values; formula-safe export is tracked in DATA-05.
+// CSV reports are for spreadsheet viewing, not lossless inventory recovery.
+// Quoting alone cannot stop formulas. Keep risky text behind an in-field tab
+// (including whitespace/full-width prefixes), and protect numeric text whose
+// leading zeroes or length Excel would otherwise change. Never emit ="...".
+// Spreadsheet save/reimport behavior varies; preserve originals in JSON backups.
 function csvCell(value){
   const text=String(value??"");
-  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g,'""')}"` : text;
+  const leading=text.match(/^[\s\u0000-\u001f\u007f-\u009f]*/u)[0];
+  const formulaLike=/^[=+\-@＝＋－＠]/u.test(text.slice(leading.length));
+  const controlPrefix=/[\u0000-\u001f\u007f-\u009f]/u.test(leading);
+  const numericText=typeof value==="string"&&/^(?:0\d+|\d{16,})$/.test(text);
+  const safeText=formulaLike||controlPrefix||numericText?`\t${text}`:text;
+  return `"${safeText.replace(/"/g,'""')}"`;
 }
 
 function downloadFile(name,content,type){
@@ -2965,7 +2945,7 @@ function openDataImport(){
 }
 
 function showDataImportPreview(config){
-  pendingDataImport={type:config.type,data:config.data};
+  pendingDataImport={type:config.type,data:config.data,skippedCount:config.warningCount||0,ignoredCount:config.ignoredCount||0};
   $("dataImportChoices").hidden=true;
   $("dataImportPreview").hidden=false;
   $("dataImportType").textContent=config.type;
@@ -2974,11 +2954,11 @@ function showDataImportPreview(config){
   $("dataNewCount").textContent=config.newCount;
   $("dataUpdateCount").textContent=config.updateCount;
   $("dataWarningCount").textContent=config.warningCount;
-  $("dataImportMessage").textContent=config.message;
+  $("dataImportMessage").textContent=config.message+(config.preview.length>200?` Showing the first 200 of ${config.preview.length} preview rows; totals include all rows.`:"");
   $("dataImportPreviewRows").innerHTML=config.preview.slice(0,200).map(item=>`
     <tr>
       <td><strong>${esc(item.record)}</strong></td>
-      <td><span class="${item.action==="New"?"import-new":item.action==="Update"?"import-ok":item.action==="Ignored"?"import-ignore":"import-blocked"}">${esc(item.action)}</span></td>
+      <td><span class="${item.action==="New"?"import-new":["Update","Unchanged"].includes(item.action)?"import-ok":item.action==="Ignored"?"import-ignore":"import-blocked"}">${esc(item.action)}</span></td>
       <td>${esc(item.detail)}</td>
     </tr>`).join("");
   $("applyDataImport").disabled=!config.data.length;
@@ -2995,42 +2975,99 @@ function masterImportRecord(row){
   };
 }
 
+// Preview validation explains row failures early; the server remains authoritative
+// for the complete inventory schema, permissions, revisions and collection limits.
+function receiverImportProblem(record,withAccount=false){
+  const businessId=/^[A-Za-z0-9][A-Za-z0-9 ._:/-]{0,127}$/;
+  for(const [field,label] of [["assetNumber","Asset Number"],["accessCard","Access Card"],["rid","RID"],["serial","Serial Number"]]){
+    if((field==="assetNumber"||record[field])&&!businessId.test(record[field]||""))return `Invalid or missing ${label}`;
+  }
+  for(const [field,max] of [["model",128],["type",128],["notes",2048],...(withAccount?[["accountName",256],["office",256]]:[])]){
+    const value=record[field]||"";
+    if(value.length>max||/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(value))return `Invalid ${field} text (maximum ${max} characters)`;
+  }
+  if(withAccount&&!businessId.test(record.accountNumber||""))return "Invalid or missing Account Number";
+  return "";
+}
+
+// Apply nonempty imported fields only. Blank spreadsheet cells do not erase
+// existing receiver details, condition, rent status, account location or history.
+function updateImportedReceiver(receiver,record){
+  let changed=false;
+  for(const field of ["model","accessCard","rid","serial","type","notes"]){
+    if(record[field]&&receiver[field]!==record[field]){receiver[field]=record[field];changed=true;}
+  }
+  return changed;
+}
+function updateImportedAccount(account,record){
+  let changed=false;
+  for(const [source,target] of [["accountName","name"],["office","office"]]){
+    if(record[source]&&account[target]!==record[source]){account[target]=record[source];changed=true;}
+  }
+  return changed;
+}
+function newImportedReceiver(record){
+  return {id:makeId(),assetNumber:record.assetNumber,model:record.model||"",accessCard:record.accessCard||"",
+    rid:record.rid||"",serial:record.serial||"",type:record.type||"",notes:record.notes||"",
+    rentState:"Off Rent",offRentSince:new Date().toISOString()};
+}
+
+// Simulate rows in file order without mutating inventory. Capacity reflects earlier
+// accepted assignments/moves, while rejected rows create no account/registry data.
+// The same planner runs again at Apply against current tab state; server conflicts
+// still pause sync instead of making these local counts a durability claim.
+function planReceiverImport(records,withAccount=false){
+  const receivers=new Map(master.map(item=>[item.assetNumber.toUpperCase(),{...item}]));
+  const destinations=new Map(accounts.map(item=>[item.number.toUpperCase(),{...item}]));
+  const accountNumbers=new Map(accounts.map(item=>[item.id,item.number.toUpperCase()]));
+  const receiverNumbers=new Map(master.map(item=>[item.id,item.assetNumber.toUpperCase()]));
+  const occupied=new Map(),counts=new Map(),seen=new Set(),entries=[];
+  for(const item of assignments){
+    const target=accountNumbers.get(item.accountId);
+    occupied.set(receiverNumbers.get(item.assetId),target);
+    counts.set(target,(counts.get(target)||0)+1);
+  }
+  for(const record of records){
+    const key=record.assetNumber.toUpperCase(),target=record.accountNumber?.toUpperCase();
+    const problem=receiverImportProblem(record,withAccount);
+    let detail=problem;
+    if(!detail&&seen.has(key))detail="Duplicate Asset Number in this file";
+    if(!detail)seen.add(key);
+    const from=occupied.get(key);
+    if(!detail&&withAccount&&from!==target&&(counts.get(target)||0)>=20)detail=`Account ${record.accountNumber} would exceed the 20-receiver limit`;
+    if(detail){entries.push({record:key||`Row ${entries.length+2}`,action:"Skipped",detail,canApply:false,data:record});continue;}
+    const existing=receivers.get(key),receiver={...existing};
+    let changed=updateImportedReceiver(receiver,record);
+    let assignmentAction="";
+    if(withAccount){
+      const account=destinations.get(target)||{number:record.accountNumber};
+      changed=updateImportedAccount(account,record)||changed;
+      destinations.set(target,account);
+      assignmentAction=from===target?"unchanged":from?"move":"assign";
+      if(from!==target){
+        if(from)counts.set(from,counts.get(from)-1);
+        counts.set(target,(counts.get(target)||0)+1);occupied.set(key,target);changed=true;
+      }
+      detail=`Account ${record.accountNumber} · ${assignmentAction==="assign"?"Assign":assignmentAction==="move"?"Move":"Already assigned here"}`;
+    }else detail=record.model||record.type||"Receiver";
+    receivers.set(key,receiver);
+    entries.push({record:key,action:!existing?"New":changed?"Update":"Unchanged",detail,canApply:true,data:record,assignmentAction});
+  }
+  return {entries,data:entries.filter(item=>item.canApply).map(item=>item.data),
+    newCount:entries.filter(item=>item.action==="New").length,
+    updateCount:entries.filter(item=>item.action==="Update").length,
+    unchangedCount:entries.filter(item=>item.action==="Unchanged").length,
+    warningCount:entries.filter(item=>!item.canApply).length};
+}
+
 async function prepareMasterImport(file){
   const epoch=sessionEpoch;
   try{
     const rows=readNamedSheet(await readExcelBook(file),"Master");
     if(!sessionActive(epoch))return;
-    const preview=[],data=[];
-    let newCount=0,updateCount=0,warningCount=0;
-
-    rows.forEach((row,index)=>{
-      const record=masterImportRecord(row);
-      if(!record.assetNumber){
-        warningCount++;
-        preview.push({record:`Row ${index+2}`,action:"Skipped",detail:"Missing Asset Number"});
-        return;
-      }
-
-      const existing=master.find(receiver=>receiver.assetNumber.toUpperCase()===record.assetNumber);
-      if(existing)updateCount++;
-      else newCount++;
-
-      preview.push({
-        record:record.assetNumber,
-        action:existing?"Update":"New",
-        detail:record.model||record.type||"Receiver"
-      });
-      data.push(record);
-    });
-
-    showDataImportPreview({
-      type:"Master Registry XLSX",
-      fileName:file.name,
-      rows:rows.length,
-      newCount,updateCount,warningCount,
-      message:"Updates permanent receiver information only. Account assignments and rent status are preserved.",
-      preview,data
-    });
+    const plan=planReceiverImport(rows.map(masterImportRecord));
+    showDataImportPreview({type:"Master Registry XLSX",fileName:file.name,rows:rows.length,...plan,preview:plan.entries,
+      message:`${plan.data.length} rows eligible, ${plan.unchangedCount} unchanged, ${plan.warningCount} skipped. Updates nonempty permanent receiver fields; assignments and rent status are preserved. Only eligible rows will be applied.`});
   }catch(error){
     if(!sessionActive(epoch))return;
     toast(error.message||"Unable to read the Master workbook.");
@@ -3060,20 +3097,27 @@ function cleanExcelValue(v){return String(v??"").trim();}
 async function prepareWtxImport(file){
   const epoch=sessionEpoch;
   try{
-    const rows=readWestTexasRows(await readExcelBook(file)),preview=[],data=[],seen=new Set();
+    const rows=readWestTexasRows(await readExcelBook(file)),records=[];
     if(!sessionActive(epoch))return;
-    let currentNumber="",currentName="",newCount=0,updateCount=0,warningCount=0;
-    rows.forEach((c,i)=>{
+    let currentNumber="",currentName="";
+    rows.forEach(c=>{
       const asset=cleanExcelValue(c[1]).toUpperCase(),acct=cleanExcelValue(c[7]),name=cleanExcelValue(c[8]);
-      if(acct)currentNumber=acct;if(name)currentName=name;if(!asset)return;
-      if(!currentNumber){warningCount++;preview.push({record:asset,action:"Skipped",detail:`Row ${i+2}: no Account Number`});return;}
-      if(seen.has(asset)){warningCount++;preview.push({record:asset,action:"Skipped",detail:"Duplicate Asset Number in West Texas sheet"});return;}seen.add(asset);
-      const exists=master.find(x=>x.assetNumber.toUpperCase()===asset);exists?updateCount++:newCount++;
-      preview.push({record:asset,action:exists?"Update":"New",detail:`Account ${currentNumber}${currentName?` · ${currentName}`:""}`});
-      data.push({accountNumber:currentNumber,accountName:currentName||`Account ${currentNumber}`,assetNumber:asset,accessCard:cleanExcelValue(c[2]),serial:cleanExcelValue(c[3]),rid:cleanExcelValue(c[4]),type:cleanExcelValue(c[5]),model:cleanExcelValue(c[6]),office:cleanExcelValue(c[12]),notes:cleanExcelValue(c[13])});
+      // Group headers carry forward within an account only. A new account with a
+      // blank name must not inherit the previous group's customer name.
+      if(acct&&acct!==currentNumber){currentNumber=acct;currentName="";}
+      if(name)currentName=name;
+      if(!asset)return;
+      records.push({accountNumber:currentNumber,accountName:currentName,assetNumber:asset,
+        accessCard:cleanExcelValue(c[2]),serial:cleanExcelValue(c[3]),rid:cleanExcelValue(c[4]),
+        type:cleanExcelValue(c[5]),model:cleanExcelValue(c[6]),office:cleanExcelValue(c[12]),notes:cleanExcelValue(c[13])});
     });
-    showDataImportPreview({type:"West Texas XLSX",fileName:file.name,rows:rows.length,newCount,updateCount,warningCount,message:`Detected ${new Set(data.map(x=>x.accountNumber)).size} accounts and ${data.length} assigned receivers. Only columns A:N were read, preventing the workbook formatting from freezing the page.`,preview,data});
-  }catch(e){toast(e.message||"Unable to read the West Texas workbook.");}
+    const plan=planReceiverImport(records,true);
+    showDataImportPreview({type:"West Texas XLSX",fileName:file.name,rows:rows.length,...plan,preview:plan.entries,
+      message:`${plan.data.length} receiver rows eligible, ${plan.unchangedCount} unchanged, ${plan.warningCount} skipped. Only eligible rows will be applied; capacity is checked again at Apply. Columns A:N only. Account names/office and receiver details use nonempty cells.`});
+  }catch(error){
+    if(!sessionActive(epoch))return;
+    toast(error.message||"Unable to read the West Texas workbook.");
+  }
 }
 
 function normalizeRentStatus(value){
@@ -3170,7 +3214,9 @@ async function prepareTqImport(file){
 
       // The company report can repeat a receiver in more than one location
       // block. Apply it once so the preview and update totals remain accurate.
-      if(seenAssets.has(assetNumber))return;
+      if(seenAssets.has(assetNumber)){
+        warningCount++;preview.push({record:assetNumber,action:"Skipped",detail:"Duplicate Asset Number in this file"});return;
+      }
       seenAssets.add(assetNumber);
 
       const receiver=master.find(item=>item.assetNumber.toUpperCase()===assetNumber);
@@ -3200,7 +3246,7 @@ async function prepareTqImport(file){
       rows:rowsRead,
       newCount:0,
       updateCount,
-      warningCount,
+      warningCount,ignoredCount,
       message:`TQ report mapped automatically: Inventory Item ID, Serial Number, Location, and On Rent. ${ignoredCount} company-wide receiver${ignoredCount===1?" was":"s were"} ignored because ${ignoredCount===1?"it is":"they are"} not in the local Master Registry.`,
       preview,
       data
@@ -3211,109 +3257,66 @@ async function prepareTqImport(file){
   }
 }
 
-// Import previews are applied to in-memory collections then saved as one payload.
-// Count processed versus actually assigned rows accurately when fixing DATA-05.
+// Apply only preview-eligible rows, rechecking the current tab's capacity and
+// links before any side effect. Counts describe local changes; the sync indicator
+// confirms persistence and a server conflict retains the draft for explicit review.
 function applyDataImport(){
-  if(!pendingDataImport)return;
-  let processed=0;
-
-  if(pendingDataImport.type==="Master Registry XLSX"){
-    pendingDataImport.data.forEach(record=>{
-      let receiver=master.find(item=>item.assetNumber.toUpperCase()===record.assetNumber);
-
-      if(receiver){
-        receiver.model=record.model||receiver.model;
-        receiver.accessCard=record.accessCard||receiver.accessCard;
-        receiver.rid=record.rid||receiver.rid;
-        receiver.serial=record.serial||receiver.serial;
-        receiver.type=record.type||receiver.type;
-      }else{
-        master.push({
-          id:makeId(),
-          ...record,
-          rentState:"Off Rent",
-          offRentSince:new Date().toISOString()
-        });
+  if(!pendingDataImport||!currentUser||!cloudReady)return;
+  if(currentUser.role!=="admin"){toast("Administrator access is required for Import Center.");return;}
+  if(cloudWriteBlocked){toast("Resolve or export the paused draft before applying another import.");return;}
+  const type=pendingDataImport.type;
+  let summary="",changed=false;
+  if(type==="Master Registry XLSX"||type==="West Texas XLSX"){
+    const withAccount=type==="West Texas XLSX",plan=planReceiverImport(pendingDataImport.data,withAccount);
+    const skipped=(pendingDataImport.skippedCount||0)+plan.warningCount;
+    let assigned=0,moved=0,already=0;
+    for(const item of plan.entries){
+      if(!item.canApply)continue;
+      const record=item.data;
+      let account;
+      if(withAccount){
+        account=accounts.find(value=>value.number.toUpperCase()===record.accountNumber.toUpperCase());
+        if(!account){account={id:makeId(),number:record.accountNumber,name:record.accountName||`Account ${record.accountNumber}`,location:"",office:record.office||""};accounts.push(account);changed=true;}
+        changed=updateImportedAccount(account,record)||changed;
       }
-      processed++;
-    });
-  }
-
-  if(pendingDataImport.type==="West Texas XLSX"){
-    pendingDataImport.data.forEach(record=>{
-      let account=accounts.find(item=>item.number===record.accountNumber);
-
-      if(!account){
-        account={
-          id:makeId(),
-          number:record.accountNumber,
-          name:record.accountName||`Account ${record.accountNumber}`,
-          location:"",
-          office:""
-        };
-        accounts.push(account);
-      }
-
-      let receiver=master.find(item=>item.assetNumber.toUpperCase()===record.assetNumber);
-
-      if(!receiver){
-        receiver={
-          id:makeId(),
-          assetNumber:record.assetNumber,
-          model:record.model,
-          accessCard:record.accessCard,
-          rid:record.rid,
-          serial:record.serial,
-          type:record.type,
-          rentState:"Off Rent",
-          offRentSince:new Date().toISOString()
-        };
-        master.push(receiver);
-      }
-
-      const assignment=assignmentForAsset(receiver.id);
-
-      if(assignment){
-        if(assignment.accountId!==account.id && assignedFor(account.id).length<20){
-          assignment.accountId=account.id;
-        }
-      }else if(assignedFor(account.id).length<20){
-        assignments.push({
-          id:makeId(),
-          assetId:receiver.id,
-          accountId:account.id,
-          assignedAt:new Date().toISOString()
-        });
-      }
-
-      processed++;
-    });
-  }
-
-  if(pendingDataImport.type==="TQ Report CSV"){
-    pendingDataImport.data.forEach(item=>{
+      let receiver=master.find(value=>value.assetNumber.toUpperCase()===record.assetNumber);
+      if(!receiver){receiver=newImportedReceiver(record);master.push(receiver);changed=true;}
+      else changed=updateImportedReceiver(receiver,record)||changed;
+      if(!withAccount)continue;
+      const assignment=assignmentForAsset(receiver.id),now=new Date().toISOString();
+      if(item.assignmentAction==="move"){
+        const from=accountById(assignment.accountId);
+        assignment.accountId=account.id;assignment.assignedAt=now;moved++;changed=true;
+        logReceiverEvent(receiver.id,`Moved to Account ${account.number}`,`From Account ${from?.number||"Unknown"} · West Texas import`,"assignment",now);
+      }else if(item.assignmentAction==="assign"){
+        assignments.push({id:makeId(),assetId:receiver.id,accountId:account.id,assignedAt:now});assigned++;changed=true;
+        logReceiverEvent(receiver.id,`Assigned to Account ${account.number}`,"West Texas import","assignment",now);
+      }else already++;
+    }
+    summary=withAccount
+      ?`${assigned} assigned, ${moved} moved, ${already} already in the target account, ${skipped} skipped. ${plan.newCount} added to Master Registry.`
+      :`${plan.newCount} new, ${plan.updateCount} updated, ${plan.unchangedCount} unchanged, ${skipped} skipped.`;
+  }else if(type==="TQ Report CSV"){
+    let updated=0,unchanged=0,skipped=pendingDataImport.skippedCount||0;
+    for(const item of pendingDataImport.data){
       const receiver=assetById(item.id);
-      if(receiver){
-        const previousState=receiver.rentState;
-        setReceiverRentState(receiver,item.rentState);
-        if(previousState!==item.rentState){
-          logReceiverEvent(receiver.id,`Marked ${item.rentState}`,"Rent status updated from the TQ report.","rent");
-        }
-        processed++;
-      }
-    });
-    reconcileRentalStock();
-  }
-
-  save(`Apply ${pendingDataImport.type}`);
-  closeModal("dataImportModal");
-  resetDataImport();
-  renderDashboard();
-  renderAccounts();
-  renderMaster();
-  renderRentalStock();
+      if(!receiver){skipped++;continue;}
+      const previousState=receiver.rentState,previousSince=receiver.offRentSince;
+      // Retain the existing timer repair for older records even when status is
+      // unchanged. Count that real metadata update without inventing a status event.
+      setReceiverRentState(receiver,item.rentState);
+      if(previousState===receiver.rentState&&previousSince===receiver.offRentSince){unchanged++;continue;}
+      changed=true;updated++;
+      if(previousState!==receiver.rentState)logReceiverEvent(receiver.id,`Marked ${item.rentState}`,"Rent status updated from the TQ report.","rent");
+    }
+    changed=reconcileRentalStock()||changed;
+    summary=`${updated} updated, ${unchanged} unchanged, ${skipped} skipped, ${pendingDataImport.ignoredCount||0} company-wide receivers ignored.`;
+  }else return;
+  if(changed)save(`Apply ${type}`);
+  closeModal("dataImportModal");resetDataImport();
+  renderDashboard();renderAccounts();renderMaster();renderRentalStock();
   if(currentAccountId)renderAccountDetail();
-  toast(`${processed} record${processed===1?"":"s"} processed.`);
+  toast(`${summary} ${changed?"Awaiting sync confirmation.":"No inventory changes."}`);
 }
 
 $("openMasterImport").onclick=openDataImport;
@@ -3771,7 +3774,7 @@ function renderActivity(){
 
 $("refreshActivityButton").addEventListener("click",loadActivity);
 ["activitySearch","activityTypeFilter","activityDateFrom","activityDateTo"].forEach(id=>$(id).addEventListener("input",renderActivity));
-$("exportActivityButton").addEventListener("click",()=>{
+function exportActivityCsv(){
   const records=filteredActivity();
   if(!records.length){toast("No matching activity to export.");return;}
   const rows=[["Username","Type","Action","Cloud Revision","Date and Time"],...records.map(item=>[
@@ -3780,7 +3783,8 @@ $("exportActivityButton").addEventListener("click",()=>{
   const date=new Date().toISOString().slice(0,10);
   downloadFile(`tanmar-activity-log-${date}.csv`,rows.map(row=>row.map(csvCell).join(",")).join("\r\n"),"text/csv;charset=utf-8");
   toast(`Exported ${records.length} activity record${records.length===1?"":"s"}.`);
-});
+}
+$("exportActivityButton").addEventListener("click",exportActivityCsv);
 
 $("userCreateForm").addEventListener("submit",async event=>{
   event.preventDefault();

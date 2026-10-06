@@ -7,20 +7,21 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 
 ## Implementation order and why
 
-1. **Review complete backups and restoration (DATA-03-TOOLS/RESTORE-DRILL).**
-   Both PostgreSQL databases now have operator backups and a tested restore into
-   new empty databases, covering users, QR requests, logs, history and draft copies.
-   Owner review/merge follows this PR. Scheduled encrypted off-server backups,
-   retention and a real operator recovery drill remain DATA-03-ROLLOUT.
-2. **Verify imports and spreadsheet exports (DATA-05).** A full account can block
-   imported assignments while the UI still reports them as accepted, and exported
-   text may be interpreted as a spreadsheet formula. Show accurate accepted/skipped
-   counts, preserve leading-zero identifiers and keep exported values inert so
-   staff can trust the records and reports they use to make decisions.
+1. **Review import/report correctness (DATA-05).** Import previews and Apply now
+   distinguish accepted changes, unchanged records and skipped rows. Full accounts
+   no longer cause blocked receivers to be added to the registry, moves keep
+   history, and CSV reports protect formula-like text and numeric identifiers.
+   Owner review/merge follows this PR; actual spreadsheet/device acceptance remains
+   QA-01 and sync confirmation is required before treating edits as saved.
+2. **Keep older requests and activity accessible (DATA-06).** Both endpoints return
+   only the newest 500 records. An older pending service request can disappear
+   behind newer records even though it still needs attention. Add bounded server
+   pagination and filters with staff controls to find pending work and older
+   activity; retain permissions and avoid loading the entire database at once.
 3. **Prepare deployment decisions and acceptance.** Set company access policy,
    approved email delivery, HTTPS/domains, service supervision and recovery
    operations; reconcile real records and old labels, then test actual devices.
-   Development proofs do not replace the production operator setup.
+   Scheduled encrypted off-server backups/retention/alerts remain DATA-03-ROLLOUT.
 
 Lint cleanup, company access decisions, approved email delivery, HTTPS/domains,
 service supervision, old-label continuity and actual device acceptance remain
@@ -206,8 +207,8 @@ approval; unresolved owner/operational items remain listed below.
   databases, check both schemas/records, revoke old sessions and grant restricted
   runtime access. Source databases are not modified; no web endpoint runs backups.
   Implemented on `Dev/postgresql-backup-restore` in
-  [PR #27](https://github.com/tanmar-org/AssetTrackerProDTV/pull/27);
-  owner review/merge pending.
+  [PR #27](https://github.com/tanmar-org/AssetTrackerProDTV/pull/27),
+  merged by the owner at `bafe966`.
 - [x] DATA-03-RESTORE-DRILL — Restore synthetic inventory/stock/audit, users, history,
   drafts, requests/GPS and rate counters; verify actual app health/login/read paths
   under restricted runtime roles. Damaged archives, nonempty/live targets, unsafe
@@ -237,9 +238,15 @@ approval; unresolved owner/operational items remain listed below.
   devices, deploy server/UI together and reload old tabs/integrations. Confirm
   shared-device acceptance in target browsers. New memory-only drafts do not survive
   reload. Confirmed server copies and explicit review are DATA-01-COPIES/REVIEW.
-- [ ] DATA-05 — Report import success/skips accurately, including capacity-blocked
-  West Texas assignments; preserve required fields and history; neutralize exported
-  CSV formulas. Test representative workbooks, leading-zero IDs, and report exports.
+- [x] DATA-05 — Master/West Texas previews and Apply share row validation, duplicate
+  handling and capacity planning. Skipped rows have no side effects; Apply rechecks
+  current state. Preserve source metadata, textual IDs and move/assignment history;
+  regular account imports apply one receiver under existing server permissions.
+  TQ distinguishes changed/unchanged/skipped/ignored rows. All three CSV downloads
+  quote fields and protect formula/control/full-width prefixes and numeric text.
+  Implemented on `Dev/import-export-correctness`; owner review/merge pending.
+  See [policy and spreadsheet limits](docs/IMPORTS-AND-EXPORTS.md). Actual desktop
+  spreadsheet/device acceptance remains QA-01; reports are not lossless backups.
 - [ ] DATA-06 — Add pagination/filtering so older pending QR requests and activity
   records remain accessible. Define audit/history retention and full-state storage
   scaling; 25 snapshots and a 500-row response are not complete history/backup.

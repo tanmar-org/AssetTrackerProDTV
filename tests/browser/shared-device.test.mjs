@@ -40,6 +40,7 @@ test("shared-device browser isolation and recoverable sign-out", { timeout: 9000
         if (request.method() === "POST" && model.loginRace) {
           model.loginRace = false; model.user = staff; model.context = "a".repeat(64);
         }
+        if(request.method()==="POST"&&model.loginGate)await model.loginGate;
         return route.fulfill({ json: profile });
       }
       if (url.pathname.startsWith("/api/")) {
@@ -250,8 +251,17 @@ test("shared-device browser isolation and recoverable sign-out", { timeout: 9000
     await f.page.evaluate(() => { accounts[0].name = "PRIVATE-RECOVERY-RACE"; save("Edit account"); renderAccounts(); });
     await f.page.waitForFunction(() => cloudWriteBlocked);
     f.model.user = null; await f.page.evaluate(() => window.dispatchEvent(new Event("focus"))); await f.locked();
+    // The previous lock leaves this error text in the DOM while login hides it.
+    // Hold the response to prove that text alone can match before login finishes.
+    let release;
+    f.model.loginGate=new Promise(resolve=>{release=resolve;});
     f.model.loginRace = true; await f.login();
-    await f.page.waitForFunction(() => document.getElementById("authError").textContent.includes("session changed or expired"));
+    try{
+      assert.equal(await f.page.evaluate(()=>document.getElementById("authError").hidden&&
+        document.getElementById("authSubmit").disabled&&document.getElementById("authError").textContent.includes("session changed or expired")),true);
+    }finally{release();}
+    await f.page.waitForFunction(() => !document.getElementById("authError").hidden&&
+      !document.getElementById("authSubmit").disabled&&document.getElementById("authError").textContent.includes("session changed or expired"));
     assert.equal(await f.page.evaluate(() => currentUser), null);
     assert.equal((await f.page.content()).includes("PRIVATE-RECOVERY-RACE"), false);
     assert.equal(await f.page.evaluate(() => lockedDraft.ownerId), admin.id);
