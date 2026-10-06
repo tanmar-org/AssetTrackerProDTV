@@ -180,6 +180,13 @@ The journal records current evidence; older handoff statements may be stale.
 
 ## Verification and secrets
 
+- GitHub [repository validation](.github/workflows/validation.yml) runs on PRs to
+  main and main pushes, using disposable GitHub-hosted runners and synthetic
+  PostgreSQL/browser fixtures. Keep its read-only permissions, pinned actions,
+  loopback test service, zero-warning lint and full regression coverage. Do not
+  add production secrets, deploy steps or a runner on the hosting VM. See
+  [CI operations](docs/CONTINUOUS-INTEGRATION.md). Passing checks do not merge a PR
+  or enforce branch protection; the owner retains those decisions.
 - See `docs/DEVELOPMENT.md` for installation and validation commands. Run checks
   appropriate to the change; record pre-existing failures rather than hiding them.
 - Never use production data for tests. Keep `.dev.vars`, credentials, database

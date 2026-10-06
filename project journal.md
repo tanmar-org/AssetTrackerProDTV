@@ -4,8 +4,8 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/lint-baseline`, based on merged
-  `main` at `3123095` (owner merged PR #30).
+- Development branch: `Dev/github-validation`, based on merged
+  `main` at `eac2bba` (owner merged PR #31).
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -46,14 +46,18 @@
   [PR #29](https://github.com/tanmar-org/AssetTrackerProDTV/pull/29) and recoverable
   QR transitions/history (DATA-02) in
   [PR #30](https://github.com/tanmar-org/AssetTrackerProDTV/pull/30) are merged by
-  the owner. QA-02's zero-warning lint/vendor baseline is implemented on this branch
-  for owner review; no third-party script bytes or dependency versions changed.
+  the owner. QA-02's zero-warning lint/vendor baseline in
+  [PR #31](https://github.com/tanmar-org/AssetTrackerProDTV/pull/31) is merged by
+  the owner. QA-01-CI automated validation is implemented on this branch, with
+  hosted verification and owner review/merge pending. No application runtime code,
+  migration, dependency version or lockfile changes are included in the CI task.
   Production deployment has not started; scheduled/off-server backups are not configured.
-- Next task after lint review: QA-01-CI automated PR checks. Current test evidence
-  depends on manual VM runs; run both apps' lint/types/builds and meaningful
-  synthetic regressions in GitHub so future changes show failures before owner
-  review/merge. Keep test services/credentials separate from production. No CI
-  workflow or required branch protection is installed by the lint task.
+- Next task after CI review: confirm AUTH-01 staff access policy. Existing PINs
+  do not define whether staff use company network/VPN or internet company SSO.
+  Owner clarification is pending; the public customer QR form remains separate.
+  Prepare ingress/login traffic controls from the approved access direction,
+  without exposing either app before deployment approval. GitHub check results
+  do not configure branch protection or replace owner review/actual-device checks.
   DATA-03-ROLLOUT still requires approved encrypted off-server storage, schedule,
   retention, private configuration recovery, alerts and a real operator recovery drill.
   Fully offline drafts still require exports; server recovery copies expire after
@@ -1719,3 +1723,72 @@ Publication: implementation commit `6144e72` pushed to `Dev/lint-baseline`; open
 and attached [PR #31](https://github.com/tanmar-org/AssetTrackerProDTV/pull/31).
 Publication references are bundled into the same PR. Owner review/merge remains
 pending; no merge or deployment was performed.
+
+## 2026-10-06 — QA-01-CI automated PR validation
+
+### Confirmed merge and scope
+
+Owner said “merged.” GitHub confirmed PR #31 merged on 2026-10-06 at
+11:28:50 CDT, merge `eac2bbaf34a22ae985a3d2ed7660afccace469cc`.
+Fetched `origin/main`, confirmed the clean active worktree and created
+`Dev/github-validation` from `eac2bba`. Preserved the original checkout's unrelated
+`app/api/auth/route.ts` edit. No merge/deployment/production connection or settings
+change was performed. Existing GitHub workflow history consists of dependency
+update jobs; no project validation workflow existed in the repository.
+
+Read-only GitHub settings confirmed Actions enabled, all actions allowed. Added
+`.github/workflows/validation.yml`: PRs targeting main, main pushes and manual
+runs execute `Validate applications` on disposable GitHub-hosted Ubuntu 24.04.
+No path/draft filters, repository secrets, VM runner, write permission, deployment
+step or automatic merging. New commits cancel outdated runs for the same PR/ref.
+The owner can separately make the stable check required in main branch rules;
+those rules/permissions were not changed by this task.
+
+The check installs both existing lockfiles, validates workflow syntax, runs both
+zero-warning lint gates, builds/tests each app, checks types after builds, then
+runs the complete PostgreSQL/HTTP/backup and Chromium regression suites. Tests do
+not rebuild while serving those artifacts. The pinned official PostgreSQL 18.6
+service has a dedicated test administrator/database and runner-loopback port 55432.
+Trust authentication is restricted to that disposable service so existing
+passwordless restricted fixture roles work; this is not production configuration.
+Signed PGDG Ubuntu packages install matching client 18 for real dumps/restores.
+An always-after-integration check counts leftover generated fixture databases/
+roles; GitHub destroys the service at job end/cancellation. Final Git cleanliness
+checks reject rewritten sources/lockfiles. No database/build artifacts are uploaded.
+
+### Reviewed tooling, local verification and documentation
+
+Verified action commits through their official GitHub repositories: checkout v6
+`d23441a48e516b6c34aea4fa41551a30e30af803`, setup-node v6
+`249970729cb0ef3589644e2896645e5dc5ba9c38`. The official PostgreSQL 18.6 Docker Hub
+manifest digest is `fc973eb97c9fd04bfa1840e0f510719a584ccb3be8debfe6a4144637a9dfe8cf`.
+Playwright 1.58.2 stays test-only outside both application trees/lockfiles;
+Chromium/system libraries install only on the ephemeral runner. Node follows
+`.nvmrc`; automatic package caching is disabled and checkout credentials are not
+persisted. GitHub/PostgreSQL/Playwright authoritative setup references are linked
+in the new [CI operations guide](docs/CONTINUOUS-INTEGRATION.md).
+
+Downloaded official actionlint 1.7.12 Linux amd64, matched the release asset SHA-256
+`8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`, and installed it
+under `~/.local/share/assettracker-tools/actionlint-1.7.12/`, with a user-local
+command link. The initial archive extraction requested `LICENSE` instead of the
+actual `LICENSE.txt`; inspected the archive and installed the correct upstream
+license. Tool version 1.7.12 and explicit workflow validation pass; diff checks
+pass. No system package/service or production database was installed on this VM.
+The workflow uses that same verified tool archive for its syntax check.
+
+Bundled AGENTS, README, TODO, development/CI guidance and this journal. No runtime
+code, database/migration or application dependency/lockfile changed. Hosted checks
+will establish fresh build/default/SQL/browser evidence; prior VM totals remain
+historical evidence until a run is observed. Do not equate YAML validation with a
+successful hosted workflow.
+
+### Next useful action
+
+Asked the owner which staff access direction to prepare: company network/VPN,
+internet protected by company SSO, or decide later. The existing PIN login is not
+an outer company access policy. Prepare deployment ingress/login traffic controls
+from that answer while retaining the separate public QR application. HTTPS/domains,
+approved email delivery, supervised web/reconciler processes, monitored encrypted
+off-server recovery, real-data/old-label continuity and physical-device acceptance
+remain separate owner/operator deployment work.

@@ -7,20 +7,21 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 
 ## Implementation order and why
 
-1. **Review the lint baseline (QA-02).** Both apps now require zero errors/warnings;
-   root lint verifies exact vendor bytes/licenses/SRI before excluding only upstream
-   scripts. First-party rules and label/import behavior remain covered. Owner
-   review/merge is pending; recoverable QR actions (DATA-02) were merged in PR #30.
-2. **Automate PR validation (QA-01-CI).** Current evidence comes from manual VM runs.
-   Add GitHub checks for both apps' lint/types/builds and meaningful synthetic
-   regressions so later changes cannot quietly break these guarantees. Keep tests
-   isolated from production; owner review/merging and physical acceptance stay required.
-3. **Prepare deployment decisions and acceptance.** Set company access policy,
+1. **Review automated PR validation (QA-01-CI).** The new GitHub check installs
+   both lockfiles, runs lint/types/builds/default tests, real PostgreSQL/backup
+   drills and Chromium on a disposable runner. Hosted validation is being verified;
+   owner review/merge and required-check rules remain separate. QA-02 was merged
+   by the owner in PR #31.
+2. **Decide the staff access policy (AUTH-01).** Existing application PINs do not
+   define whether employees connect through a company network/VPN or internet
+   company SSO. Confirm that direction before preparing ingress/login traffic
+   controls and public exposure; customer QR access remains separate.
+3. **Prepare remaining deployment decisions and acceptance.** Set
    approved email delivery, HTTPS/domains, service supervision and recovery
    operations; reconcile real records and old labels, then test actual devices.
    Scheduled encrypted off-server backups/retention/alerts remain DATA-03-ROLLOUT.
 
-Lint review, automated checks, company access decisions, approved email delivery, HTTPS/domains,
+Automated-check review, company access decisions, approved email delivery, HTTPS/domains,
 service supervision, old-label continuity and actual device acceptance remain
 release requirements. The order above is implementation planning, not deployment
 approval; unresolved owner/operational items remain listed below.
@@ -321,9 +322,11 @@ approval; unresolved owner/operational items remain listed below.
   iPad/phone GPS and email flows, Brother label dimensions/cutting and actual scanning,
   staff workflows, production-like deployment, and owner acceptance before cutover.
 - [ ] QA-01-CI — Add automated GitHub PR checks for both apps' zero-warning lint,
-  types/builds and synthetic regression suites. Define restricted test services and
-  avoid production credentials/data. CI status alone does not enforce branch
-  protection or replace owner review/actual-device acceptance.
+  types/builds and synthetic regression suites. Implemented on `Dev/github-validation`;
+  hosted-run validation and owner review/merge pending. Includes actual PostgreSQL
+  permission/concurrency/backup drills and Chromium, with no production secrets/VM
+  runner. See [CI operations](docs/CONTINUOUS-INTEGRATION.md). CI status alone does
+  not enforce branch protection or replace owner review/actual-device acceptance.
 - [x] QA-02 — Both apps pass lint with zero errors/warnings and require
   `--max-warnings=0`. Root verifies pinned local QR/barcode/SheetJS bytes, licenses
   and page SRI before exact upstream exclusions; first-party rules stay enabled.
@@ -331,5 +334,5 @@ approval; unresolved owner/operational items remain listed below.
   QR branding uses original local unoptimized images with explicit dimensions.
   Meaningful tamper/warning-gate and actual browser label/image checks pass.
   Builds and separate TypeScript scopes pass. Implemented on `Dev/lint-baseline` in
-  [PR #31](https://github.com/tanmar-org/AssetTrackerProDTV/pull/31), awaiting owner
-  review/merge. Vendor versions/bytes and lockfiles are unchanged.
+  [PR #31](https://github.com/tanmar-org/AssetTrackerProDTV/pull/31), merged by the
+  owner at `eac2bba`. Vendor versions/bytes and lockfiles are unchanged.

@@ -101,6 +101,9 @@ both apps against real isolated PostgreSQL databases, follow the integration tes
 setup in [the development guide](docs/DEVELOPMENT.md). Both apps require lint with
 zero warnings. Root lint first verifies the exact local vendor bytes, licenses and
 page integrity attributes; first-party code remains checked.
+GitHub runs both apps' checks plus real PostgreSQL/backup and Chromium regressions
+on PRs to main and main pushes. See [CI operations](docs/CONTINUOUS-INTEGRATION.md)
+for check names, isolation, reruns and the separate owner-controlled merge rules.
 
 After a build, `npm start` runs the corresponding Node server on its loopback port.
 `/api/health` checks PostgreSQL connectivity and the application's schema. Process
