@@ -1,0 +1,129 @@
+name: Repository validation
+
+# No path filters: a required check must also report for documentation-only PRs.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# PR code has no write token, deployment access, repository secrets or VM runner.
+permissions:
+  contents: read
+
+concurrency:
+  group: validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate applications
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL: ""
+      # Dedicated disposable test admin, never an application/production URL.
+      TEST_DATABASE_URL: postgresql://assettracker_ci_admin@127.0.0.1:55432/assettracker_test_admin
+    services:
+      postgres:
+        # Official 18.6 manifest checked on 2026-10-06; keep major/client aligned.
+        image: postgres:18.6@sha256:fc973eb97c9fd04bfa1840e0f510719a584ccb3be8debfe6a4144637a9dfe8cf
+        env:
+          POSTGRES_USER: assettracker_ci_admin
+          POSTGRES_DB: assettracker_test_admin
+          # Fixtures create passwordless restricted roles. Trust is confined to
+          # this disposable service, exposed only on the runner's loopback port.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 127.0.0.1:55432:5432
+        options: >-
+          --health-cmd "pg_isready -U assettracker_ci_admin -d assettracker_test_admin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      # Immutable commits verified against the official v6 action repositories.
+      - name: Check out the proposed merge
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up the repository's Node version
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Verify workflow syntax
+        env:
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          # Test-only tool, verified against the official release asset digest.
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            --output "$archive"
+          printf '%s  %s\n' "$ACTIONLINT_SHA256" "$archive" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/actionlint"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/actionlint" actionlint
+          "$RUNNER_TEMP/actionlint/actionlint" -color
+      - name: Install both applications from their lockfiles
+        run: |
+          npm run install:ci
+          npm --prefix service-request run install:ci
+      - name: Check both applications with zero-warning lint
+        run: |
+          npm run lint
+          npm --prefix service-request run lint
+      - name: Build and run staff regression tests
+        run: npm test
+      - name: Build and run QR regression tests
+        run: npm --prefix service-request test
+      - name: Check both TypeScript scopes after builds
+        run: |
+          # Builds replace .next/types; finish them before standalone checks.
+          npm run typecheck
+          npm --prefix service-request run typecheck
+      - name: Install matching PostgreSQL backup clients
+        run: |
+          # Only the ephemeral runner changes. PGDG's signed Ubuntu repository
+          # supplies client 18 for actual pg_dump/pg_restore against service 18.
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error --location --retry 3 \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          printf '%s\n' 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main' \
+            | sudo tee /etc/apt/sources.list.d/assettracker-pgdg.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends postgresql-client-18
+          printf '%s\n' /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+      - name: Run real PostgreSQL and HTTP integration tests
+        id: integration
+        run: npm run test:integration
+      - name: Verify synthetic database and role cleanup
+        if: ${{ always() && (steps.integration.outcome == 'success' || steps.integration.outcome == 'failure') }}
+        run: |
+          # Count only this suite's generated names, even after a test failure.
+          # GitHub destroys the whole service when the job ends or is canceled.
+          remaining="$(psql "$TEST_DATABASE_URL" -XAt -v ON_ERROR_STOP=1 -c \
+            "SELECT (SELECT count(*) FROM pg_database WHERE datname ~ '^assettracker_(test|restore_test)_[a-f0-9]{32}$') + (SELECT count(*) FROM pg_roles WHERE rolname ~ '^assettracker_(runtime|restore_runtime|backup_test)_[a-f0-9]{32}$');")"
+          printf 'Remaining synthetic fixtures: %s\n' "$remaining"
+          test "$remaining" = "0"
+      - name: Install test-only Chromium
+        run: |
+          # Keep Playwright outside both app dependency trees and lockfiles.
+          browser_tools="$RUNNER_TEMP/assettracker-browser"
+          npm install --prefix "$browser_tools" --no-save --no-package-lock \
+            --ignore-scripts --no-audit --no-fund playwright@1.58.2
+          node "$browser_tools/node_modules/playwright/cli.js" install --with-deps chromium
+          printf 'PLAYWRIGHT_MODULE=%s/node_modules/playwright/index.mjs\n' "$browser_tools" >> "$GITHUB_ENV"
+      - name: Run actual browser regression tests
+        run: npm run test:browser
+      - name: Check diffs and repository cleanliness
+        run: |
+          # Tests must not rewrite sources, lockfiles or tracked build inputs.
+          git diff --check
+          test -z "$(git status --porcelain)"

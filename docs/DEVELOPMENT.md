@@ -53,6 +53,14 @@ require reachable HTTPS and an approved public destination, not a localhost labe
 
 ## Checks
 
+GitHub's `Repository validation` workflow runs `Validate applications` on PRs to
+main, main pushes and manual dispatch. It installs both lockfiles, validates the
+workflow, lints, builds/tests each app, checks types after builds, runs the full
+PostgreSQL/HTTP/backup suite and runs Chromium. It uses no hosting VM or production
+connection. See [CI operations](CONTINUOUS-INTEGRATION.md) for the isolated test
+service, pinned tools, failure handling and owner-controlled required-check setup.
+Keep local checks for development; CI does not replace real-device acceptance.
+
 In each app:
 
 ```bash
