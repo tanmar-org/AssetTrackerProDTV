@@ -5,6 +5,29 @@ unchecked items are unresolved. Recommendations remain proposals unless an owner
 decision is recorded explicitly. The owner reviews and merges all changes from
 `Dev/` branches.
 
+## Implementation order and why
+
+1. **Finish the source-map dependency patch (DEP-01-SOURCE-MAP).** A known affected
+   QR package has a compatible security update. Remove that avoidable dependency
+   risk before extending workflows; owner merge and GitHub rescan follow the PR.
+2. **Make conflicting/unsaved edits easier to recover (DATA-01).** If two employees
+   edit the same server revision, the second save currently pauses and requires
+   exporting/reconciling a snapshot. Closing that tab can lose unsaved work. Add
+   clear conflict/recovery choices while preserving both the committed records and
+   the employee's draft; durable recovery must preserve shared-device privacy.
+3. **Add complete backups and prove restoration (DATA-03).** Inventory downloads
+   omit users, request records, logs and server history. Back up both PostgreSQL
+   databases and test restoring synthetic copies before importing real records.
+4. **Verify imports and spreadsheet exports (DATA-05).** A full account can block
+   imported assignments, and exported text may be interpreted as a spreadsheet
+   formula. Show accurate accepted/skipped counts and keep exported values inert
+   so staff can trust the records and reports they use to make decisions.
+
+Lint cleanup, company access decisions, approved email delivery, HTTPS/domains,
+service supervision, old-label continuity and actual device acceptance remain
+release requirements. The order above is implementation planning, not deployment
+approval; unresolved owner/operational items remain listed below.
+
 ## Development foundation — first PR
 
 - [x] DOC-01 — Add agent instructions with `Dev/` branches, agent pushes/PRs,
@@ -50,20 +73,24 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   Owner merged [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2),
   upgrading the QR service's Next.js to 16.3.8; later owner merges also repaired
   framework/tool transitive packages. npm reports zero production findings for
-  both apps, but GitHub flags QR source-map-js under DEP-01-SOURCE-MAP below.
+  both apps; source-map-js is patched in the current branch below. GitHub's main
+  alert will require owner merge/rescan.
   One underlying unpatched development-only
   braces advisory remains as five affected chain packages per full audit. See
   [current evidence and scope](docs/DEPENDENCY-REMEDIATION.md); DEP-01 remains open.
-- [ ] DEP-01-PRODUCTION — Reconcile all runtime advisory sources and install the
-  patched lockfiles. Earlier npm scans reported zero findings; GitHub now flags
-  QR source-map-js@1.2.1 despite npm still reporting zero. Scanner results exclude
-  vendored browser assets/application flaws; regular rechecks remain necessary.
-- [ ] DEP-01-SOURCE-MAP — Prioritize the QR runtime source-map-js@1.2.1 alert
+- [x] DEP-01-PRODUCTION — Reconcile known runtime advisory sources and install
+  patched lockfiles. Both lockfiles/installs now use source-map-js@1.2.2 and
+  production npm scans report zero. GitHub main alert closure awaits merge/rescan;
+  scanner results exclude vendor assets/application flaws and need regular rechecks.
+- [x] DEP-01-SOURCE-MAP — Correct the QR runtime source-map-js@1.2.1 alert
   [GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
-  Update to compatible patched 1.2.2 in a focused dependency task, review application
-  reachability, install from both lockfiles, and validate both apps. The tracker
-  lock already pins 1.2.2; npm's zero findings do not override GitHub's reviewed
-  advisory/alert. No exploit through this application's HTTP paths is established.
+  Updated only QR's transitive entry to compatible patched 1.2.2; tracker already
+  pins it. Both apps check malformed/nested offsets, bounded sparse-map conversion,
+  and valid PostCSS mapping. Implemented on `Dev/qr-source-map-security` for review.
+  PostCSS consumes maps for CSS processing; application request/import code does
+  not pass submitted records into it. HTTP exploitability is not established.
+- [ ] DEP-01-SOURCE-MAP-MERGE — Owner merges the patch and GitHub rescans main to
+  resolve alert 162. Do not manually dismiss it as a substitute for patched code.
 - [x] DEP-01-QR-BRACES-EXPANSION — Update the QR lint tree's brace-expansion to
   compatible 1.1.21/5.0.12; tracker already has them. Installs/builds/checks pass.
 - [ ] DEP-01-DEVELOPMENT — Resolve the unpatched braces@3.0.3 chain when an
@@ -170,8 +197,8 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   Same-owner draft recovery is export-only with sync paused; legacy records have
   administrator export/removal controls. Implemented on
   `Dev/shared-device-sessions` in
-  [PR #24](https://github.com/tanmar-org/AssetTrackerProDTV/pull/24) for owner
-  review; see [policy](docs/SHARED-DEVICE-SESSIONS.md).
+  [PR #24](https://github.com/tanmar-org/AssetTrackerProDTV/pull/24), merged by
+  the owner; see [policy](docs/SHARED-DEVICE-SESSIONS.md).
 - [ ] DATA-04-ROLLOUT — Export/reconcile/remove older caches on previously used
   devices, deploy server/UI together and reload old tabs/integrations. Confirm
   shared-device acceptance in target browsers. New memory-only drafts do not survive

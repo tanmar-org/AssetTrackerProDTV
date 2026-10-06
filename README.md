@@ -108,5 +108,6 @@ Spreadsheet reading is served locally from the pinned SheetJS asset. Imports use
 bounded browser parser worker; no runtime spreadsheet CDN is required. See the
 [dependency review and import limits](docs/DEPENDENCY-REMEDIATION.md). npm currently
 reports zero production findings, but GitHub separately flags the QR lockfile's
-source-map-js version; this and an unpatched lint-only dependency remain DEP-01.
-Scanner results are not production acceptance.
+older main source-map-js version until the reviewed patch is merged/rescanned.
+Both current lockfiles use patched 1.2.2; an unpatched lint-only dependency remains
+DEP-01. Scanner results are not production acceptance.

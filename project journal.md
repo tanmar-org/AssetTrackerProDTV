@@ -4,8 +4,8 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/shared-device-sessions`, based on merged
-  `main` at `160e109` (owner merged PR #23).
+- Development branch: `Dev/qr-source-map-security`, based on merged
+  `main` at `2719ba3` (owner merged PR #24).
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -30,12 +30,17 @@
   [PR #21](https://github.com/tanmar-org/AssetTrackerProDTV/pull/21). Public-request
   security and QR metadata removal in
   [PR #23](https://github.com/tanmar-org/AssetTrackerProDTV/pull/23) are also merged
-  by the owner. Shared-device session/cache corrections (DATA-04) are implemented
-  on `Dev/shared-device-sessions` in
-  [PR #24](https://github.com/tanmar-org/AssetTrackerProDTV/pull/24) for owner review.
+  by the owner. Shared-device session/cache corrections (DATA-04) in
+  [PR #24](https://github.com/tanmar-org/AssetTrackerProDTV/pull/24) are also merged.
+  QR source-map dependency correction (DEP-01-SOURCE-MAP) is implemented on
+  `Dev/qr-source-map-security` for owner review.
   Production deployment has not started.
-- Next task: DEP-01-SOURCE-MAP, the newly surfaced QR dependency alert, then DATA-01
-  explicit conflict reconciliation/draft handling, with the
+- Next task: DATA-01 explicit conflict reconciliation/draft handling. The second
+  employee saving an older revision currently has to export/reconcile a paused
+  snapshot, and closing that tab can lose unsaved work. Add clear recovery choices
+  that preserve current server data and shared-device privacy. Follow with complete
+  operator backups/verified restore (DATA-03), then import/export correctness
+  (DATA-05), with the
   remaining lint/dependency work and AUTH-01 company access requirements tracked.
   QR-01 still needs old-label/domain continuity and mobile GPS acceptance; MAIL-01
   still needs approved delivery settings. Production domains/services/backups/data
@@ -966,3 +971,96 @@ PostgreSQL and Chromium reruns again passed **68** and **22** checks, respective
 focused changed-file lint remained **0 errors / 4 inherited warnings**. Final
 cleanup again confirmed zero disposable databases/runtime roles and stopped the
 private test cluster. No lockfile/package changes were made by the reinstall.
+
+## 2026-10-05 — Patch QR source-map dependency and explain upcoming priorities
+
+### Scope and resulting behavior
+
+Owner confirmed merging PR #24 and asked for clearer explanations of future
+priorities. GitHub confirmed merge commit
+`2719ba3472352c29b44512990385efa39dc9093d` at 2026-10-06T01:08:01Z. Fetched main,
+created `Dev/qr-source-map-security`, and preserved the unrelated original checkout.
+
+GitHub alert 162 still marks QR source-map-js@1.2.1 as affected by
+GHSA-68fv-2mgg-jv7q. Verified the reviewed advisory, upstream 1.2.2 release, registry
+version and archive integrity. Updated the QR lockfile's version/resolved/integrity
+entry alone via a targeted package-lock-only update within existing ^1.2.1 ranges.
+No new direct dependency, override, framework downgrade, unrelated package update,
+SQL migration or production change. Installed QR from the updated lock; staff's
+unchanged lock and installed copy already use 1.2.2. Both now resolve patched 1.2.2.
+
+Source-map-js relates generated CSS/code positions to original files for debugging
+and tooling. Next's PostCSS dependency and Tailwind consume maps in CSS processing.
+The known malformed indexed-map offsets can amplify synchronous work and block
+processing. Repository API/spreadsheet paths do not pass customer/inventory/workbook
+records to PostCSS or source-map consumers; an HTTP exploit is not established.
+Removing the affected transitive runtime dependency avoids carrying this known flaw
+into deployment. It does not change QR generation/submission or grant permissions.
+
+Added shared regressions registered separately in each app's default suite. Resolve
+through the app's actual installed PostCSS package; check huge/malformed/nested
+section rejection, sparse valid mappings past a tiny generated file without work
+amplification, and normal CSS map/source-content preservation. Risky conversion runs
+in a child bounded to 64-MiB old space and three seconds, protecting the runner from
+a future regression. Comments describe input boundaries and why isolation matters.
+
+Updated AGENTS to retain the owner's preference: explain the concrete problem,
+why a task comes next, intended improvement, and remaining limits. Added a plain-
+language implementation order to TODO and refreshed dependency/setup/journal docs.
+Current dependency evidence is `docs/reviews/2026-10-05-source-map-remediation.json`.
+
+### Validation and remaining limits
+
+Both native webpack builds passed. Staff default suite: **42** checks; QR suite:
+**4** checks. New dependency subset passed **6** checks across both installs.
+Optional Chromium suite passed **22** checks with synthetic data/GPS, API fixtures
+and outside traffic blocked. Both standalone TypeScript checks pass. Staff's first
+standalone check overlapped build replacement of .next/types and saw missing
+intermediate files; reran after the successful build, then documented the required
+ordering. Do not treat that timing failure as a source-code type error.
+
+New regression/helper code passes focused lint with no findings. QR full lint
+passes with **0 errors / 3 inherited image warnings**. Root full lint retains its
+previous QA-02 vendor errors/warnings and was not rerun for this dependency-only
+change; unchanged vendor code remains protected by existing integrity tests.
+The QR build retains its known multiple-lockfile workspace-root warning. Installs
+retain npm's unapproved optional unrs-resolver install-script notice; successful
+build/type/lint/test results required no new script approval.
+
+Fresh approved npm production scans report **0** findings for both lockfiles. Full
+scans each report **5 high development-only chain package findings**, all stemming
+from the existing unpatched braces advisory. GitHub's previously missed source-map
+finding was reconciled explicitly; npm zero counts alone did not establish safety.
+Alert 162 remains open on main until owner merge/rescan. Do not dismiss it manually
+or describe production as patched before approved deployment.
+
+No PostgreSQL suite rerun was needed: no route, database, auth, permission or
+migration implementation changed; builds/HTTP/browser checks exercise the CSS
+pipeline. The earlier PR #24's real PostgreSQL evidence remains historical (68
+checks), not a claim of this run. The private synthetic test cluster remains stopped.
+`git diff --check` passed; lockfile diff contains only the intended package entry.
+
+### Next priorities, with reasons
+
+DATA-01 comes next because simultaneous employees can save different edits against
+one revision. The second save safely pauses today, but requires manual snapshot
+export/reconciliation; closing/reloading the tab can lose unsaved work. Add clear
+comparison/recovery choices that protect committed state and the employee's draft.
+Any durable recovery design must keep drafts authorized to their owner rather than
+reintroduce device-wide sensitive storage. This is needed before real staff rely
+on the app during connection failures or concurrent editing.
+
+Then DATA-03: inventory snapshots omit database users, QR requests, logs and history.
+Create complete operator backups of both PostgreSQL databases and prove restoration
+using synthetic copies before importing real records. A backup file alone is not
+proof we can recover from an outage.
+
+Then DATA-05: capacity-blocked imports can produce misleading success counts, and
+spreadsheet exports can interpret text as formulas. Make accepted/skipped counts
+accurate, retain leading-zero identifiers, and ensure exported text remains inert
+so staff can trust imported inventory and reports.
+
+Company access/login traffic policy, lint/development dependency work, approved
+email delivery, HTTPS/domains/services, live export migration, old printed labels
+and target-device acceptance remain release requirements. This task opens a focused
+PR for the owner's review/merge; no production deployment or live data access.

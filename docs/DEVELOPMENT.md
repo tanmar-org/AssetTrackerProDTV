@@ -26,6 +26,14 @@ After editing `packages/database/`, refresh its local copies in both apps before
 building/testing. Regenerate lockfiles intentionally only for approved
 dependency/runtime changes. Do not run `npm audit fix --force`.
 
+After pulling a changed lockfile, rerun that app's `npm run install:ci` before
+validation; a clean Git tree does not prove node_modules matches the lockfile.
+Compare GitHub advisories/alerts with npm results: a zero npm count can precede
+advisory ingestion. Source-map security regressions resolve through each app's
+actual PostCSS copy and test malformed/nested offset rejection, bounded sparse-map
+conversion in a resource-limited child, and valid CSS mappings. Each app runs them
+in its own default suite, without requiring the other's installed dependencies.
+
 ## Local applications
 
 Follow [self-hosting setup](SELF-HOSTING.md) for databases and roles. Each app has
@@ -57,6 +65,8 @@ npm run lint
 assets. Tracker regressions also verify hidden bootstrap UI, operator validation,
 and credential-free deactivation drafts/served JavaScript. After an unchanged
 successful build, run `node --experimental-strip-types --test tests/*.test.mjs`.
+Wait for a build to finish before running that app's standalone type check:
+the build replaces `.next/types`, which TypeScript includes in its file list.
 On 2026-10-05 both builds/type checks passed. Inherited lint issues remain under
 QA-02: root vendor errors/browser warnings. QR lint now passes with three
 image warnings; the public-form rewrite removed its two effect-state errors.

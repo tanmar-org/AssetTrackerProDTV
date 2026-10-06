@@ -216,8 +216,8 @@ service is required. If adding a content security policy, allow same-origin scri
 and workers so imports remain functional. The worker preflights ZIP expansion,
 limits parsing, and is terminated on completion/failure or after 15 seconds.
 
-Both production npm advisory checks report zero findings, but GitHub flags the QR
-source-map-js lockfile version separately. Resolve that alert before deployment;
+Both production npm advisory checks report zero findings and the current lockfiles
+pin patched source-map-js 1.2.2. GitHub's main alert requires owner merge/rescan;
 the remaining unpatched lint dependency affects development configuration. Review
 [the current dependency assessment/import limits](DEPENDENCY-REMEDIATION.md),
 refresh advisory checks as part of release preparation, and retain the pinned
