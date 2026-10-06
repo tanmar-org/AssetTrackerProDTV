@@ -27,7 +27,10 @@ version in `.nvmrc`, with a 30-minute limit. It:
 8. Installs test-only Playwright 1.58.2/Chromium outside the application trees and
    runs the complete existing `test:browser` suite with synthetic APIs/GPS and
    outside application requests blocked.
-9. Checks diffs and that tracked/unignored repository files stayed unchanged.
+9. Installs test-only Nginx/OpenSSL on the disposable runner with service startup
+   blocked, then runs the real loopback HTTPS ingress suite with synthetic
+   certificates and echo origins. No live proxy or company infrastructure is used.
+10. Checks diffs and that tracked/unignored repository files stayed unchanged.
 
 Builds finish before either SQL or browser tests serve `.next/`. A failed step
 fails the check; there is no `continue-on-error`, automatic merge or deployment.

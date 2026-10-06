@@ -7,9 +7,12 @@ LDAPS username/password verification, retaining application-managed roles and
 stable application user IDs. No identity broker or MFA is planned. Public customer
 QR submissions do not require a staff login and retain their separate controls.
 
-**AD sign-in is opt-in and is not active in a deployed application.** Owner-directed
-read-only acceptance has verified trusted TLS, the reader and one nominated
-identity; this does not establish personal-password login or application access. Set
+**AD sign-in is opt-in; internet staff access is not enabled.** Owner-directed
+acceptance has verified trusted TLS, the reader and one nominated identity. An
+isolated empty preview now has an explicit administrator link and loopback-only
+SSH access. Owner personal-password login and a later directory-status recheck
+pass, and owner sign-out/relogin confirms old-session removal and fresh AD access.
+Real policy changes and recovery admins remain pending. Set
 `AUTH_MODE=ad` only after the operator setup and acceptance below. Unconfigured
 local development retains PIN sign-in; partial AD settings without an explicit
 mode fail closed. AD mode rejects PIN login and old PIN sessions. Both modes use
@@ -240,3 +243,8 @@ Primary references: [ldapts TLS, bind and search APIs](https://github.com/ldapts
 [computed lockout/password-expiry flags](https://learn.microsoft.com/en-us/windows/win32/adschema/a-msds-user-account-control-computed),
 [AD pwdLastSet](https://learn.microsoft.com/en-us/windows/win32/adschema/a-pwdlastset) and
 [AD account expiry](https://learn.microsoft.com/en-us/windows/win32/adschema/a-accountexpires).
+
+For the approved existing Nginx Proxy Manager topology, use the protected staging
+command and exact location/TLS/header policy in [HTTPS ingress](HTTPS-INGRESS.md).
+An optional source-IP rule is additional protection; matching secrets and verified
+backend TLS are mandatory even when no source address has been supplied.

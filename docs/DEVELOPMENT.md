@@ -325,3 +325,13 @@ fixtures except those explicitly exercising trusted ingress; no real AD address,
 password or connection is used. See [staff policy](STAFF-AUTHENTICATION.md). The
 backup drill seeds, archives and restores the new counter table and verifies its
 restricted runtime grant.
+
+## Ingress configuration checks
+
+The VM has checksum-verified user-local Nginx 1.28.3 (Ubuntu package
+1.28.3-2ubuntu1.11) under `~/.local/share/assettracker-tools/nginx/`, with a
+`~/.local/bin/nginx` wrapper. No system ingress service was installed or started.
+Run `npm run test:ingress` for real loopback-only proxy/TLS fixtures using OpenSSL;
+missing tools fail instead of silently skipping. Root default tests also cover
+protected operator staging. See [the runbook](HTTPS-INGRESS.md); rendered secrets
+stay outside Git/web roots, and preparation never activates internet access.

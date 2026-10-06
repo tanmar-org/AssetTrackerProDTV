@@ -343,3 +343,10 @@ from the internet. Blank permits local development using global/username limits
 only. See [staff authentication](STAFF-AUTHENTICATION.md) for the exact protocol,
 fixed-window limits and remaining AD integration. No AD settings or production
 services are changed by merging this code.
+
+## Existing Nginx Proxy Manager ingress
+
+Use [the HTTPS ingress runbook](HTTPS-INGRESS.md) and `npm run ingress:prepare`
+to stage the existing proxy and private VM TLS gateway, independent staff/QR
+header credentials and the deployment-only public QR destination. Node ports
+stay on loopback; no DNS/service/certificate change is made by preparation.

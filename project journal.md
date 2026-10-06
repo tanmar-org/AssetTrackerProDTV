@@ -4,15 +4,26 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/ad-domain-scope`, based on `origin/main` at
-  `b2c63a9` (owner merged PR #34). Private LDAPS password sign-in, explicit identity
-  linking and bounded session rechecks are merged; actual company AD setup and
-  acceptance remain AUTH-01-ROLLOUT. A real read-only reader/identity check found
-  normal AD partition referrals blocking the strict domain-root search; critical
-  DOMAIN_SCOPE corrects it while retaining referral/unsupported-control rejection.
-  Real reader and production-adapter GUID lookup now pass. No application mapping,
-  personal-password verification or deployment. Merge notes are bundled with this fix.
-  [PR #35](https://github.com/tanmar-org/AssetTrackerProDTV/pull/35) awaits owner review/merge.
+- Development branch: `Dev/https-ingress-preparation`, based on `origin/main` at
+  `00b9b3f` (owner merged PR #35). AD sign-in, explicit identity linking, bounded
+  session rechecks and domain-scope searches are merged. An isolated empty preview
+  now runs from a separate protected checkout of that exact merge. Its fresh
+  administrator is explicitly linked to the nominated, reverified directory GUID.
+  Private socket-only PostgreSQL uses SCRAM and separate owner/runtime roles;
+  web listeners are loopback-only for SSH access. Owner normal-password sign-in
+  now succeeds with a matching reviewed identity, active admin role and later
+  successful directory recheck. Owner sign-out/relogin also pass: the original
+  session is gone and one fresh AD session retains admin access. Real policy
+  changes, recovery admins, data reconciliation and internet ingress remain AUTH-01-ROLLOUT.
+  Operational notes stay on this Dev branch to bundle with the
+  next substantive code task; no documentation-only PR or production cutover.
+  Owner has selected public staff/QR hostnames and confirmed an existing reverse
+  proxy (Nginx Proxy Manager) with an existing wildcard certificate. Public A/AAAA
+  queries report NXDOMAIN for both names. Owner asked to proceed without a source
+  address; it is optional in protected ingress staging, with TLS/secrets mandatory.
+  NPM/private gateway preparation now passes real synthetic proxy validation and
+  owner-specific files are staged outside Git. Backend certificate/actual NPM/DNS
+  setup and production activation remain separate deployment work.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -66,7 +77,9 @@
   app permissions and stable identity ownership must survive the transition.
   Shared login traffic counters are merged in PR #33; opt-in AD sign-in is now
   merged in PR #34. Separate owner-directed read-only checks now verify trusted
-  TLS, the real reader and one nominated identity; the application is not live.
+  TLS, the real reader and one nominated identity. The empty private preview is
+  configured for AD, with an explicit reviewed admin link and verified owner
+  personal-password login; public access is closed.
   Earlier broker/MFA recommendations are superseded by these confirmed choices.
   Public customer QR access remains separate.
   Prepare actual directory acceptance and trusted HTTPS ingress,
@@ -2264,3 +2277,227 @@ Attached the PR to this task. This bundled follow-up records its reference; the
 final-head hosted run and exact evidence are recorded in the PR description after
 verification. Do not use an earlier head's result to approve the latest change.
 Owner alone reviews/merges; no main push, auto-merge or deployment occurred.
+
+## 2026-10-06 — Private first-login preview after owner merge (America/Chicago)
+
+Owner merged PR #35 at `00b9b3feb14faaebda77398c9d89fbe44e77b81a` at 17:04 CDT.
+Fetched main and created `Dev/ad-login-preview`, preserving the original checkout's
+unrelated comment edit. The final prior PR head `c9429c6` passed all 306 named
+hosted checks in [run 37537506761](https://github.com/tanmar-org/AssetTrackerProDTV/actions/runs/37537506761),
+with no failed/canceled/skipped checks and zero remaining database/role fixtures.
+The merge's [main run 37538251508](https://github.com/tanmar-org/AssetTrackerProDTV/actions/runs/37538251508)
+also reports success; detailed counts above are from the inspected final PR log.
+
+### Isolated preview and explicit identity ownership
+
+The next task announced before merge was database configuration, explicit reviewed
+administrator linking and an owner password sign-in. Prepared an empty, isolated
+login preview; no existing application service/database was running. Requested
+whether original operational records/users need eventual import. Preview setup
+does not depend on that answer and does not retrieve source exports or replace
+existing ownership. Later production linking must target the intended preserved
+application IDs, rather than copying this preview administrator into an import.
+
+Private preparation is under
+`/home/itadmin/.local/share/assettracker-private/ad-login-preview/` (mode 0700),
+with a separate detached checkout/build of exact owner-merged `00b9b3f`. Installed
+both existing lockfiles without advisory submission and built both apps before
+loading reader credentials. The development checkout can now change/rebuild
+without disrupting the owner's preview. No tracked application code, dependency,
+migration or public-label configuration was modified.
+
+Initialized a separate PostgreSQL 18.6 cluster in that protected directory, not
+the disposable regression cluster or a production service. Mandatory SCRAM applies
+to its private mode-0700 Unix socket, port 55434, with no TCP listener. Generated
+fresh passwords privately; the initialization passfile was removed after use.
+Separate migration-owner and restricted runtime roles/database for each app use
+the merged checksummed migrations and explicit supported-table grants. Runtime
+checks confirm no superuser/create-role/create-database/replication/bypass-RLS,
+schema CREATE, migration-history read, table ownership or cross-database CONNECT.
+psql's interactive password command encrypts role passwords client-side while
+receiving generated values through private stdin; no secret argv or SQL files.
+See [PostgreSQL password authentication](https://www.postgresql.org/docs/18/auth-password.html)
+for SCRAM and the operator password commands.
+
+Rechecked the previously reviewed nominated identity by GUID through verified
+LDAPS. Created only the new preview administrator, with no chosen PIN, and called
+the existing explicit operator-linking helper using its new application ID and
+the approved directory/GUID. Saved actual identity IDs privately, outside Git.
+No AD account/password writes, name-based automatic linking or personal-password
+verification occurred. Owner/operator configuration remains separate from web
+process environment; each web process receives only its own restricted DB URL.
+All preview processes use the operator's Unix user; production OS service-user
+separation remains HOST-04, not an assurance provided by this preview.
+
+### Runtime and acceptance evidence
+
+Started transient user processes `assettracker-ad-preview-staff.service` and
+`assettracker-ad-preview-requests.service`, bound to `127.0.0.1:5573` and
+`127.0.0.1:5574`. They are temporary preview processes, not boot-enabled production
+units. No firewall, public proxy, DNS, public port or existing production service
+changed. Credentials and logs are protected outside the Git/web roots; stop/restart
+instructions and the owner's actual SSH target are in the private preview README.
+
+Read-only runtime checks pass: both readiness endpoints 200; the actual root
+redirect/static staff page 200; unauthenticated inventory and user APIs 401;
+auth status reports provisioned AD mode with no session; public setup action 403.
+Initial probes used a nonexistent directory-index URL and wrong action name;
+corrected probes use the merged entry redirect and actual setup action. Those
+probe errors were not runtime defects and no application changes were needed.
+
+Actual Chromium read-only inspection shows AD Password, enabled sign-in, empty
+credential fields and an inert/locked workspace. A separate synthetic localhost
+server verifies HttpOnly/Secure/SameSite-Strict cookie round-trip without weakening
+the app cookie; see [localhost cookie handling](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie).
+External browser requests were blocked; no AD password submitted
+or application session created. An initial label assertion used incorrect casing;
+corrected it to the application's existing AD Password label before it passed.
+These are preview acceptance checks, not a new full regression run. Both prior
+306-check results remain historical evidence; no source changes require repeating
+that suite. The protected preview checkout remains Git-clean.
+Final private database evidence confirms one correctly linked active admin, zero
+application sessions, zero inventory state rows and zero requests. Private file
+modes and repository-diff checks found no leaked identifiers/credentials. Preview
+remains running for the owner's sign-in; these notes are local and will be bundled
+with the next substantive change, as requested.
+
+### Next action and limits
+
+Owner opens an encrypted SSH tunnel from their PC and loads the localhost preview
+in Chrome/Edge, then signs in with the nominated AD username and normal domain
+password. Readiness 200 alone does not prove that password or AD logon policies.
+Once the owner verifies login, inspect resulting app role/session/logout behavior
+without logging bearer tokens/passwords. Real policy/replication/disable/reset/outage
+acceptance and another working recovery admin remain open. Internet cutover still
+needs approved HTTPS hostnames, trusted ingress, production service supervision,
+scheduled off-server backups and existing data/label/device reconciliation. Keep
+this empty preview separate from production; bundle these operational notes with
+the next substantive PR rather than opening a minor documentation PR.
+
+## 2026-10-06 — Owner first AD login verified (America/Chicago)
+
+Owner reports signing in successfully from their Mac. Read-only SQL acceptance
+confirms one unexpired AD session linked to the explicitly reviewed preview user,
+matching directory/GUID, active application administrator role, recorded last
+login, and populated provider-specific configuration/password-version metadata.
+The session was created at 17:36:35 CDT. Its directory approval was subsequently
+refreshed at 17:37:35 CDT, proving a successful real directory-status recheck after
+login rather than relying solely on the initial cached approval. Both preview
+readiness endpoints still return 200. No password, bearer token, token hash or
+actual identity ID was read into tool output; protected evidence remains outside Git.
+
+Updated private owner-login evidence, the private preview README, TODO, current
+handoff and authentication runbook. This confirms one actual password sign-in and
+later normal directory recheck; it does not validate policy changes, logout,
+recovery admins or production readiness. Requested owner sign-out and sign-in once
+to verify browser/session lifecycle without forcibly ending their current session
+or requesting their password. That result is pending. No application code change,
+full regression rerun, minor documentation PR or internet deployment performed.
+
+Next verify sign-out/relogin, then prepare approved staff/QR HTTPS hostnames,
+production service isolation and protected configuration. HTTPS/trusted ingress
+must replace the temporary SSH-only access before internet use. Preserve the empty
+preview separately from any eventual original-data import; existing-user identity
+and draft ownership require linking reviewed production IDs in place.
+
+### Owner sign-out and second sign-in
+
+Owner subsequently confirms both sign-out and sign-in worked. Read-only SQL
+matches that report: the original session row identified by its known creation
+time is absent; exactly one later unexpired AD session exists, created at
+17:38:25 CDT, with the same reviewed identity link, populated AD session metadata
+and active administrator role. Saved private lifecycle evidence without reading
+tokens, token hashes or passwords, and marked AUTH-01-SESSION-ACCEPTANCE complete.
+This does not establish disabled/reset/expiry/replication/outage policy behavior.
+
+Requested the intended public staff and customer QR hostnames for the next
+deployment preparation. Proper HTTPS/trusted ingress lets authorized users reach
+the intended URLs without SSH while protecting sign-in and enforcing authenticated
+client-IP limits. Hostnames remain pending; no DNS, certificates, reverse proxy,
+internet listeners, production services or databases were configured. A second
+working recovery admin, original-data decision and scheduled off-server backups
+remain separate prerequisites. Operational docs stay bundled on the Dev branch.
+
+## 2026-10-06 — Approved public names and existing-proxy preflight (America/Chicago)
+
+Owner selected distinct public staff and customer QR hostnames, then confirmed
+an existing reverse proxy sits in front of this VM. Renamed the current unpushed
+Dev branch to `Dev/https-ingress-preparation`, preserving all bundled preview and
+acceptance notes. Fetched main; it remains `00b9b3f`. The approved hostnames and
+infrastructure plan are recorded privately outside Git.
+
+Bounded system DNS queries cannot resolve either name. Separate public DNS-over-
+HTTPS A and AAAA queries return NXDOMAIN for both, with the domain's Cloudflare
+authority; its NS records identify Cloudflare nameservers. This is a read-only
+DNS observation, not a DNS change or proof of a public IP/firewall route. Existing
+VM listeners remain SSH and the two private loopback previews; neither Nginx,
+Caddy nor Certbot is installed. No scan of the owner's proxy was attempted.
+
+Requested proxy software, its private connection/source address and whether it
+already manages HTTPS certificates. These determine the certificate location,
+private proxy-to-VM path and client-IP trust contract; do not infer them from
+Cloudflare DNS or blindly trust supplied forwarded headers. The existing proxy
+must overwrite the staff/QR authenticated source-IP headers, while Node ports,
+database and private app-to-app endpoints remain restricted. Prepare against
+the owner's existing proxy rather than installing a competing public ingress.
+
+No DNS records, certificates, secret values, proxy configuration, firewall rules,
+public listener, application code, preview runtime or production service changed.
+No minor documentation PR. Once the missing proxy details arrive, make the exact
+configuration reviewable and validate routing/header behavior with synthetic
+fixtures before activation. DNS must target the intended public proxy entry point;
+TLS, private backend trust/access and public QR label destination must agree.
+
+## 2026-10-06 — Existing NPM ingress preparation (America/Chicago)
+
+Owner confirms Nginx Proxy Manager and an existing wildcard certificate, and
+asks to proceed without requiring its private source IP. Source filtering is an
+optional additional restriction; every backend route still requires its distinct
+ingress credential over verified TLS. No assumption that internal HTTP protects
+AD passwords or that a supplied forwarded header identifies the real visitor.
+
+Added commented Nginx templates for both NPM hosts and a private VM TLS gateway,
+an operator preparer, protected-file/config-injection checks and actual two-hop
+Nginx/TLS regression fixtures. Node stays loopback-only. Both hops block staff
+asset lookup and QR staff methods/private APIs; only public lookup/POST submission
+are exposed. 8-KiB QR bodies and the staff recovery envelope are preserved. No
+write retries or response cache. Query-bearing access logs are disabled for these
+hosts; error logs still require protection. A reviewed original-peer policy avoids
+NPM inherited private/CDN real-IP-header trust. DNS-only is the initial topology;
+an additional CDN requires an explicitly validated trust chain to avoid shared
+visitor budgets. An optional source rule also checks the original socket peer.
+
+The preparer validates names/private IPv4/ports/paths, rejects directive injection,
+unknown fields, real Git worktrees, symlink/readable inputs and existing output.
+It writes eight mode-0600 files in a new mode-0700 directory, generates separate
+256-bit secrets, prints neither and supplies only a public QR URL in browser
+config. It never activates anything. Owner-specific review files were successfully
+staged in the protected operator area. Backend certificate/key paths are staged
+placeholders; no leaf/key/CA bundle was installed and no preview setting changed.
+Initial sandbox root .git reservations exposed an overbroad staging guard; empty
+non-repository reservations are ignored while actual Git HEAD/worktree pointers
+still fail closed. Tests exercise the real alternate-worktree rejection.
+
+Downloaded Ubuntu Nginx 1.28.3-2ubuntu1.11, verified signed repository SHA-256
+metadata, and extracted a user-local test binary/wrapper. No system installation
+or service. Added CI test-only Nginx/OpenSSL installation with package-service
+startup blocked, followed by real loopback-only ingress checks. Added the HTTPS
+runbook and updated setup/auth/public-request/development/CI/TODO handoffs; prior
+owner login/logout evidence is bundled, not a separate documentation PR.
+
+Local verification: zero-warning root lint/vendor check and actionlint/diff checks
+pass. Full default staff suite passes 108 named checks (four new staging checks);
+real proxy suite passes 10, with zero failures/cancellations/skips. Actual sockets
+verify forged headers under inherited real-IP rules, both-hop route denial, QR
+creation/lookup, QR ceiling/large staff body, untrusted backend TLS/wrong name,
+source-rule forgery rejection and empty access logs. No company AD, production DB,
+certificate or existing proxy was used for those regressions. Hosted final-head
+validation and PR reference will be recorded before handoff.
+
+Next install/supervise the reviewed production services with matching protected
+settings, provide the backend certificate and configure the two actual NPM hosts.
+Both selected DNS names still require records pointing to the proxy public entry
+point. Those steps make the approved URLs reachable; real HTTPS/AD/GPS acceptance,
+recovery admins, original-data/old-label reconciliation and off-server backups
+remain deployment prerequisites. No DNS/firewall/public listener, live database,
+existing NPM or private preview service was changed during preparation.
