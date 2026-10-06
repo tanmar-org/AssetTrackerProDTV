@@ -7,18 +7,23 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 
 ## Implementation order and why
 
-1. **Review import/report correctness (DATA-05).** Import previews and Apply now
-   distinguish accepted changes, unchanged records and skipped rows. Full accounts
-   no longer cause blocked receivers to be added to the registry, moves keep
-   history, and CSV reports protect formula-like text and numeric identifiers.
-   Owner review/merge follows this PR; actual spreadsheet/device acceptance remains
-   QA-01 and sync confirmation is required before treating edits as saved.
-2. **Keep older requests and activity accessible (DATA-06).** Both endpoints return
-   only the newest 500 records. An older pending service request can disappear
-   behind newer records even though it still needs attention. Add bounded server
-   pagination and filters with staff controls to find pending work and older
-   activity; retain permissions and avoid loading the entire database at once.
-3. **Prepare deployment decisions and acceptance.** Set company access policy,
+1. **Review retained record browsing (DATA-06-LISTING).** Old pending QR requests
+   and older administrator activity now have server filters and bounded pages.
+   Owner review/merge follows this PR; counts/history/CSV describe their page scope.
+   Import/report correctness (DATA-05) was merged; physical spreadsheet/device
+   acceptance remains QA-01. Retention and storage sizing remain separate decisions.
+2. **Recover QR status and receiver history together (DATA-02).** A staff completion
+   currently changes the QR database first, then saves receiver history separately.
+   If the second save fails or the tab closes, completed work can lack its matching
+   history entry. Add a durable server operation with retries/duplicate protection,
+   explicit pending/failure status and permissions rechecked through completion.
+   Keep the separate databases and test interruptions after either write; the
+   browser alone cannot guarantee coordination.
+3. **Finish inherited lint failures (QA-02).** Two vendor-file errors currently make
+   the full root check fail even when changed application code passes. Use an
+   intentional verified-vendor policy and fix remaining application warnings so
+   future changes have a useful full check; preserve vendor bytes/licenses.
+4. **Prepare deployment decisions and acceptance.** Set company access policy,
    approved email delivery, HTTPS/domains, service supervision and recovery
    operations; reconcile real records and old labels, then test actual devices.
    Scheduled encrypted off-server backups/retention/alerts remain DATA-03-ROLLOUT.
@@ -246,12 +251,24 @@ approval; unresolved owner/operational items remain listed below.
   quote fields and protect formula/control/full-width prefixes and numeric text.
   Implemented on `Dev/import-export-correctness` in
   [PR #28](https://github.com/tanmar-org/AssetTrackerProDTV/pull/28);
-  owner review/merge pending.
+  merged by the owner at `bc9f0af`.
   See [policy and spreadsheet limits](docs/IMPORTS-AND-EXPORTS.md). Actual desktop
   spreadsheet/device acceptance remains QA-01; reports are not lossless backups.
-- [ ] DATA-06 — Add pagination/filtering so older pending QR requests and activity
-  records remain accessible. Define audit/history retention and full-state storage
-  scaling; 25 snapshots and a 500-row response are not complete history/backup.
+- [ ] DATA-06 — Retained record browsing is implemented below; audit/history
+  retention and full-state storage scaling remain separate open decisions.
+- [x] DATA-06-LISTING — Server search/status filters and bounded timestamp/ID pages
+  reach older QR requests; administrator activity supports server search/type/date
+  filters. Staff Previous/Next controls retain one 100-row page and ignore late
+  filter/session results. Tiles/history/CSV explicitly describe their limited scope.
+  New ordered indexes preserve all rows; proxy input, redirects and response bytes
+  are bounded. Implemented on `Dev/request-activity-pagination`; owner review/merge
+  pending. See [record browsing policy](docs/RECORD-LISTS.md).
+- [ ] DATA-06-RETENTION **Owner + operator decision** — Decide audit/request/history
+  retention, archive access, and legal/business preservation needs. No purge policy
+  is enabled; the existing 25 inventory snapshots are not complete audit recovery.
+- [ ] DATA-06-SCALE — Measure representative inventory sizes and filtered-list
+  performance; plan JSONB/full-state growth and search indexing from actual evidence.
+  Bounded responses do not prove bounded database scans or production capacity.
 
 ## Hosting, QR, email, and migration
 

@@ -58,7 +58,8 @@ test("public request trust boundary, duplicate races and shared abuse controls",
         DROP INDEX service_requests_pending_id_unique; DROP TABLE request_rate_limits;
         ALTER TABLE service_requests DROP CONSTRAINT service_request_coordinates,
           DROP CONSTRAINT service_request_asset_id, DROP COLUMN asset_id;
-        DELETE FROM schema_migrations WHERE name = 'requests/0002_public_request_security.sql'`).run();
+        DELETE FROM schema_migrations WHERE name IN ('requests/0002_public_request_security.sql', 'requests/0003_request_pagination.sql');
+        DROP INDEX service_requests_page_idx; DROP INDEX service_requests_status_page_idx`).run();
       await legacy.database.prepare(`INSERT INTO service_requests
         (id,asset_number,error_code,latitude,longitude,gps_accuracy,gps_captured_at,requested_at)
         VALUES ('legacy-1','TEST-001','771',31.9,-102.2,7,$1,$1),
@@ -72,7 +73,7 @@ test("public request trust boundary, duplicate races and shared abuse controls",
       await assert.rejects(migrate(legacy.database, "requests"), { code: "23514" });
       await legacy.database.prepare("UPDATE service_requests SET latitude = 31.9 WHERE id = 'legacy-2'").run();
       await migrate(legacy.database, "requests"); await migrate(legacy.database, "requests");
-      assert.equal(Number((await legacy.database.prepare("SELECT COUNT(*) AS total FROM schema_migrations").first()).total), 2);
+      assert.equal(Number((await legacy.database.prepare("SELECT COUNT(*) AS total FROM schema_migrations").first()).total), 3);
       assert.equal((await legacy.database.prepare("SELECT asset_id FROM service_requests LIMIT 1").first()).asset_id, null);
     } finally { await legacy.close(); }
   });

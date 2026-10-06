@@ -171,3 +171,14 @@ availability or constitute a full health/monitoring system.
 Development verification is documented in [DEVELOPMENT.md](DEVELOPMENT.md).
 Use synthetic databases and the optional Chromium suite; a merge alone runs no
 migration, starts no production service, and changes no live label destination.
+
+## Private list pages
+
+The authenticated GET now applies search/status filters before returning at most
+100 requests with an optional next cursor. Neither filters nor cursors give a
+public caller listing rights. The staff proxy validates the same contract and
+rechecks its cookie/session under the account lock for every page. It rejects
+upstream redirects and limits response bodies to two MiB within five seconds.
+Apply requests migration `0003_request_pagination.sql` for ordered indexes;
+existing request security constraints and tombstone handling remain in force.
+See [record browsing policy](RECORD-LISTS.md) for the private API and UI scope.

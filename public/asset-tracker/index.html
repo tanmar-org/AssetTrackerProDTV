@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark">
   <title>TanMar Receiver Control</title>
-  <link rel="stylesheet" href="app.css?v=64">
+  <link rel="stylesheet" href="app.css?v=65">
   <link rel="stylesheet" href="reskin.css?v=51">
   <link rel="stylesheet" href="capacity.css?v=1">
   <link rel="stylesheet" href="labels.css?v=55">
@@ -258,6 +258,7 @@
           </div>
         </div>
 
+        <p class="activity-help">Counts include this QR page and all manual inventory requests. QR search uses the details saved at submission.</p>
         <section class="activation-summary-grid">
           <article class="mini-stat"><span>Pending Requests</span><strong id="activationPendingCount">0</strong></article>
           <article class="mini-stat"><span>Completed</span><strong id="activationCompletedCount">0</strong></article>
@@ -267,13 +268,18 @@
 
         <section class="panel activation-panel">
           <div class="activation-filter-row">
-            <label class="search-field"><span>⌕</span><input id="activationSearch" type="search" placeholder="Search asset, account, action, or notes..."></label>
-            <select id="activationStatusFilter">
+            <label class="search-field"><span>⌕</span><input id="activationSearch" type="search" maxlength="128" aria-label="Search requests" placeholder="Search asset, account, action, or notes..."></label>
+            <select id="activationStatusFilter" aria-label="Request status">
               <option value="all">All Requests</option>
               <option value="Pending">Pending</option>
               <option value="Completed">Completed</option>
               <option value="Cancelled">Cancelled</option>
             </select>
+          </div>
+          <div class="record-pagination" aria-label="QR request pages">
+            <button class="secondary-button" id="activationPreviousButton" type="button" disabled>← Previous QR page</button>
+            <span id="activationPageSummary" role="status">QR requests have not loaded.</span>
+            <button class="secondary-button" id="activationNextButton" type="button" disabled>Next QR page →</button>
           </div>
           <div class="table-wrap">
             <table class="activation-table">
@@ -556,13 +562,18 @@
             <div><p class="eyebrow">Employee accountability</p><h3>Recent Activity</h3></div>
             <button class="secondary-button" id="refreshActivityButton" type="button">↻ Refresh</button>
           </div>
-          <p class="activity-help">Search, filter, and export the latest 500 shared-data, user-access, and denied-permission events.</p>
+          <p class="activity-help">Search all retained shared-data, user-access, and denied-permission events. Pages contain up to 100 events; date filters use this device’s local calendar days.</p>
           <div class="activity-controls">
-            <label><span>Search</span><input id="activitySearch" type="search" placeholder="Username or action..."></label>
+            <label><span>Search</span><input id="activitySearch" type="search" maxlength="128" placeholder="Username or action..."></label>
             <label><span>Type</span><select id="activityTypeFilter"><option value="all">All Activity</option><option value="data">Data Changes</option><option value="user">User Management</option><option value="denied">Denied Attempts</option></select></label>
             <label><span>From</span><input id="activityDateFrom" type="date"></label>
             <label><span>Through</span><input id="activityDateTo" type="date"></label>
-            <button class="secondary-button" id="exportActivityButton" type="button">Export CSV</button>
+            <button class="secondary-button" id="exportActivityButton" type="button">Export This Page (CSV)</button>
+          </div>
+          <div class="record-pagination" aria-label="Activity pages">
+            <button class="secondary-button" id="activityPreviousButton" type="button" disabled>← Previous</button>
+            <span id="activityPageSummary" role="status">Activity has not loaded.</span>
+            <button class="secondary-button" id="activityNextButton" type="button" disabled>Older events →</button>
           </div>
           <div class="activity-summary" id="activitySummary">Loading activity…</div>
           <div class="activity-list" id="activityList">
@@ -612,8 +623,9 @@
         <section class="receiver-history-section">
           <div class="receiver-history-heading">
             <div><p class="eyebrow">Last actions</p><h3>Receiver History</h3></div>
-            <button class="secondary-button receiver-history-toggle" id="receiverHistoryToggle" type="button">Full History</button>
+            <button class="secondary-button receiver-history-toggle" id="receiverHistoryToggle" type="button">Show Available History</button>
           </div>
+          <p class="activity-help">Includes retained inventory history and the currently loaded QR page. Search Activations for older QR requests.</p>
           <div class="receiver-history-list" id="receiverHistoryList"></div>
           <div class="empty-state receiver-history-empty" id="receiverHistoryEmpty" hidden>
             <strong>No receiver history yet</strong>
@@ -953,6 +965,6 @@
   <script src="vendor/qrcode.js"></script>
   <script src="vendor/jsbarcode.min.js"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=64"></script>
+  <script src="app.js?v=65"></script>
 </body>
 </html>

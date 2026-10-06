@@ -37,7 +37,7 @@ let deactivationBatches=[];
 let master=[],accounts=[],assignments=[],activations=[],receiverEvents=[];
 let rentalStock={batches:[]};
 let remoteActivations=[];
-let remoteActivationLoading=false;
+const requestPager=newRecordPager(),activityPager=newRecordPager();
 let undoHistory=[];
 let currentAccountId=null;
 let currentReceiverInfoId=null;
@@ -612,6 +612,13 @@ function formatUndoTime(value){
   return Number.isNaN(date.getTime())?"":date.toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
 }
 
+// Retained administrative history spans years. Include the year/seconds in the
+// device's local timezone and let callers display a safe fallback for bad dates.
+function formatHistoryDate(value){
+  const date=new Date(value);
+  return Number.isNaN(date.getTime())?"":date.toLocaleString([],{year:"numeric",month:"short",day:"numeric",hour:"numeric",minute:"2-digit",second:"2-digit"});
+}
+
 function updateUndoControls(){
   if(!$("undoButton"))return;
   const available=undoHistory.length>0;
@@ -1039,22 +1046,60 @@ function allActivationRows(){
   return [...remoteRows,...localRows];
 }
 
-async function loadRemoteActivations(showSuccess=false){
-  if(!currentUser||!cloudReady||remoteActivationLoading)return;
+// Keep only one server page in memory. Filter generations complement session
+// epochs: a slow older filter must not replace a newer result in the same login.
+function newRecordPager(){return{cursors:[null],index:0,next:null,generation:0,timer:null,loading:false,loaded:false,error:""};}
+function beginRecordPage(pager,direction){
+  clearTimeout(pager.timer);
+  if(direction==="next"){
+    if(pager.loading||!pager.next)return null;
+    pager.cursors=pager.cursors.slice(0,pager.index+1);pager.cursors.push(pager.next);pager.index++;
+  }else if(direction==="previous"){
+    if(pager.loading||!pager.index)return null;
+    pager.index--;
+  }else{pager.cursors=[null];pager.index=0;}
+  pager.next=null;pager.loading=true;pager.loaded=false;pager.error="";
+  return{generation:++pager.generation,cursor:pager.cursors[pager.index]};
+}
+function resetRecordPager(pager){
+  clearTimeout(pager.timer);const generation=pager.generation+1;
+  Object.assign(pager,newRecordPager(),{generation});
+}
+function recordPageControls(pager,prefix,summary){
+  $(prefix+"PreviousButton").disabled=pager.loading||pager.index===0;
+  $(prefix+"NextButton").disabled=pager.loading||!pager.next;
+  $(prefix+"PageSummary").textContent=pager.loading?"Loading…":pager.error||summary;
+}
+function queueRecordFilter(pager,clear,render,reload){
+  resetRecordPager(pager);pager.loading=true;clear();render();
+  // Invalidate immediately, rather than waiting for the debounce timer. Typed
+  // contact/search values and response rows remain tab-only and scrub on lock.
+  pager.timer=setTimeout(reload,300);
+}
+async function loadRemoteActivations(showSuccess=false,direction="reset"){
+  if(!currentUser||!cloudReady)return;
+  const page=beginRecordPage(requestPager,direction);if(!page)return;
   const epoch=sessionEpoch;
-  remoteActivationLoading=true;
-  if($("refreshActivationsButton"))$("refreshActivationsButton").disabled=true;
+  remoteActivations=[];renderActivations();
+  $("refreshActivationsButton").disabled=true;
   try{
-    const {response,result:data}=await staffRequest(SERVICE_REQUEST_API,{cache:"no-store",headers:serviceRequestHeaders()});
+    const params=new URLSearchParams({limit:"100",q:$("activationSearch").value.trim(),status:$("activationStatusFilter").value});
+    if(page.cursor)params.set("cursor",page.cursor);
+    const {response,result:data}=await staffRequest(`${SERVICE_REQUEST_API}?${params}`,{cache:"no-store",headers:serviceRequestHeaders()});
+    if(!sessionActive(epoch)||page.generation!==requestPager.generation)return;
     if(!response.ok)throw new Error(data.error||"Unable to load requests.");
     remoteActivations=Array.isArray(data.requests)?data.requests:[];
-    renderActivations();
+    requestPager.next=data.page?.nextCursor||null;requestPager.loaded=true;
     if(showSuccess)toast("Service requests refreshed.");
   }catch{
-    if(sessionActive(epoch))toast("Unable to sync QR service requests.");
+    if(!sessionActive(epoch)||page.generation!==requestPager.generation)return;
+    requestPager.error="QR requests unavailable. Refresh to retry.";
+    toast("Unable to sync QR service requests.");
   }finally{
-    if(sessionActive(epoch))remoteActivationLoading=false;
-    if($("refreshActivationsButton"))$("refreshActivationsButton").disabled=false;
+    if(sessionActive(epoch)&&page.generation===requestPager.generation){
+      requestPager.loading=false;
+      $("refreshActivationsButton").disabled=false;renderActivations();
+    }
   }
 }
 
@@ -1081,12 +1126,15 @@ function renderActivations(){
   const q=$("activationSearch").value.trim().toLowerCase();
   const status=$("activationStatusFilter").value;
   const rows=allActivationRows();
+  // Summary tiles deliberately count this QR page plus manual inventory work,
+  // not the entire request database. QR filtering has already happened upstream.
   const pending=rows.map(row=>row.request).filter(item=>item.status==="Pending");
   $("activationPendingCount").textContent=pending.length;
   $("activationCompletedCount").textContent=rows.filter(row=>row.request.status==="Completed").length;
   $("activationOnCount").textContent=pending.filter(item=>item.action==="Activate"||item.action==="Reactivate / Refresh").length;
   $("activationOffCount").textContent=pending.filter(item=>item.action==="Deactivate").length;
   const filtered=rows.filter(({request,receiver,account})=>{
+    if(request.remote)return true;
     if(status!=="all"&&request.status!==status)return false;
     return !q||[receiver?.assetNumber,receiver?.serial,receiver?.rid,account?.number,account?.name,request.action,request.status,request.errorCode,request.requesterName,request.requesterPhone,request.operatorName,request.rigFrac,request.lease,request.notes].join(" ").toLowerCase().includes(q);
   }).sort((a,b)=>String(b.request.requestedAt).localeCompare(String(a.request.requestedAt)));
@@ -1109,7 +1157,8 @@ function renderActivations(){
       </div></td>
     </tr>`;
   }).join("");
-  $("activationEmpty").hidden=filtered.length!==0;
+  $("activationEmpty").hidden=requestPager.loading||Boolean(requestPager.error)||filtered.length!==0;
+  recordPageControls(requestPager,"activation",`QR page ${requestPager.index+1}: ${remoteActivations.length} request${remoteActivations.length===1?"":"s"} · ${filtered.filter(row=>!row.request.remote).length} matching manual requests (shown on every page).`);
 }
 
 function updateActivationAccountDisplay(){
@@ -1208,7 +1257,7 @@ function renderReceiverInfo(){
     </button>`).join("");
   $("receiverHistoryEmpty").hidden=history.length!==0;
   $("receiverHistoryToggle").hidden=history.length<=3;
-  $("receiverHistoryToggle").textContent=receiverHistoryExpanded?"Show Recent":"Full History";
+  $("receiverHistoryToggle").textContent=receiverHistoryExpanded?"Show Recent":"Show Available History";
 }
 
 function openReceiverInfo(receiverId){
@@ -1582,8 +1631,11 @@ $("rentalStockRows").addEventListener("click",event=>{
   save("Remove receiver from rental manager batch");renderRentalStock();renderDashboard();toast(`${receiver.assetNumber} removed from the active rental batch.`);
 });
 $("refreshActivationsButton").onclick=()=>loadRemoteActivations(true);
-$("activationSearch").oninput=renderActivations;
-$("activationStatusFilter").onchange=renderActivations;
+const reloadRequestFilters=()=>queueRecordFilter(requestPager,()=>{remoteActivations=[];},renderActivations,()=>loadRemoteActivations());
+$("activationSearch").oninput=reloadRequestFilters;
+$("activationStatusFilter").onchange=reloadRequestFilters;
+$("activationPreviousButton").onclick=()=>loadRemoteActivations(false,"previous");
+$("activationNextButton").onclick=()=>loadRemoteActivations(false,"next");
 $("activationAssetInput").oninput=updateActivationAccountDisplay;
 $("activationForm").addEventListener("submit",event=>{
   event.preventDefault();
@@ -3539,7 +3591,8 @@ function lockSession(retainDraft=false,message=""){
   sessionRequests.forEach(controller=>controller.abort());sessionRequests.clear();
   importCancellations.forEach(cancel=>cancel());importCancellations.clear();
   master=[];accounts=[];assignments=[];activations=[];receiverEvents=[];rentalStock={batches:[]};auditState=null;
-  remoteActivations=[];remoteActivationLoading=false;undoHistory=[];activityRecords=[];cacheEntries.clear();
+  remoteActivations=[];undoHistory=[];activityRecords=[];cacheEntries.clear();
+  resetRecordPager(requestPager);resetRecordPager(activityPager);
   cloudReady=false;cloudQueued=false;cloudSaving=false;cloudCaptureQueued=false;cloudPendingStates=[];cloudWriteBlocked=false;cloudRevision=0;
   cloudBaseState=null;draftCopy=null;draftSavePromise=null;draftGeneration=0;draftSavedGeneration=-1;draftReview=null;draftBusy=false;
   $("applyDraftButton").hidden=true;
@@ -3684,18 +3737,28 @@ async function loadUsers(){
     if(!sessionActive(epoch))return;toast(error.message||"Unable to load users.")}
 }
 
-async function loadActivity(){
+async function loadActivity(direction="reset"){
   if(currentUser?.role!=="admin")return;
-  const epoch=sessionEpoch;
+  const page=beginRecordPage(activityPager,direction);if(!page)return;
+  const epoch=sessionEpoch;activityRecords=[];renderActivity();
   try{
-    const {response,result}=await staffRequest("/api/activity",{cache:"no-store"});
+    const params=new URLSearchParams({limit:"100",q:$("activitySearch").value.trim(),type:$("activityTypeFilter").value});
+    // Date inputs describe the browser's local calendar days, just like the old
+    // display filter. Advance a calendar day (not 24 hours) across DST changes.
+    const from=$("activityDateFrom").value,through=$("activityDateTo").value;
+    if(from)params.set("from",new Date(`${from}T00:00:00`).toISOString());
+    if(through){const end=new Date(`${through}T00:00:00`);end.setDate(end.getDate()+1);params.set("through",end.toISOString());}
+    if(page.cursor)params.set("cursor",page.cursor);
+    const {response,result}=await staffRequest(`/api/activity?${params}`,{cache:"no-store"});
+    if(!sessionActive(epoch)||page.generation!==activityPager.generation)return;
     if(!response.ok)throw new Error(result.error||"Unable to load activity.");
-    activityRecords=result.activity||[];
-    renderActivity();
+    activityRecords=Array.isArray(result.activity)?result.activity:[];
+    activityPager.next=result.page?.nextCursor||null;activityPager.loaded=true;
   }catch(error){
-    if(!sessionActive(epoch))return;
-    $("activityList").innerHTML=`<div class="empty-state"><strong>Activity unavailable</strong><span>${esc(error.message||"Unable to load activity.")}</span></div>`;
-    $("activitySummary").textContent="Unable to load activity.";
+    if(!sessionActive(epoch)||page.generation!==activityPager.generation)return;
+    activityPager.error=error.message||"Unable to load activity. Refresh to retry.";
+  }finally{
+    if(sessionActive(epoch)&&page.generation===activityPager.generation){activityPager.loading=false;renderActivity();}
   }
 }
 
@@ -3746,25 +3809,16 @@ function activityType(action=""){
   return"data";
 }
 
-function filteredActivity(){
-  const query=$("activitySearch").value.trim().toLowerCase();
-  const type=$("activityTypeFilter").value;
-  const from=$("activityDateFrom").value?new Date(`${$("activityDateFrom").value}T00:00:00`).getTime():null;
-  const through=$("activityDateTo").value?new Date(`${$("activityDateTo").value}T23:59:59.999`).getTime():null;
-  return activityRecords.filter(item=>{
-    const time=new Date(item.created_at).getTime();
-    if(query&&!`${item.user_name||""} ${item.action||""}`.toLowerCase().includes(query))return false;
-    if(type!=="all"&&activityType(item.action)!==type)return false;
-    if(from!==null&&time<from)return false;
-    if(through!==null&&time>through)return false;
-    return true;
-  });
-}
+// Activity records already match the server filters; CSV exports this page only.
+function filteredActivity(){return activityRecords;}
 
 function renderActivity(){
   const records=filteredActivity();
-  $("activitySummary").textContent=`Showing ${records.length} of ${activityRecords.length} recorded event${activityRecords.length===1?"":"s"}.`;
-  $("activityList").innerHTML=records.length?records.map(item=>`
+  $("activitySummary").textContent=activityPager.loading?"Loading activity…":activityPager.error||`Page ${activityPager.index+1}: ${records.length} matching event${records.length===1?"":"s"}. CSV exports this page only.`;
+  recordPageControls(activityPager,"activity",`Page ${activityPager.index+1}${activityPager.next?" · Older events available":" · End of matching activity"}`);
+  $("refreshActivityButton").disabled=activityPager.loading;
+  $("exportActivityButton").disabled=activityPager.loading||!records.length;
+  $("activityList").innerHTML=activityPager.loading?'<div class="empty-state"><strong>Loading activity</strong></div>':activityPager.error?`<div class="empty-state"><strong>Activity unavailable</strong><span>${esc(activityPager.error)}</span></div>`:records.length?records.map(item=>`
       <div class="activity-row ${activityType(item.action)}">
         <strong class="activity-user">${esc(item.user_name||"Unknown")}</strong>
         <span class="activity-action">${esc(item.action||"Data change")}${item.revision?`<small class="activity-revision">Cloud revision ${esc(item.revision)}</small>`:""}</span>
@@ -3773,7 +3827,10 @@ function renderActivity(){
 }
 
 $("refreshActivityButton").addEventListener("click",loadActivity);
-["activitySearch","activityTypeFilter","activityDateFrom","activityDateTo"].forEach(id=>$(id).addEventListener("input",renderActivity));
+["activitySearch","activityTypeFilter","activityDateFrom","activityDateTo"].forEach(id=>$(id).addEventListener("input",()=>
+  queueRecordFilter(activityPager,()=>{activityRecords=[];},renderActivity,()=>loadActivity())));
+$("activityPreviousButton").onclick=()=>loadActivity("previous");
+$("activityNextButton").onclick=()=>loadActivity("next");
 function exportActivityCsv(){
   const records=filteredActivity();
   if(!records.length){toast("No matching activity to export.");return;}
@@ -3782,7 +3839,7 @@ function exportActivityCsv(){
   ])];
   const date=new Date().toISOString().slice(0,10);
   downloadFile(`tanmar-activity-log-${date}.csv`,rows.map(row=>row.map(csvCell).join(",")).join("\r\n"),"text/csv;charset=utf-8");
-  toast(`Exported ${records.length} activity record${records.length===1?"":"s"}.`);
+  toast(`Exported ${records.length} activity record${records.length===1?"":"s"} from this page.`);
 }
 $("exportActivityButton").addEventListener("click",exportActivityCsv);
 

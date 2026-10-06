@@ -127,6 +127,15 @@ The journal records current evidence; older handoff statements may be stale.
   separate QR responses. Use `safeMapsLink` before Maps anchors: escaping an href
   alone cannot block executable schemes. Regression checks live in
   `tests/service-rendering.test.mjs` and the optional real-browser suite.
+- QR/request and admin activity lists use the shared Node `lib/record-list.ts`
+  contract: max 100 rows, bound literal search, strict enums/dates and filter-bound
+  timestamp/ID cursors. Authenticate every page; preserve account-lock proxy
+  rechecks, five-second/two-MiB upstream bounds and redirect rejection. Browser
+  filter generations and session epochs discard late results; lock cancels timers
+  and scrubs page state. Counts include the loaded QR page/all manual work, receiver
+  history includes only loaded QR rows, and activity CSV exports one page. See
+  [record browsing policy](docs/RECORD-LISTS.md). Pagination is not retention,
+  complete history, snapshot consistency or a database backup.
 - Public submissions save requests for staff review; no email draft/delivery is
   attempted. GPS remains required, with a contact-staff fallback on failure.
   Automatic server email and a Monday reporting job are not implemented.

@@ -69,8 +69,9 @@ test("staff service and event renderers escape records and omit unsafe map ancho
   const request = { id: attack, action: "Reactivate / Refresh", status: attack, requestedAt: "2026-10-05T18:00:00Z", notes: attack };
   const entry = { id: "event", title: attack, notes: attack };
   const context = vm.createContext({ URL, $: get, currentUser: { role: "admin" }, receiverEvents: [entry], openModal() {},
+    requestPager:{loading:false,error:"",index:0,next:null},remoteActivations:[],
     formatUndoTime: (value) => value, allActivationRows: () => [{ request, receiver: { assetNumber: attack }, account: { name: attack } }] });
-  vm.runInContext(functions(["esc", "highlightMatch", "safeMapsLink", "renderActivations", "openReceiverEvent"]), context);
+  vm.runInContext(functions(["esc", "highlightMatch", "safeMapsLink", "recordPageControls", "renderActivations", "openReceiverEvent"]), context);
   for (const mapUrl of unsafeMaps) {
     request.mapUrl = mapUrl; entry.mapUrl = mapUrl;
     context.renderActivations(); context.openReceiverEvent("event");
@@ -84,6 +85,21 @@ test("staff service and event renderers escape records and omit unsafe map ancho
   context.renderActivations(); context.openReceiverEvent("event");
   for (const id of ["activationRows", "receiverEventBody"])
     assert.match(get(id).innerHTML, /href="https:\/\/maps.google.com\/\?q=31.9,-102.2"/);
+});
+
+test("nonempty administrative activity formats historical dates and escapes private API text", () => {
+  const nodes = new Map();
+  const get = (id) => { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); };
+  const context = vm.createContext({ $: get, activityPager: { loading: false, error: "", index: 1, next: "opaque" },
+    activityRecords: [{ user_name: attack, action: attack, revision: 7, created_at: "2025-10-01T14:00:00Z" }] });
+  vm.runInContext(functions(["esc", "formatHistoryDate", "activityType", "filteredActivity", "recordPageControls", "renderActivity"]), context);
+  context.renderActivity();
+  assert.match(get("activityList").innerHTML, /2025/);
+  assert.match(get("activityList").innerHTML, /&lt;img/);
+  assert.equal(get("activityList").innerHTML.includes("<img "), false);
+  assert.match(get("activitySummary").textContent, /Page 2: 1 matching event/);
+  assert.equal(get("exportActivityButton").disabled, false);
+  assert.equal(context.formatHistoryDate("not a date"), "");
 });
 
 test("printed QR destinations reject unsafe URLs and contain only the stable receiver ID", () => {

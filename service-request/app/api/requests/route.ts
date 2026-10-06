@@ -1,3 +1,4 @@
+import { ListingInputError, literalSearch, readRecordList, recordPage } from "../../../../lib/record-list";
 import { database } from "../../../lib/database";
 import { authorized, failure, fields, InputError, json, readBody, submission, text } from "../../../lib/input";
 import { lookupAsset } from "../../../lib/asset-lookup";
@@ -81,16 +82,32 @@ export async function POST(request: Request) {
   } catch (error) { return failure(error, "Unable to submit the service request. Please try again later."); }
 }
 
-// Full metadata is available only to the authenticated staff proxy. The newest
-// 500 non-deleted rows are returned; pagination of older pending rows is DATA-06.
+// Full metadata is available only to the authenticated staff proxy.
+// Every page requires the internal bearer credential. Public submissions never
+// gain list access. Return bounded pages without removing historical records.
 export async function GET(request: Request) {
   if (!authorized(request)) return json({ error: "Unauthorized" }, 401);
   try {
-    const result = await database().prepare(
-      "SELECT * FROM service_requests WHERE deleted_at IS NULL ORDER BY requested_at DESC LIMIT 500",
-    ).all<RequestRow>();
-    return json({ requests: result.results.map(mapRow) });
-  } catch (error) { return failure(error, "Unable to load requests."); }
+    const list = readRecordList(new URL(request.url), "requests");
+    const values: unknown[] = [], conditions = ["deleted_at IS NULL"];
+    const bind = (value: unknown) => { values.push(value); return `$${values.length}`; };
+    if (list.status !== "all") conditions.push(`status = ${bind(list.status)}`);
+    // Search metadata saved with the request. Current inventory can differ; the
+    // public lookup remains separate and never exposes these private fields.
+    if (list.q) conditions.push(`concat_ws(' ', asset_number, model, receiver_type, serial_number, rid,
+      access_card, account_number, account_name, recorded_location, office, action, status, error_code,
+      requester_name, requester_phone, operator_name, rig_frac, lease, notes) ILIKE ${bind(literalSearch(list.q))} ESCAPE '\\'`);
+    if (list.after) conditions.push(`(requested_at, id) < (${bind(list.after.time)}, ${bind(list.after.id)})`);
+    // An extra row detects another page without a total-count scan. Timestamp/ID
+    // navigation tolerates newer arrivals and deletion of the previous anchor.
+    const rows = await database().prepare(`SELECT * FROM service_requests WHERE ${conditions.join(" AND ")}
+      ORDER BY requested_at DESC, id DESC LIMIT ${bind(list.limit + 1)}`).bind(...values).all<RequestRow>();
+    const { records, page } = recordPage(rows.results, list, (row) => row.requested_at);
+    return json({ requests: records.map(mapRow), page });
+  } catch (error) {
+    if (error instanceof ListingInputError) return json({ error: error.message }, 400);
+    return failure(error, "Unable to load requests.");
+  }
 }
 
 const validId = (value: unknown) => {

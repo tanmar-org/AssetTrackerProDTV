@@ -1380,3 +1380,108 @@ Publication: implementation commit `5280176` pushed to
 [PR #28](https://github.com/tanmar-org/AssetTrackerProDTV/pull/28). Publication
 references are bundled into this same PR. Owner review/merge and any later
 production rollout remain pending; no merge or deployment was performed.
+
+## 2026-10-06 09:50 CDT — Older QR requests and administrator activity (DATA-06-LISTING)
+
+### Merged baseline and implementation
+
+Confirmed owner merge of [PR #28](https://github.com/tanmar-org/AssetTrackerProDTV/pull/28)
+at `bc9f0af` (09:25 CDT). Branched `Dev/request-activity-pagination` from that current
+`origin/main`; the active worktree was clean. Preserved the original checkout's
+unrelated authentication-file edits. No production configuration/database/service
+or live label destination was changed.
+
+Private request and administrator activity GET previously returned only the newest
+500 rows; browser filters searched only that subset. Added a shared Node listing
+contract, PostgreSQL search/status or search/type/date filters, stable timestamp/ID
+cursors, and default/max 100-row pages. Queries bind literal search values, fetch
+one extra row to detect another page and exclude request tombstones. Authentication
+applies to every page; cursors bind filters/size/endpoint and confer no permissions.
+Tracker `0004_activity_pagination.sql` and requests `0003_request_pagination.sql`
+add ordered indexes without modifying earlier checksums, rows or grants.
+
+The staff proxy validates the same allowlisted query before forwarding to its
+configured endpoint, retains the account-lock session/role recheck and five-second
+upstream authorization bound, rejects redirects, and caps streamed responses at
+two MiB. Errors remain redacted. The separate QR database's public submission,
+GPS/rate/unique-pending controls and private bearer boundary are unchanged.
+
+Staff controls load one remote page, reset on filters/refresh/view changes/status
+mutations and keep matching manual inventory requests on each page with an explicit
+notice. Tiles count the loaded QR page plus all manual work. Request search matches
+submission-time metadata even when current receiver association displays a rename.
+Activity CSV exports only the current filtered page. Receiver-history labels/help
+identify its loaded-QR scope. Date filters use local calendar days and advance to
+an exclusive next day across DST. Debounced filters invalidate older responses
+immediately; session lock clears timers, rows, cursors and private DOM. Asset
+references advance to version 65.
+
+### Rendering issue found during verification
+
+Nonempty administrator activity revealed an inherited undefined
+`formatHistoryDate` call. The summary updated but activity rows failed to render;
+user status and recovery lists referenced the same missing helper. Restored a
+commented year/second-inclusive local formatter with invalid-date fallback and
+added an actual nonempty renderer/escaping regression. Chromium retains real
+nonempty activity, navigation and downloaded CSV assertions.
+
+The first default run was **68 passed / 1 failed** because the existing function-
+extraction HTML safety fixture needed the new pager state/control helper. Updated
+that fixture while retaining all original unsafe-map/HTML assertions. The first
+full Chromium run was **34 passed / 5 failed / 1 cancelled**: the new fixture visited
+the directory URL, which serves a 404, instead of the staff `index.html`. Corrected
+only its route. The subsequent focused run exposed the real missing formatter;
+fixed the application and added the regression. Final focused Chromium **6/6** and
+full Chromium **40/40** passed; no retries or relaxed privacy/security assertions.
+
+### Final validation
+
+Both fresh webpack builds and both standalone TypeScript checks passed. Staff
+full default suite **70 passed / 0 failed**, QR default **4 passed / 0 failed**, full
+PostgreSQL/HTTP suite **95 passed / 0 failed**, full Chromium **40 passed / 0 failed**.
+Tests use only synthetic local records. SQL scenarios exceed 600 rows with equal
+timestamps, find oldest pending requests, visit all pages without repeats, insert
+newer rows/delete anchors, check literal wildcard/quote searches, category and real
+date boundaries, strict filters/cursor binding, both private endpoints, cookie/bearer
+permissions and revocation. Proxy tests reject invalid filters before forwarding,
+redirects and oversized bodies; existing timeout/lock rechecks still pass. Paired
+backup/restore drills verify the new migrations and indexes with restricted roles.
+
+Chromium checks actual Previous/Next controls, manual-row scope, filters/renames,
+late same-login responses, lock cleanup, outage clearing, page CSV and a 25-hour
+America/Chicago DST date selection. Outside traffic is blocked; API fixtures prove
+UI behavior, while PostgreSQL proves server permissions/SQL.
+
+Focused changed-code/test lint, browser syntax and diff checks passed. Full root
+lint retains **2 inherited vendor errors / 146 warnings**; QR lint passes with its
+**3 inherited image warnings**. No vendor edits, dependency changes or advisory
+submissions. The QR build retains the multiple-lockfile workspace-root warning;
+repository layout is documented and both builds pass. Some PostgreSQL teardown
+emits the recorded generic idle-connection notice; all scenarios passed. Cleanup
+confirmed **0** fixture databases and **0** fixture roles, then stopped the private
+synthetic PostgreSQL cluster.
+
+AGENTS, TODO, development/self-hosting/public-request/import guides and the new
+[record browsing policy](docs/RECORD-LISTS.md) document the contract, migration,
+UI/count/export scope, comments and verification. DATA-06-LISTING is implemented;
+retention/archiving and measured storage/search capacity remain open subitems.
+Pagination does not provide a snapshot, purge policy, complete QR receiver history
+or a full audit/database export. Broad filters can still scan many records; imported
+malformed/non-UTC/oversized historical values require MIG-01 reconciliation.
+
+### Next useful implementation and publication
+
+Next DATA-02: completing QR work currently updates its database before the browser
+saves receiver history to the tracker. A failed second save/tab closure can leave
+completed status without the corresponding history. Add a durable server operation,
+retry/duplicate protection and explicit pending/failure handling, with permissions
+preserved and interruptions tested between both writes. Keep the separate databases;
+client sequencing alone cannot guarantee recovery. Afterward QA-02 should make
+full lint useful again through a verified-vendor policy/application fixes.
+Company access/mail/domains/services/off-server backup and real-device/cutover
+acceptance remain deployment decisions.
+
+Publication: implementation and bundled documentation are prepared on
+`Dev/request-activity-pagination` for one PR against `main`; owner final review/
+merge and any production rollout remain separate. The PR reference follows after
+creation in this same branch; no merge or deployment was performed.

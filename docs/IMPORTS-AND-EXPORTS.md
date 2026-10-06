@@ -108,3 +108,9 @@ workers/file inputs, Apply buttons, recorded PUT/PATCH requests and downloaded
 CSV files with outside traffic blocked. Real PostgreSQL tests cover server
 permissions, revisions, persistence and recovery separately. No live records are
 used for these checks.
+
+Activity CSV now exports the currently loaded filtered page (up to 100 events),
+not all retained activity. Its button and result message identify this scope.
+The CSV protection described above still applies. Use Previous/Next or narrower
+server filters to browse older events; use complete PostgreSQL backups for recovery.
+See [record browsing policy](RECORD-LISTS.md).
