@@ -22,8 +22,8 @@ on every path. This is not a D1 emulator or a SQL translation layer.
 
 Use two databases with separate application roles. Tracker tables are `app_users`,
 `app_sessions`, `app_change_log`, `app_state`, `app_state_history`,
-`app_inventory_drafts`, and `app_service_operations`. The requests
-database contains `service_requests`, `request_rate_limits`, and
+`app_inventory_drafts`, `app_service_operations`, and `app_login_rate_limits`.
+The requests database contains `service_requests`, `request_rate_limits`, and
 `service_request_operations`. Each has operator-owned `schema_migrations`.
 
 Operational inventory remains one JSONB state document with explicit record and
@@ -76,7 +76,7 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO assettracker_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON
   app_users, app_sessions, app_change_log, app_state, app_state_history,
-  app_inventory_drafts, app_service_operations
+  app_inventory_drafts, app_service_operations, app_login_rate_limits
   TO assettracker_runtime;
 ```
 
@@ -95,6 +95,9 @@ Each app's `.env.local` contains **only runtime settings** from its `.env.exampl
 - `ADMIN_SHARED_SECRET`: the same newly generated server-only credential in both apps.
 - `SERVICE_REQUEST_API_URL`: tracker-only, the trusted QR server's `/api/requests` URL.
 - `TRACKER_ASSET_API_URL`: QR-only, the trusted tracker `/api/service-assets` URL.
+- `LOGIN_PROXY_SECRET`: tracker-only; authenticate the reverse proxy's overwritten
+  client-IP/secret headers for shared staff login limits. See
+  [staff login ingress and limits](STAFF-AUTHENTICATION.md).
 - `REQUEST_PROXY_SECRET`: QR-only; authenticate the production reverse proxy's
   overwritten client-IP/secret headers. See [the ingress policy](PUBLIC-REQUEST-SECURITY.md).
 
@@ -151,9 +154,11 @@ staff sign-in gate. Unlocking alone does not revoke sessions. Account changes,
 revocation, and audit writes share one transaction; audit failure cancels the change.
 
 These protections retain the existing 4–8 digit PIN policy and 12-hour sessions.
-Company SSO/outer access controls, broader traffic throttling, and durable conflict
-resolution remain AUTH-01/DATA-01 tasks before deployment. Shared-device code now
-uses tab memory, server-bound session contexts, acknowledged sign-out/retry, and
+Shared login traffic limits are implemented in tracker migration 0006. AD
+username/password integration remains AUTH-01; the owner chose private AD access
+and no MFA. Current PIN login does not implement AD authentication. See
+[staff login policy](STAFF-AUTHENTICATION.md) for limits and required ingress.
+Shared-device code now uses tab memory, server-bound session contexts, acknowledged sign-out/retry, and
 administrator cleanup of quarantined legacy storage. Ship server/UI together,
 reload old tabs and update staff integrations to supply the session context header.
 Export/reconcile/remove older device caches before handoff under DATA-04-ROLLOUT.
@@ -305,3 +310,19 @@ rent conflicts, shutdown, retention and restored-operation approval. Updating th
 supported backup catalog means new backup sets require the current migrations;
 older archives need a separately reviewed upgrade plan before this restore tool
 can accept them. Do not edit recorded migration checksums or bypass verification.
+
+## Staff login traffic upgrade
+
+Apply tracker `0006_login_rate_limits.sql` using its migration owner and grant the
+tracker runtime SELECT/INSERT/UPDATE/DELETE on `app_login_rate_limits` before
+shipping the updated staff server. Readiness and login fail closed without the
+new table/grants. Add SELECT to the backup role's explicit grants as well. Complete
+archives/restore drills include these counters; old archive schemas need a reviewed
+upgrade plan and cannot bypass checksum/catalog verification.
+
+Production internet ingress must configure a fresh server-only `LOGIN_PROXY_SECRET`
+and overwrite both trusted login headers, with the staff Node backend inaccessible
+from the internet. Blank permits local development using global/username limits
+only. See [staff authentication](STAFF-AUTHENTICATION.md) for the exact protocol,
+fixed-window limits and remaining AD integration. No AD settings or production
+services are changed by merging this code.

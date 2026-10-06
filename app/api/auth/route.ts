@@ -4,6 +4,7 @@ import {
   hashPin, normalizeUsername, validatePin, validateUsername, sessionContext, tokenContext,
 } from "../../../lib/pin-auth";
 import { accessError, readAccessBody } from "../../../lib/access-input";
+import { guardLogin } from "../../../lib/login-rate-limit";
 
 // Server-only PostgreSQL connections require the Node runtime and fresh responses.
 export const runtime = "nodejs";
@@ -38,6 +39,12 @@ export async function POST(request: Request) {
     const pin = body.pin;
     if (!validateUsername(name) || !validatePin(pin))
       return Response.json({ error: "Enter a username such as jdoe and a 4–8 digit PIN." }, { status: 400 });
+
+    // Commit the shared budget BEFORE account lookup, PIN hashing or row-lock
+    // waits. Unknown usernames and separate Node processes use the same gate;
+    // a later authentication failure/outage cannot roll back this reservation.
+    const limited = await guardLogin(request, name, db());
+    if (limited) return limited;
 
     return await db().transaction(async (tx) => {
       // A row lock serializes attempts for this account across server processes.
@@ -81,7 +88,11 @@ export async function POST(request: Request) {
         sessionContext: await tokenContext(session.token) },
         { headers: { "set-cookie": session.cookie, "cache-control": "no-store" } });
     });
-  } catch (error) { return accessError(error, "Unable to sign in."); }
+  } catch (error) {
+    const response = accessError(error, "Unable to sign in.");
+    response.headers.set("cache-control", "no-store");
+    return response;
+  }
 }
 
 export async function DELETE(request: Request) {

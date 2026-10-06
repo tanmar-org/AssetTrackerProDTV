@@ -69,6 +69,8 @@ test("complete PostgreSQL backup and isolated restore",{timeout:120000},async t=
   await tracker.database.prepare("INSERT INTO app_state VALUES ('tanmar-receiver-control',$1,2,$2,'testadmin')").bind(JSON.stringify(state),when).run();
   await tracker.database.prepare("INSERT INTO app_state_history VALUES ($1,1,$2,'Before synthetic backup',$3,'testadmin')").bind(randomUUID(),JSON.stringify(inventory()),when).run();
   await tracker.database.prepare("INSERT INTO app_change_log VALUES ($1,$2,'testadmin','Synthetic data setup',2,$3)").bind(randomUUID(),user.id,when).run();
+  // Login traffic metadata is part of a complete tracker database archive too.
+  await tracker.database.prepare("INSERT INTO app_login_rate_limits VALUES ('synthetic-login-budget',1,4102444800)").run();
   await tracker.database.prepare("INSERT INTO app_inventory_drafts VALUES ($1,$2,1,2,$3,$3,'Synthetic paused copy','active',now(),now()+interval '7 days')")
     .bind(randomUUID(),user.id,JSON.stringify(state)).run();
   await requests.database.prepare(`INSERT INTO service_requests (id,asset_id,asset_number,account_number,requester_name,requester_phone,error_code,latitude,longitude,gps_accuracy,gps_captured_at,requested_at)
@@ -88,7 +90,7 @@ test("complete PostgreSQL backup and isolated restore",{timeout:120000},async t=
   await t.test("read-only sources produce private, complete archives with matching snapshot evidence",async()=>{
     set=await backupDatabases(backupConfig,backupRoot);
     manifest=JSON.parse(await readFile(path.join(set,"manifest.json"),"utf8"));
-    assert.equal(manifest.version,1);assert.equal(manifest.databases.tracker.tables.length,8);assert.equal(manifest.databases.requests.tables.length,4);
+    assert.equal(manifest.version,1);assert.equal(manifest.databases.tracker.tables.length,9);assert.equal(manifest.databases.requests.tables.length,4);
     for(const app of ["tracker","requests"]){
       const record=manifest.databases[app];assert.equal(record.identity.user,backupRole);assert.match(record.sha256,/^[a-f0-9]{64}$/);
       assert.ok(record.tables.every(table=>Number(table.rows)>0));
@@ -105,6 +107,7 @@ test("complete PostgreSQL backup and isolated restore",{timeout:120000},async t=
     assert.equal((await trackerTarget.database.prepare("SELECT pin_hash FROM app_users").first()).pin_hash,user.pin_hash);
     assert.equal(Number((await trackerTarget.database.prepare("SELECT count(*) AS total FROM app_sessions").first()).total),0);
     assert.equal((await trackerTarget.database.prepare("SELECT draft_state FROM app_inventory_drafts").first()).draft_state.accounts[0].number,"000001");
+    assert.equal((await trackerTarget.runtime.prepare("SELECT hits FROM app_login_rate_limits WHERE bucket_key='synthetic-login-budget'").first()).hits,1);
     assert.equal(Number((await trackerTarget.database.prepare("SELECT count(*) AS total FROM app_state_history").first()).total),1);
     assert.ok(await trackerTarget.database.prepare("SELECT id FROM app_change_log WHERE action='Restored database; previous sessions revoked'").first());
     const restoredOperation=await trackerTarget.runtime.prepare("SELECT * FROM app_service_operations").first();

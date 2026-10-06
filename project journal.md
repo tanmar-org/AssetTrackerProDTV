@@ -4,8 +4,11 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/github-validation`, based on merged
-  `main` at `eac2bba` (owner merged PR #31).
+- Development branch: `Dev/ad-authentication`, based on merged
+  `main` at `396be11` (owner merged PR #32). Current task implements shared login
+  traffic protection ahead of AD integration in
+  [PR #33](https://github.com/tanmar-org/AssetTrackerProDTV/pull/33); documentation
+  is bundled. Initial hosted validation passes 269 checks; owner review is pending.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -48,15 +51,19 @@
   [PR #30](https://github.com/tanmar-org/AssetTrackerProDTV/pull/30) are merged by
   the owner. QA-02's zero-warning lint/vendor baseline in
   [PR #31](https://github.com/tanmar-org/AssetTrackerProDTV/pull/31) is merged by
-  the owner. QA-01-CI automated validation is implemented on this branch in
+  the owner. QA-01-CI automated validation is merged in
   [PR #32](https://github.com/tanmar-org/AssetTrackerProDTV/pull/32). The full hosted
-  check passed; owner review/merge is pending. No application runtime code,
+  check passed; owner merged PR #32 at `396be11`. No application runtime code,
   migration, dependency version or lockfile changes are included in the CI task.
   Production deployment has not started; scheduled/off-server backups are not configured.
-- Next task after CI review: confirm AUTH-01 staff access policy. Existing PINs
-  do not define whether staff use company network/VPN or internet company SSO.
-  Owner clarification is pending; the public customer QR form remains separate.
-  Prepare ingress/login traffic controls from the approved access direction,
+- Current AUTH-01 direction: owner confirmed internet staff access, AD-only
+  infrastructure, private VM-to-AD connectivity and explicitly no MFA. Plan direct
+  private, certificate-validated LDAPS username/password verification; existing
+  app permissions and stable identity ownership must survive the transition.
+  Shared login traffic counters are implemented first; AD sign-in is not active.
+  Earlier broker/MFA recommendations are superseded by these confirmed choices.
+  Public customer QR access remains separate.
+  Prepare browser identity integration and ingress/login traffic controls,
   without exposing either app before deployment approval. GitHub check results
   do not configure branch protection or replace owner review/actual-device checks.
   DATA-03-ROLLOUT still requires approved encrypted off-server storage, schedule,
@@ -1812,3 +1819,147 @@ final documentation commit triggers another full check. Review the latest PR
 commit's result, since the linked run above proves the implementation commit.
 Owner review/merge and optional required-check rules remain separate. The hosting
 VM's private PostgreSQL cluster stayed stopped; no deployment was performed.
+
+## 2026-10-06 — Initial internet/AD review before owner clarification (America/Chicago)
+
+Owner confirmed PR #32 merged and chose internet staff access, explaining there is
+no company SSO and AD is on premises. GitHub confirmed merge
+`396be11d149aa028d416f695ab27a50c944391eb` at 11:53:23 CDT. Fetched main and created
+`Dev/ad-authentication` from that merge with a clean active worktree; the original
+checkout's unrelated auth edit remains untouched. The final CI PR commit
+`a0b793d` also passed hosted run 37498049069 (84 staff/4 QR/111 SQL/51 Chromium,
+zero failures/canceled/skipped and zero leftover fixtures), as recorded in PR #32.
+
+Reviewed current login/session/account code: authentication still verifies local
+4–8 digit PINs in PostgreSQL, with per-user locks and 12-hour application sessions.
+It has no AD/OIDC/LDAP integration. Application roles, active-account checks,
+revocation locks, session contexts and recovery-copy ownership must remain enforced
+when changing the identity source. Initial review proposed identity integration
+and an MFA/access policy; existing PIN checks do not implement AD. The owner
+subsequently chose no MFA, as recorded below.
+
+Checked authoritative Microsoft AD FS and Keycloak documentation. AD FS supports
+OpenID Connect; Keycloak supports AD/LDAP federation, OpenID Connect and MFA. If
+there is no suitable existing identity service, recommend a self-hosted broker such
+as Keycloak: browser HTTPS sign-in/MFA, private encrypted directory access, and
+verified OIDC sign-in for the tracker. AD domain controllers remain private. This
+is a proposal, not approval to install a broker, expose endpoints or change AD.
+Provider operations add maintenance/backup responsibility. Existing Entra/AD FS
+availability should be checked before adding another service.
+
+Asked the owner about existing AD FS/Entra/other identity services, the VM's private
+reachability to AD and current MFA. Those answers are needed before choosing the
+integration; no time-based assumption was made. No AD credentials/server addresses
+were requested, and no directory/network scan or connection was attempted. No
+runtime code/dependency/migration/auth configuration or production setting changed.
+Recorded confirmed requirements/open decisions in TODO and this handoff, to bundle
+with the eventual implementation rather than opening a minor documentation PR.
+Documentation diff checks pass; runtime tests were not rerun for these notes.
+
+References: [Microsoft AD FS protocols](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-openid-connect-oauth-flows-scenarios),
+[Keycloak AD federation and authentication](https://www.keycloak.org/docs/26.8.0/server_admin/).
+
+## 2026-10-06 — Shared staff login traffic protection (America/Chicago)
+
+### Owner decisions and focused scope
+
+Owner answered no existing identity service, yes private VM-to-AD connectivity,
+no current MFA, and explicitly requested no MFA. Recorded AUTH-01-POLICY and
+superseded the earlier broker/MFA proposal. Planned direct private LDAPS with
+certificate/hostname verification, AD username/password UI and explicit immutable
+objectGUID linking to existing app users. App IDs, permissions, draft ownership,
+session contexts and revocation must survive the change. No broker/MFA installed;
+no real AD address/password requested, scan/connection attempted or directory
+setting changed. The adapter itself remains AUTH-01-INTEGRATION.
+
+Chose AUTH-01-TRAFFIC as the first reviewable implementation step: current
+per-account PIN lockout does not bound unknown-username lookups/legacy alias scans.
+Internet AD login will also need a shared gate before directory work. Development
+branch `Dev/ad-authentication` starts from the owner's merged PR #32 at `396be11`.
+No separate minor documentation PR is planned.
+
+### Implementation and operator requirements
+
+- Added tracker `0006_login_rate_limits.sql` and Node helper
+  `lib/login-rate-limit.ts`. Eligible staff sign-ins reserve one committed shared
+  PostgreSQL budget before account lookup, PIN hashing or user-row locking:
+  300 global / 60 authenticated client / 30 canonical username per fixed minute.
+  Saturated counters and early stop bound arbitrary-selector allocation. Expired
+  rows are pruned; all server processes share limits, including unknown users.
+- Return noncacheable 429 with a bounded Retry-After and no new cookie. Success,
+  incorrect credentials and later account lookup failure consume reservations;
+  counter/schema failures return generic 503 without continuing authentication.
+  Existing PIN lockout, permissions/session locks and shared-device behavior stay
+  enforced. Browser-marked cross-site login fails before reservations.
+- Added `LOGIN_PROXY_SECRET` and authenticated overwritten ingress headers.
+  Configured missing/forged/invalid ingress fails closed; plain forwarded IPs are
+  ignored. Blank is local development only, with global/username limits. Raw
+  selectors/credentials are not stored; hashed keys remain private metadata.
+- Added readiness's counter-table read, explicit restricted fixture grants,
+  backup catalog/restore grants and seeded restore verification. Historical
+  migrations were not edited. Operator must migrate/grant the new table, extend
+  backup SELECT grants and configure trusted HTTPS ingress before rollout. Older
+  archives require reviewed schema upgrades, not skipped checksum/catalog checks.
+- Bundled owner decisions, instructions, TODO, README, setup/development/recovery
+  guides and new `docs/STAFF-AUTHENTICATION.md`. No application dependency,
+  lockfile, QR runtime/UI, production database/service or AD configuration changed.
+
+### Validation on this VM
+
+Both production builds and standalone TypeScript checks pass. The initial staff
+build found an overly narrow inferred bucket-limit array type; fixed it with an
+explicit number type before the successful build. Both lint gates pass with zero
+warnings, including vendor byte/license/SRI validation; `git diff --check` passes.
+Restricted Node execution misleadingly reported one test-file pass, so it was
+repeated with child-process permissions and actual named scenarios verified.
+
+- Staff default: **89/89** checks pass, including five new ingress/cross-site checks.
+- QR default: **4/4** checks pass.
+- New targeted real PostgreSQL/HTTP suite: **14/14** checks pass (13 scenarios
+  plus the parent), then included in the full SQL run below.
+- Full PostgreSQL/HTTP/backup suite: **125/125** checks pass. Independent pools
+  and three real Node servers prove all ceilings, concurrent admissions, expiry,
+  forged ingress rejection, canonical aliases, successful/incorrect/unknown
+  credentials, committed account-outage reservations, bounded cardinality,
+  missing counter schema/readiness and denial before account reads. Existing
+  account, inventory/draft, QR and complete backup/restore regressions also pass.
+- Chromium: **51/51** checks pass across existing staff and QR workflows.
+- Total across the four complete suites: **269** checks, zero failures,
+  canceled or skipped. The targeted 14 are already included, not counted twice.
+
+Only the existing private socket-only PostgreSQL 18.6 cluster and synthetic
+fixtures were used; cleanup query returned **0** remaining fixture databases/roles
+and the cluster was stopped after verification. Generic idle-connection notices
+occurred during intentional fixture teardown; all named scenarios and cleanup
+passed. The original checkout's unrelated auth edit remains untouched.
+
+### Next priority and limits
+
+Published this login-protection PR for owner review; inspect fresh hosted checks
+on its final commit. After owner merge, implement the bounded private LDAPS
+adapter and password UI, explicitly map AD identities to app users and define
+session invalidation/directory rechecks/operator recovery. This replaces the
+local PIN identity check while keeping users' existing roles and saved work.
+AD sign-in is not enabled by this task. Fixed-window budgets can admit boundary
+bursts and temporarily delay legitimate users under abuse; they do not replace
+edge limits or guarantee compliance with AD's lockout policy. No production
+exposure, deployment, live migration or AD connection was performed.
+
+### Publication and independent hosted evidence
+
+Committed implementation `83d2882` and pushed `Dev/ad-authentication`; opened
+[PR #33](https://github.com/tanmar-org/AssetTrackerProDTV/pull/33) targeting main and
+attached it to this task. GitHub's GraphQL create endpoint failed twice and the
+first REST attempt returned an empty response; read-only checks confirmed no PR
+before each retry. The next REST attempt created one PR successfully. No duplicate
+PR, merge, auto-merge or main push occurred.
+
+[Hosted run 37521819264](https://github.com/tanmar-org/AssetTrackerProDTV/actions/runs/37521819264)
+for implementation `83d2882` completed successfully: staff **89**, QR **4**, SQL
+**125**, Chromium **51**, total **269**, zero failed/canceled/skipped. Verified
+named scenario logs and **0** remaining synthetic fixture databases/roles. Both
+builds/types/lint, workflow validation, repository cleanliness and teardown pass.
+This is fresh hosted evidence, separate from the VM totals. The bundled final
+documentation commit triggers a new full run; review its latest check result in
+PR #33. The PR description records that final result after verification. Owner
+retains final review/merge; production and AD remain untouched.

@@ -38,7 +38,8 @@ test("Node/PostgreSQL integration", async (t) => {
   });
   const api = (path, method, body, cookie) => call(staffServer, path, method, body, cookie);
   const count = async (table) => Number((await tracker.database.prepare(`SELECT COUNT(*) AS total FROM ${table}`).first()).total);
-  const reset = () => tracker.database.prepare("TRUNCATE app_service_operations, app_inventory_drafts, app_sessions, app_users, app_change_log, app_state, app_state_history").run();
+  // Isolate this scenario's login budget together with its accounts/sessions.
+  const reset = () => tracker.database.prepare("TRUNCATE app_login_rate_limits, app_service_operations, app_inventory_drafts, app_sessions, app_users, app_change_log, app_state, app_state_history").run();
   const signIn = async (credentials = fixture) => {
     const response = await api("/api/auth", "POST", { action: "login", ...credentials });
     assert.equal(response.status, 200);
@@ -54,7 +55,7 @@ test("Node/PostgreSQL integration", async (t) => {
 
   await t.test("migrations are repeatable, checksummed, and cannot mix applications", async () => {
     await migrate(tracker.database, "tracker");
-    assert.equal(Number((await tracker.database.prepare("SELECT COUNT(*) AS total FROM schema_migrations").first()).total), 5);
+    assert.equal(Number((await tracker.database.prepare("SELECT COUNT(*) AS total FROM schema_migrations").first()).total), 6);
     await assert.rejects(migrate(tracker.database, "requests"), /other application/);
     await tracker.database.prepare("UPDATE schema_migrations SET checksum = 'synthetic-changed-checksum' WHERE name = 'tracker/0001_initial.sql'").run();
     await assert.rejects(migrate(tracker.database, "tracker"), /has changed/);

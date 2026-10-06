@@ -23,7 +23,8 @@ test("account-owned PostgreSQL draft recovery", async t => {
     assert.equal(response.status, 200); return response.headers.get("set-cookie").split(";")[0];
   };
   const setup = async () => {
-    await tracker.database.prepare("TRUNCATE app_inventory_drafts, app_sessions, app_users, app_state, app_state_history, app_change_log").run();
+    // Isolate this scenario's login budget together with its accounts/sessions.
+    await tracker.database.prepare("TRUNCATE app_login_rate_limits, app_inventory_drafts, app_sessions, app_users, app_state, app_state_history, app_change_log").run();
     await provisionAdmin(tracker.database, { name: "testadmin", pin: "482631" });
     const admin = await login("testadmin", "482631");
     assert.equal((await api("/api/users", "POST", { name: "testuser", pin: "593742" }, admin)).status, 200);
