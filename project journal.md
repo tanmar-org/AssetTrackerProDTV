@@ -1481,7 +1481,9 @@ full lint useful again through a verified-vendor policy/application fixes.
 Company access/mail/domains/services/off-server backup and real-device/cutover
 acceptance remain deployment decisions.
 
-Publication: implementation and bundled documentation are prepared on
-`Dev/request-activity-pagination` for one PR against `main`; owner final review/
-merge and any production rollout remain separate. The PR reference follows after
-creation in this same branch; no merge or deployment was performed.
+Publication: implementation commit `dca0fe1` pushed to
+`Dev/request-activity-pagination`; opened and attached
+[PR #29](https://github.com/tanmar-org/AssetTrackerProDTV/pull/29). Publication
+references and explicit staff-tab reload guidance are bundled into this same PR.
+Owner final review/merge and production rollout remain pending; no merge or
+deployment was performed.

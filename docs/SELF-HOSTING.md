@@ -267,7 +267,8 @@ behavior before deployment and use JSON/database backups for exact recovery.
 
 Apply tracker `0004_activity_pagination.sql` and requests
 `0003_request_pagination.sql` with their operator connections before shipping the
-matching applications/staff assets (version 65). They add ordered indexes only;
+matching applications/staff assets (version 65), then reload open staff tabs.
+They add ordered indexes only;
 no rows/tables/credentials change and existing runtime table grants still apply.
 Both applications import the shared listing contract from root `lib/record-list.ts`;
 retain the repository layout when installing/building the QR application.

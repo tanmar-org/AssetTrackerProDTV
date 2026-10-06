@@ -261,8 +261,9 @@ approval; unresolved owner/operational items remain listed below.
   filters. Staff Previous/Next controls retain one 100-row page and ignore late
   filter/session results. Tiles/history/CSV explicitly describe their limited scope.
   New ordered indexes preserve all rows; proxy input, redirects and response bytes
-  are bounded. Implemented on `Dev/request-activity-pagination`; owner review/merge
-  pending. See [record browsing policy](docs/RECORD-LISTS.md).
+  are bounded. Implemented on `Dev/request-activity-pagination` in
+  [PR #29](https://github.com/tanmar-org/AssetTrackerProDTV/pull/29); owner
+  review/merge pending. See [record browsing policy](docs/RECORD-LISTS.md).
 - [ ] DATA-06-RETENTION **Owner + operator decision** — Decide audit/request/history
   retention, archive access, and legal/business preservation needs. No purge policy
   is enabled; the existing 25 inventory snapshots are not complete audit recovery.

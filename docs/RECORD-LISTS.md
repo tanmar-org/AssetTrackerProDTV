@@ -94,7 +94,8 @@ reconciliation; the browser cannot override the limit.
 
 Apply tracker `0004_activity_pagination.sql` and requests
 `0003_request_pagination.sql` with operator connections, then ship both apps and
-staff assets together (version 65). Existing migration checksums and rows are
+staff assets together (version 65), then reload open staff tabs. Existing migration
+checksums and rows are
 preserved. Ordered timestamp/ID indexes support page navigation; QR also has a
 status-first partial index excluding tombstones. No new runtime table grants or
 backup table-catalog changes are needed. Restore verification includes the indexes
