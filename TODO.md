@@ -11,7 +11,8 @@ decision is recorded explicitly. The owner reviews and merges all changes from
    infrastructure, private VM-to-AD connectivity and password-only sign-in with
    no MFA. Owner merged shared login traffic protection in PR #33 at `1650417`.
    Private, certificate-validated LDAPS authentication and explicit stable identity
-   linking are implemented on `Dev/ad-password-signin` for owner review. Next verify
+   linking are implemented in [PR #34](https://github.com/tanmar-org/AssetTrackerProDTV/pull/34)
+   on `Dev/ad-password-signin` for owner review. Next verify
    the real endpoint/CA/restricted reader and reviewed administrator/user mappings
    before enabling it: synthetic tests cannot establish company AD policy behavior.
    Preserve existing app roles, recovery ownership and shared-device sign-out.
@@ -167,7 +168,8 @@ approval; unresolved owner/operational items remain listed below.
   Browser roles/activation remain app-managed; AD credentials/unlocks/linking do
   not pass through user management. AD mode has no PIN fallback or automatic
   username/email linking. Migration 0007/readiness, complete backup metadata and
-  recovery runbooks included on `Dev/ad-password-signin`. Implementation is tested
+  recovery runbooks included on `Dev/ad-password-signin` in
+  [PR #34](https://github.com/tanmar-org/AssetTrackerProDTV/pull/34). Implementation is tested
   against synthetic TLS/LDAP/SQL/Chromium only; owner review/merge still required.
 - [ ] AUTH-01-ROLLOUT — Operator approves/configures actual private LDAPS endpoint,
   scope, trusted CA, restricted reader and required attribute permissions. Migrate,

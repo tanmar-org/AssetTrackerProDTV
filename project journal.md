@@ -8,7 +8,9 @@
   `1650417` (owner merged PR #33). Current task implements opt-in private LDAPS
   password sign-in, explicit immutable identity linking and bounded session
   rechecks. Documentation is bundled; company AD configuration/acceptance and
-  deployment remain separate operator work. See the latest dated entry for evidence.
+  deployment remain separate operator work. Published
+  [PR #34](https://github.com/tanmar-org/AssetTrackerProDTV/pull/34) for owner review;
+  see the latest dated entry and final PR check/description for evidence.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -2065,3 +2067,13 @@ internet cutover. Synthetic tests cannot prove the company's AD behavior. HTTPS,
 trusted ingress, service supervision, backups/alerts, real data/device acceptance
 and approved mail delivery remain release work. AD mode is implemented but not
 configured or live; no automatic PIN fallback is available during an AD outage.
+
+### Publication and hosted validation
+
+Committed implementation `d61dca6`, pushed `Dev/ad-password-signin` and opened
+[PR #34](https://github.com/tanmar-org/AssetTrackerProDTV/pull/34) targeting main.
+Attached it to this task; no main push, merge, auto-merge or deployment occurred.
+This bundled documentation follow-up records the PR reference. The final-head
+full hosted check and its exact results are recorded in the PR description after
+verification; consult the latest `Validate applications` result, not an earlier
+head or the VM-only totals. Owner retains final review and merging.
