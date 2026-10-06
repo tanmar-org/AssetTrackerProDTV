@@ -2,7 +2,7 @@ import { createHash, X509Certificate } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import { connect, type TLSSocket, type ConnectionOptions } from "node:tls";
-import { Client, AndFilter, EqualityFilter, InvalidCredentialsError, type Entry, type Filter } from "ldapts";
+import { Client, Control, AndFilter, EqualityFilter, InvalidCredentialsError, type Entry, type Filter } from "ldapts";
 import { AccessInputError } from "./access-input.ts";
 
 export const directoryRecheckSeconds = 60;
@@ -126,6 +126,9 @@ async function directoryOperation<T>(config: AdConfiguration, operation: (client
 // GUIDs as Buffer values: string filter parsing would UTF-8 encode binary bytes.
 async function searchIdentity(client: Client, config: AdConfiguration, filter: Filter): Promise<AdIdentity | null> {
   await client.bind(config.reader, config.password);
+  // AD domain-root searches otherwise include referrals to DNS/other partitions.
+  // Require DOMAIN_SCOPE (no control value) to stay in one naming context; an
+  // unsupported control or any unexpected returned referral still fails closed.
   const result = await client.search(config.base, { scope: "sub", filter: new AndFilter({ filters: [
       new EqualityFilter({ attribute: "objectCategory", value: "person" }),
       new EqualityFilter({ attribute: "objectClass", value: "user" }), filter,
@@ -133,7 +136,7 @@ async function searchIdentity(client: Client, config: AdConfiguration, filter: F
     sizeLimit: 2, timeLimit: 2, paged: false, derefAliases: "never",
     attributes: ["objectGUID", "sAMAccountName", "userAccountControl", "msDS-User-Account-Control-Computed", "pwdLastSet", "accountExpires"],
     explicitBufferAttributes: ["objectGUID"],
-  });
+  }, new Control("1.2.840.113556.1.4.1339", { critical: true }));
   if (result.searchReferences.length || result.searchEntries.length > 1) throw unavailable();
   return result.searchEntries.length ? adIdentity(result.searchEntries[0]) : null;
 }

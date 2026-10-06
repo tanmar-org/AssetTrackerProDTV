@@ -7,7 +7,9 @@ LDAPS username/password verification, retaining application-managed roles and
 stable application user IDs. No identity broker or MFA is planned. Public customer
 QR submissions do not require a staff login and retain their separate controls.
 
-**AD sign-in is opt-in and has not been connected to the company's AD.** Set
+**AD sign-in is opt-in and is not active in a deployed application.** Owner-directed
+read-only acceptance has verified trusted TLS, the reader and one nominated
+identity; this does not establish personal-password login or application access. Set
 `AUTH_MODE=ad` only after the operator setup and acceptance below. Unconfigured
 local development retains PIN sign-in; partial AD settings without an explicit
 mode fail closed. AD mode rejects PIN login and old PIN sessions. Both modes use
@@ -121,6 +123,14 @@ browser configuration, Git, command arguments or chat:
 
 TLS verifies the certificate chain and hostname, with TLS 1.2 minimum. Plain LDAP,
 disabled certificate validation, referrals and automatic rebinding are unsupported.
+Every identity/status search sends the critical AD `DOMAIN_SCOPE` control
+(`1.2.840.113556.1.4.1339`, no value). A domain-root search otherwise can return the
+correct user alongside continuation references to DNS/other directory partitions.
+This control restricts the search to one naming context and prevents those normal
+references. An unsupported control or any unexpected returned reference still
+returns generic 503; there is no retry without the control or referral following.
+`AD_BASE_DN` must stay within the intended domain's naming context; accounts in
+another domain require a separately reviewed configuration rather than referrals.
 Reader permissions must allow the six required attributes: `objectGUID`,
 `sAMAccountName`, `userAccountControl`, `msDS-User-Account-Control-Computed`,
 `pwdLastSet` and `accountExpires`. Missing/malformed values fail closed with a
@@ -188,9 +198,8 @@ password hash. Approval is cached for **at most 60 seconds**, using PostgreSQL
 timestamps shared across Node processes. After that, authenticated requests must
 reread account status/GUID/password metadata through the reader. Initial approval
 is timestamped at directory verification; waiting for a SQL lock cannot extend it.
-A disabled,
-locked, deleted, expired or password-changed identity revokes sessions from that
-credential/configuration epoch. Directory failure returns 503 without extending
+A disabled, locked, deleted, expired or password-changed identity revokes sessions
+from that credential/configuration epoch. Directory failure returns 503 without extending
 approval; still-fresh cached approval can operate until its deadline. AD changes
 are not instant: this interval and AD replication apply. LDAP and PostgreSQL do
 not share a transaction, so a directory change immediately after a successful
@@ -214,16 +223,19 @@ verification or edit recorded checksums. See [database recovery](DATABASE-BACKUP
 ## Acceptance before internet access
 
 Synthetic TLS/LDAP, PostgreSQL and Chromium fixtures exercise the implementation;
-they have not connected to company AD. An operator must approve the real endpoint,
+they never connect to company AD. Separate owner-authorized read-only checks have
+verified the real reader's required attributes and one nominated identity by GUID;
+protected evidence remains outside Git. An operator must approve the real endpoint,
 scope, CA and restricted reader, install protected configuration, migrate and
 review every identity link. Verify actual login, directory lockout/expiry/reset/
 disablement, reader attribute access, certificate rejection/outages, recovery
 administrators and preserved app ownership against the company's policies.
 Logon-hour/workstation rules and replication depend on real AD behavior. Configure
-the trusted HTTPS ingress above and block direct backend access. No domain,
-production service, directory account, live migration or deployment was changed.
+the trusted HTTPS ingress above and block direct backend access. Read-only checks
+do not create directory accounts, link app users or configure production services.
 
 Primary references: [ldapts TLS, bind and search APIs](https://github.com/ldapts/ldapts),
+[AD single-naming-context search control](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ldap/ldap-server-domain-scope-oid),
 [AD objectGUID](https://learn.microsoft.com/en-us/windows/win32/adschema/a-objectguid),
 [computed lockout/password-expiry flags](https://learn.microsoft.com/en-us/windows/win32/adschema/a-msds-user-account-control-computed),
 [AD pwdLastSet](https://learn.microsoft.com/en-us/windows/win32/adschema/a-pwdlastset) and

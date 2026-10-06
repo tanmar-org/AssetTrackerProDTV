@@ -199,7 +199,8 @@ waiting on a transaction lock, and account/audit/session rollback. Existing-row
 upgrades test migration failure/retry without credential rewrites. Unit checks
 cover chunked UTF-8 body limits and malformed cookies before database work.
 AUTH-01 now records the owner's AD-only/private-connectivity/no-MFA decisions.
-AD authentication remains unimplemented; current PIN checks are still active.
+Opt-in AD authentication is merged in PR #34; local fixtures explicitly select
+their provider, and real application activation remains operator rollout work.
 Shared-device HTTP tests cover non-bearer contexts, missing/mismatched
 headers, shared-cookie changes, stale logout acknowledgement, failed deletion,
 revocation and logout account locking. Older tabs/integrations must reload/update
@@ -228,7 +229,12 @@ AD regressions use `tests/helpers/ldap-directory.mjs`, a real loopback TLS/LDAP
 server with freshly generated two-day synthetic certificates. OpenSSL must be
 available (installed on this VM and the hosted Ubuntu runner). Temporary keys/CA
 files and sockets are cleaned up; no company endpoint or credentials are used.
-The helper independently reads/writes LDAP BER, including known binary GUID bytes.
+The helper independently reads/writes LDAP BER, including known binary GUID bytes
+and request controls. Its default domain-root behavior returns three continuation
+references unless DOMAIN_SCOPE is requested. Regressions verify criticality/no
+control value, unsupported-control rejection without fallback/user bind, and
+unexpected-reference rejection. HTTP checks deny new logins and expired cached
+approvals for both failures without issuing a cookie or extending approval.
 Default tests cover certificates/hostname rejection, required account attributes,
 bounded operations and the total deadline. PostgreSQL/HTTP tests cover two staff
 processes, prior PIN sessions, explicit links/CAS/rollback, reused/renamed usernames,

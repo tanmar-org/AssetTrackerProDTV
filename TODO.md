@@ -12,9 +12,11 @@ decision is recorded explicitly. The owner reviews and merges all changes from
    no MFA. Owner merged shared login traffic protection in PR #33 at `1650417`.
    Private, certificate-validated LDAPS authentication and explicit stable identity
    linking are implemented in [PR #34](https://github.com/tanmar-org/AssetTrackerProDTV/pull/34)
-   on `Dev/ad-password-signin` for owner review. Next verify
-   the real endpoint/CA/restricted reader and reviewed administrator/user mappings
-   before enabling it: synthetic tests cannot establish company AD policy behavior.
+   merged by the owner at `b2c63a9`. Real TLS/reader/one reviewed identity now pass
+   owner-authorized read-only checks. Domain-root continuation references exposed
+   a compatibility issue, corrected on `Dev/ad-domain-scope`. After owner review,
+   configure the intended application database and reviewed GUID mappings, then
+   verify personal-password login and actual policy behavior before enabling it.
    Preserve existing app roles, recovery ownership and shared-device sign-out.
    AD sign-in is not active yet; public customer QR access remains separate.
 2. **Retain automated validation (QA-01-CI).** Owner merged PR #32 at `396be11`.
@@ -152,8 +154,8 @@ approval; unresolved owner/operational items remain listed below.
   confirmed no existing AD FS/Entra/SSO, private AD reachability, and no MFA on
   2026-10-06. Use direct private LDAPS with certificate/hostname verification;
   retain app-managed access/admin roles, stable user IDs/recovery ownership,
-  revocation and shared-device sign-out (DATA-04). No live AD connection or
-  production configuration is approved by this implementation.
+  revocation and shared-device sign-out (DATA-04). Implementation alone does not
+  authorize production configuration; owner-directed read-only acceptance is below.
 - [x] AUTH-01-ACCESS — Owner chose internet access for staff, with on-premises AD.
   This records the access requirement; no live access or authentication was changed.
 - [x] AUTH-01-POLICY — Owner answered no existing identity service, yes private
@@ -170,15 +172,32 @@ approval; unresolved owner/operational items remain listed below.
   username/email linking. Migration 0007/readiness, complete backup metadata and
   recovery runbooks included on `Dev/ad-password-signin` in
   [PR #34](https://github.com/tanmar-org/AssetTrackerProDTV/pull/34). Implementation is tested
-  against synthetic TLS/LDAP/SQL/Chromium only; owner review/merge still required.
+  against synthetic TLS/LDAP/SQL/Chromium only. Owner merged PR #34 at `b2c63a9`;
+  final hosted run 37528356444 passed all 303 checks and both builds/types/lint.
+- [x] AUTH-01-DOMAIN-SCOPE — Require critical AD DOMAIN_SCOPE on every identity/status
+  search, preventing normal domain-root partition references without following
+  referrals or relaxing rejection of unexpected references/unsupported controls.
+  Implemented on `Dev/ad-domain-scope`; owner review/merge pending. Synthetic
+  wire and HTTP/cache regressions accompany separate successful read-only real
+  reader/GUID acceptance. No directory write, user-password login or app mapping.
 - [ ] AUTH-01-ROLLOUT — Operator approves/configures actual private LDAPS endpoint,
   scope, trusted CA, restricted reader and required attribute permissions. Migrate,
   map reviewed GUIDs to existing app IDs, verify working linked recovery admins,
   validate real lockout/expiry/reset/disablement/outage/replication behavior and
   preserved roles/draft ownership. Configure trusted HTTPS ingress and block direct
   backend access before internet cutover. Do not paste reader/user passwords into
-  chat or commit them. No live AD connection, configuration or deployment performed.
+  chat or commit them. No application deployment or live database configuration performed.
   Follow [the AD setup and acceptance runbook](docs/STAFF-AUTHENTICATION.md).
+  Owner supplied the target directory and nominated the initial administrator.
+  Owner-exported public CA now passes strict controller chain/hostname verification
+  from both OpenSSL and Node (TLS 1.3); it is saved outside Git. Reader creation
+  was shown in a screenshot; owner entered its password privately. The owner's
+  retry now passes reader bind and domain-base verification. One eligible nominated
+  account plus three partition references exposed the domain-scope bug above;
+  the corrected production adapter successfully rereads that account by GUID with
+  all required attributes. Personal-password login, explicit app mapping, policy
+  acceptance and working recovery admins remain unverified. Actual
+  infrastructure/account identifiers are kept in protected VM notes outside Git.
 - [x] AUTH-01-TRAFFIC — PostgreSQL counters limit eligible sign-ins before account
   lookup/PIN hashing/directory work: 300 global, 60 authenticated client, 30 canonical username
   per fixed 60-second window across processes. Return noncacheable 429/Retry-After;
