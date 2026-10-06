@@ -1613,5 +1613,9 @@ Company access/email requirements, HTTPS/domains, web/reconciler supervision,
 monitored encrypted off-server backups, real-data/old-label reconciliation and
 physical-device acceptance remain deployment work.
 
-Publication is being prepared on `Dev/qr-history-coordination` for owner review.
-No merge or deployment was performed.
+Publication: implementation commit `beaef0a` pushed to
+`Dev/qr-history-coordination`; opened and attached
+[PR #30](https://github.com/tanmar-org/AssetTrackerProDTV/pull/30). Publication
+references and a trailing-blank-line cleanup are bundled into this same PR.
+Owner review/merge and production rollout remain pending. No merge or deployment
+was performed.

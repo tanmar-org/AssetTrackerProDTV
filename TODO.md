@@ -205,6 +205,8 @@ approval; unresolved owner/operational items remain listed below.
   safe Retry/history-only review and `service:reconcile` CLI/watch. Restore pauses
   unfinished actions for administrator approval; both proof tables are backed up.
   Legacy direct QR mutations are closed; compatible apps/UI must ship together.
+  Implemented on `Dev/qr-history-coordination` in
+  [PR #30](https://github.com/tanmar-org/AssetTrackerProDTV/pull/30), awaiting owner review.
 - [ ] DATA-03 — Complete backups and operational recovery for both apps. Operator
   tooling and isolated restoration are implemented below; production scheduling,
   off-server storage and operator acceptance remain open. Inventory exports are

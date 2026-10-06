@@ -43,4 +43,3 @@ export function mapRow(row: RequestRow) {
     source: "QR",
   };
 }
-
