@@ -1,0 +1,140 @@
+{
+  "checkedAt": "2026-10-06T01:15:50.579Z",
+  "baseline": "2719ba3472352c29b44512990385efa39dc9093d",
+  "branch": "Dev/qr-source-map-security",
+  "advisory": "https://github.com/advisories/GHSA-68fv-2mgg-jv7q",
+  "githubMainAlert": {
+    "number": 162,
+    "stateAtCheck": "open",
+    "scope": "runtime",
+    "closureRequires": "Owner merge and GitHub rescan; not manually dismissed."
+  },
+  "lockfileChange": {
+    "application": "qr",
+    "package": "source-map-js",
+    "before": "1.2.1",
+    "after": "1.2.2",
+    "otherEntriesChanged": false
+  },
+  "applications": {
+    "tracker": {
+      "sourceMap": {
+        "locked": "1.2.2",
+        "installed": "1.2.2",
+        "integrity": "sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw=="
+      },
+      "productionFindings": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "fullFindings": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 5,
+        "critical": 0,
+        "total": 5
+      },
+      "remainingPackages": [
+        {
+          "name": "@next/eslint-plugin-next",
+          "severity": "high",
+          "developmentOnly": true,
+          "advisories": []
+        },
+        {
+          "name": "braces",
+          "severity": "high",
+          "developmentOnly": true,
+          "advisories": [
+            "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm"
+          ]
+        },
+        {
+          "name": "eslint-config-next",
+          "severity": "high",
+          "developmentOnly": true,
+          "advisories": []
+        },
+        {
+          "name": "fast-glob",
+          "severity": "high",
+          "developmentOnly": true,
+          "advisories": []
+        },
+        {
+          "name": "micromatch",
+          "severity": "high",
+          "developmentOnly": true,
+          "advisories": []
+        }
+      ]
+    },
+    "qr": {
+      "sourceMap": {
+        "locked": "1.2.2",
+        "installed": "1.2.2",
+        "integrity": "sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw=="
+      },
+      "productionFindings": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "fullFindings": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 5,
+        "critical": 0,
+        "total": 5
+      },
+      "remainingPackages": [
+        {
+          "name": "@next/eslint-plugin-next",
+          "severity": "high",
+          "developmentOnly": true,
+          "advisories": []
+        },
+        {
+          "name": "braces",
+          "severity": "high",
+          "developmentOnly": true,
+          "advisories": [
+            "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm"
+          ]
+        },
+        {
+          "name": "eslint-config-next",
+          "severity": "high",
+          "developmentOnly": true,
+          "advisories": []
+        },
+        {
+          "name": "fast-glob",
+          "severity": "high",
+          "developmentOnly": true,
+          "advisories": []
+        },
+        {
+          "name": "micromatch",
+          "severity": "high",
+          "developmentOnly": true,
+          "advisories": []
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "npm production results alone did not report the GitHub source-map advisory before patching.",
+    "No HTTP exploit path established; PostCSS is used by framework/CSS processing.",
+    "No production deployment or live database access."
+  ]
+}

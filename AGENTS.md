@@ -20,6 +20,9 @@ The journal records current evidence; older handoff statements may be stale.
   risks, validation performed, and checks that could not be completed.
 - Bundle minor documentation and journal updates with the implementation they
   describe. The owner requested no separate PR for each small documentation edit.
+- Explain the next priority in plain language: the concrete failure/example,
+  why it comes next, the intended improvement, and remaining limits. Do not give
+  only a TODO ID or a short technical label; retain the ID for project tracking.
 - Do not deploy to production or modify live databases as part of a development
   task unless the owner explicitly authorizes that action.
 
