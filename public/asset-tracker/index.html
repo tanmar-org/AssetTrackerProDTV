@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark">
   <title>TanMar Receiver Control</title>
-  <link rel="stylesheet" href="app.css?v=55">
+  <link rel="stylesheet" href="app.css?v=62">
   <link rel="stylesheet" href="reskin.css?v=51">
   <link rel="stylesheet" href="capacity.css?v=1">
   <link rel="stylesheet" href="labels.css?v=55">
@@ -23,9 +23,13 @@
         <div class="auth-error" id="authError" hidden></div>
         <button class="primary-button" type="submit" id="authSubmit">Sign In</button>
       </form>
+      <div id="accessActions" hidden>
+        <button class="primary-button" id="retryAccessButton" type="button">Retry Connection</button>
+        <button class="secondary-button" id="gateSignOutButton" type="button">Sign Out</button>
+      </div>
     </section>
   </div>
-  <div class="app-shell">
+  <div class="app-shell" inert>
     <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="brand-mark"><img src="tanmar-emblem-tight.png?v=33" alt="TanMar emblem"></div>
@@ -459,7 +463,7 @@
           <div>
             <p class="eyebrow">Data safety</p>
             <h2>Settings</h2>
-            <p class="page-description">This version stores data in the current browser. Download a inventory snapshot before clearing browser data or moving to another device.</p>
+            <p class="page-description">Inventory loads from shared storage after sign-in. Unsaved edits stay only in this tab; download a snapshot before closing, reloading, or signing out.</p>
           </div>
         </div>
 
@@ -479,10 +483,20 @@
             <div>
               <p class="eyebrow">Restore or transfer</p>
               <h3>Restore App Data</h3>
-              <p>Load a backup created by TanMar Receiver Control. Restoring replaces the data stored in this browser.</p>
+              <p>Load a backup created by TanMar Receiver Control. Restoring replaces the current inventory and requires administrator access.</p>
             </div>
             <button class="secondary-button" id="restoreBackupButton" data-admin-only>Choose Backup</button>
           </article>
+        </section>
+
+        <section class="panel settings-card" id="legacyBrowserData" data-admin-only hidden>
+          <div>
+            <p class="eyebrow">Older browser data</p>
+            <h3>Review Data Left on This Device</h3>
+            <p>Older records are excluded from the current inventory. Export them for administrator review before removing them from this shared device.</p>
+          </div>
+          <button class="secondary-button" id="exportLegacyBrowserButton" type="button">Export Older Data</button>
+          <button class="secondary-button" id="clearLegacyBrowserButton" type="button">Remove Older Data</button>
         </section>
 
         <section class="panel storage-status-panel">
@@ -921,6 +935,6 @@
   <script src="vendor/qrcode.js"></script>
   <script src="vendor/jsbarcode.min.js"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=61"></script>
+  <script src="app.js?v=62"></script>
 </body>
 </html>

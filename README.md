@@ -78,6 +78,12 @@ Ports default to 5173 (staff) and 5174 (QR), bound to loopback. Open
 `http://localhost:5173/` and `http://localhost:5174/` with synthetic data. Sessions use
 Secure cookies; phone GPS and real staff access require correctly configured HTTPS.
 
+Staff inventory loads from the authenticated server; unsaved edits stay only in
+the current tab. Download a snapshot before reloading/closing/signing out. Older
+browser records require administrator export/reconciliation/cleanup. See the
+[shared-device policy](docs/SHARED-DEVICE-SESSIONS.md), including the context header
+required for staff API mutations and failed-sign-out retry behavior.
+
 ## Build and verify
 
 Run in each app directory:

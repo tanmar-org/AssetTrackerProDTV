@@ -141,14 +141,18 @@ Correct ambiguous aliases through user administration before importing accounts.
 Account changes serialize administrator checks and preserve at least one active
 administrator. PIN resets, role changes, and activation changes revoke all sessions
 for the target, requiring a fresh login; reactivation never revives old sessions.
-Resetting your own PIN/changing your own role clears your cookie and reloads the
+Resetting your own PIN/changing your own role clears your cookie and locks the
 staff sign-in gate. Unlocking alone does not revoke sessions. Account changes,
 revocation, and audit writes share one transaction; audit failure cancels the change.
 
 These protections retain the existing 4–8 digit PIN policy and 12-hour sessions.
-Company SSO/outer access controls, broader traffic throttling, browser cache
-cleanup on shared devices, and durable conflict resolution remain
-AUTH-01/DATA-04/DATA-01 tasks before deployment. Inventory permissions/schemas are
+Company SSO/outer access controls, broader traffic throttling, and durable conflict
+resolution remain AUTH-01/DATA-01 tasks before deployment. Shared-device code now
+uses tab memory, server-bound session contexts, acknowledged sign-out/retry, and
+administrator cleanup of quarantined legacy storage. Ship server/UI together,
+reload old tabs and update staff integrations to supply the session context header.
+Export/reconcile/remove older device caches before handoff under DATA-04-ROLLOUT.
+See [shared-device policy](SHARED-DEVICE-SESSIONS.md). Inventory permissions/schemas are
 implemented under SEC-03; reconcile incompatible source data/history under MIG-01.
 
 ## Build and run

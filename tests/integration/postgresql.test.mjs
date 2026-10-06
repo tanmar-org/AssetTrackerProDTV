@@ -1,3 +1,4 @@
+import { sessionHeaders } from "../helpers/session-context.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
@@ -32,7 +33,7 @@ test("Node/PostgreSQL integration", async (t) => {
   }, { port: qrPort });
   const fixture = { name: "jdoe", pin: "482631" };
   const call = (server, path, method = "GET", body, cookie, headers = {}) => fetch(`${server.url}${path}`, {
-    method, headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}), ...headers },
+    method, headers: { "content-type": "application/json", ...(cookie ? { cookie, ...sessionHeaders(cookie) } : {}), ...headers },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const api = (path, method, body, cookie) => call(staffServer, path, method, body, cookie);
@@ -80,7 +81,7 @@ test("Node/PostgreSQL integration", async (t) => {
     assert.equal(await count("app_sessions"), 0);
     const status = await api("/api/auth");
     assert.equal(status.headers.get("cache-control"), "no-store");
-    assert.deepEqual(await status.json(), { needsProvisioning: true, user: null });
+    assert.deepEqual(await status.json(), { needsProvisioning: true, user: null, sessionContext: null });
   });
 
   await t.test("concurrent provisioning on independent PostgreSQL pools creates exactly one admin", async () => {
@@ -110,6 +111,7 @@ test("Node/PostgreSQL integration", async (t) => {
     assert.equal(await count("app_sessions"), 1);
     assert.deepEqual(await (await api("/api/auth", "GET", undefined, cookie.split(";")[0])).json(), {
       needsProvisioning: false, user: { id: provision.id, name: "jdoe", role: "admin" },
+      sessionContext: sessionHeaders(cookie.split(";")[0])["x-tracker-session-context"],
     });
   });
 

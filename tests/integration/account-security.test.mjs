@@ -1,3 +1,4 @@
+import { sessionHeaders } from "../helpers/session-context.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -16,7 +17,7 @@ test("account security and concurrency", async (t) => {
   const credentials = { name: "jdoe", pin: "482631" };
   const staff = { name: "testuser", pin: "593742", role: "user" };
   const api = (path, method = "GET", body, cookie, baseUrl = server.url) => fetch(`${baseUrl}${path}`, {
-    method, headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+    method, headers: { "content-type": "application/json", ...(cookie ? { cookie, ...sessionHeaders(cookie) } : {}) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const login = (account = credentials) => api("/api/auth", "POST", { action: "login", ...account });

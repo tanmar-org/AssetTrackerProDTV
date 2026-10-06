@@ -26,7 +26,7 @@ test("local spreadsheet assets and worker support staff imports with outside net
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== server.url) { outside.push(url.origin); return route.abort(); }
-    if (url.pathname === "/api/auth") return route.fulfill({ json: { user: { id: "test-admin", name: "testadmin", role: "admin" } } });
+    if (url.pathname === "/api/auth") return route.fulfill({ json: { user: { id: "test-admin", name: "testadmin", role: "admin" }, sessionContext: "1".repeat(64) } });
     if (url.pathname === "/api/app-state") return route.fulfill({ json: { state: inventory(), revision: 1 } });
     if (url.pathname.startsWith("/api/")) return route.fulfill({ json: { requests: [], users: [], activity: [], snapshots: [] } });
     return route.continue();

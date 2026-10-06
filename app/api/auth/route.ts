@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import {
   clearSessionCookie, createSession, db, deleteSession, getSessionUser,
-  hashPin, normalizeUsername, validatePin, validateUsername,
+  hashPin, normalizeUsername, validatePin, validateUsername, sessionContext, tokenContext,
 } from "../../../lib/pin-auth";
 import { accessError, readAccessBody } from "../../../lib/access-input";
 
@@ -19,7 +19,8 @@ export async function GET(request: Request) {
   try {
     const count = await db().prepare("SELECT COUNT(*) AS count FROM app_users").first<{ count: number }>();
     const user = await getSessionUser(request);
-    return Response.json({ needsProvisioning: Number(count?.count || 0) === 0, user }, { headers: { "cache-control": "no-store" } });
+    return Response.json({ needsProvisioning: Number(count?.count || 0) === 0, user,
+      sessionContext: user ? await sessionContext(request) : null }, { headers: { "cache-control": "no-store" } });
   } catch {
     return Response.json({ error: "Access service unavailable." }, { status: 503 });
   }
@@ -76,14 +77,24 @@ export async function POST(request: Request) {
       await tx.prepare("DELETE FROM app_sessions WHERE user_id = $1 AND expires_at <= $2")
         .bind(user.id, now.toISOString()).run();
       const session = await createSession(user.id, tx);
-      return Response.json({ user: { id: user.id, name: user.name, role: user.role } }, { headers: { "set-cookie": session.cookie } });
+      return Response.json({ user: { id: user.id, name: user.name, role: user.role },
+        sessionContext: await tokenContext(session.token) },
+        { headers: { "set-cookie": session.cookie, "cache-control": "no-store" } });
     });
   } catch (error) { return accessError(error, "Unable to sign in."); }
 }
 
 export async function DELETE(request: Request) {
   try {
+    const actual = await sessionContext(request);
+    const expected = request.headers.get("x-tracker-session-context");
+    if (actual && !expected)
+      return Response.json({ error: "Reload before signing out." }, { status: 400, headers: { "cache-control": "no-store" } });
+    // A delayed sign-out from an old tab must not revoke/clear a newer shared
+    // cookie. The old UI remains locked; this acknowledges only its own handoff.
+    if (actual && expected !== actual)
+      return Response.json({ ok: true, sessionChanged: true }, { headers: { "cache-control": "no-store" } });
     await deleteSession(request);
-    return Response.json({ ok: true }, { headers: { "set-cookie": clearSessionCookie } });
+    return Response.json({ ok: true }, { headers: { "set-cookie": clearSessionCookie, "cache-control": "no-store" } });
   } catch { return Response.json({ error: "Unable to sign out." }, { status: 503 }); }
 }

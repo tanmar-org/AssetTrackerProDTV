@@ -60,7 +60,16 @@ The journal records current evidence; older handoff statements may be stale.
 - Regular browser operations queue separately. A permanent rejection/conflict
   pauses sync and retains the draft for export; do not silently overwrite it or
   resume failed operations after loading another revision/user. Durable conflict
-  handling and shared-device caches remain DATA-01/DATA-04 work.
+  handling remains DATA-01 work. New browser data is tab-memory-only; do not
+  restore device-wide operational caching or auto-upload old caches. See
+  [shared-device policy](docs/SHARED-DEVICE-SESSIONS.md): retain expired drafts
+  only for same-user reauthentication/export with sync paused; discard late
+  responses/imports using session generations and cancel workers on lock.
+- Staff mutations require `x-tracker-session-context` matching the real session
+  cookie; the context is non-bearer and never grants access. Preserve checks on
+  supplied read contexts too. Logout takes account lock `728303`; stale-context
+  logout must not revoke/clear a newer shared cookie. Require acknowledged logout
+  before unlocking the sign-in flow after a connection failure.
 - Apply PostgreSQL migrations from `migrations/` with an operator connection;
   web requests never run DDL. `drizzle/` directories are historical D1 records,
   not the current migration source. Follow [self-hosting setup](docs/SELF-HOSTING.md).

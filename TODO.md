@@ -68,8 +68,8 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   leading-zero/formatted identifiers, Master/West Texas/account/audit mappings,
   malformed inputs and actual browser upload previews pass with outside requests
   blocked. Implemented on `Dev/dependency-remediation` in
-  [PR #21](https://github.com/tanmar-org/AssetTrackerProDTV/pull/21); owner
-  review/merge pending.
+  [PR #21](https://github.com/tanmar-org/AssetTrackerProDTV/pull/21), merged by
+  the owner.
   See [dependency/import limits](docs/DEPENDENCY-REMEDIATION.md).
 - [x] SEC-02 — Replace public first-admin setup with controlled provisioning.
   Admin creation must be atomic and unavailable to unauthenticated users after
@@ -111,7 +111,7 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   Configure trusted production ingress and reconcile any historical duplicates/bad
   GPS before migration; these controls do not prove identity/ownership/location.
 - [ ] AUTH-01 — Decide company authentication requirements (existing PINs versus
-  company SSO/outer access policy) and complete shared-device sign-out/cache policy.
+  company SSO/outer access policy). Shared-device sign-out/cache code is DATA-04.
   Per-account lockout is enforced below; broader login traffic/unknown-account abuse
   controls remain a deployment requirement. Inventory permissions remain SEC-03.
 - [x] AUTH-01-ACCOUNTS — Account updates, session revocation, and audit writes commit
@@ -154,8 +154,18 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   rental stock/audit, and clear resets stock with inventory. Restore/Undo are admin
   actions; older missing collections receive a clearing warning. Export labels
   describe inventory scope accurately. Actual browser-function regressions pass.
-- [ ] DATA-04 — Define browser cache/offline policy and remove sensitive operational
-  caches on sign-out or isolate them by authorized user. Test shared-device behavior.
+- [x] DATA-04 — New inventory/Undo/audit/imports/preferences stay in tab memory;
+  startup requires fresh authenticated inventory, with no samples or automatic
+  legacy upload. Lock scrubs private DOM, cancels work, and ignores late results.
+  Cross-tab changes and server context headers prevent old-tab writes under new
+  cookies. Failed sign-out stays locked across reload until acknowledgement.
+  Same-owner draft recovery is export-only with sync paused; legacy records have
+  administrator export/removal controls. Implemented on
+  `Dev/shared-device-sessions`; see [policy](docs/SHARED-DEVICE-SESSIONS.md).
+- [ ] DATA-04-ROLLOUT — Export/reconcile/remove older caches on previously used
+  devices, deploy server/UI together and reload old tabs/integrations. Confirm
+  shared-device acceptance in target browsers. New memory-only drafts do not survive
+  reload; durable recovery/conflict UI remains DATA-01.
 - [ ] DATA-05 — Report import success/skips accurately, including capacity-blocked
   West Texas assignments; preserve required fields and history; neutralize exported
   CSV formulas. Test representative workbooks, leading-zero IDs, and report exports.
@@ -202,6 +212,8 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   both databases and reconcile counts, identifiers, stock, users, history, and requests.
   Remove sample data, use new sessions, and plan original-domain/printed-label continuity
   plus rollback before changing live URLs.
+  Browser sample initialization/automatic old-cache upload were removed under
+  DATA-04; authorized exports, reconciliation, and cutover remain outstanding.
 - [ ] QA-01 — Add meaningful API/permission/concurrency/import/backup tests; validate
   iPad/phone GPS and email flows, Brother label dimensions/cutting and actual scanning,
   staff workflows, production-like deployment, and owner acceptance before cutover.
