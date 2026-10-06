@@ -131,6 +131,12 @@ See [the dependency review](DEPENDENCY-REMEDIATION.md) for current advisories,
 import limits, and vendor update instructions. Do not edit or lint the pinned
 third-party minified bytes as application code; keep attribution/license intact.
 
+Import/report regressions also use actual browser functions with the server schema
+and ordinary permission checker. Chromium uploads then applies West Texas/account
+files, checks recorded PUT/PATCH payloads and downloads all three CSV reports.
+See [import/report policy](IMPORTS-AND-EXPORTS.md) for accepted/skipped/no-op counts,
+metadata/history preservation, CSV tab prefixes and desktop spreadsheet limits.
+
 ## Real PostgreSQL integration tests
 
 `npm run test:integration` at the root runs both built Node servers using separate,

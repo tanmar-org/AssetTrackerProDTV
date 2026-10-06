@@ -103,6 +103,15 @@ The journal records current evidence; older handoff statements may be stale.
   cell limits and formatted/leading-zero identifiers. See
   [dependency/import evidence](docs/DEPENDENCY-REMEDIATION.md). Worker parsing runs
   on the staff device and is unrelated to Cloudflare/server workers.
+- Import Center previews and Apply share `planReceiverImport`; recheck current
+  tab capacity before any registry/account/history side effect and keep skipped
+  preview rows skipped. Preserve nonempty metadata, text IDs and assignment history.
+  Single-account imports remain bound to their preview account; regular users
+  import one receiver per operation under existing server permissions. Counts
+  describe local changes until sync acknowledgement. See
+  [import/report policy](docs/IMPORTS-AND-EXPORTS.md). All CSV report paths must use
+  `csvCell` with quoted fields and protected text prefixes; never use formula-based
+  identifier wrappers or claim universal spreadsheet/machine round-trip safety.
 - Public labels contain only a stable receiver ID; legacy asset-number links use
   current server lookup. The old static page redirects to the configured QR app,
   discarding private parameters and mail-only behavior. Public responses contain

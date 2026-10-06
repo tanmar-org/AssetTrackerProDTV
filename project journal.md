@@ -4,8 +4,8 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/postgresql-backup-restore`, based on merged
-  `main` at `0f7ab73` (owner merged PR #26).
+- Development branch: `Dev/import-export-correctness`, based on merged
+  `main` at `bafe966` (owner merged PR #27).
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -38,15 +38,17 @@
   account-owned server recovery copies are implemented in
   [PR #26](https://github.com/tanmar-org/AssetTrackerProDTV/pull/26), merged by
   the owner. Complete operator backups and isolated verified restoration are
-  implemented in [PR #27](https://github.com/tanmar-org/AssetTrackerProDTV/pull/27)
-  for owner review. Production deployment has
-  not started; scheduled/off-server backups are not configured.
-- Next task after backup review: DATA-05 correct capacity-blocked import counts
-  and neutralize spreadsheet export formulas while preserving leading-zero IDs.
-  An assignment rejected by a full account must not be reported as accepted, and
-  staff-entered text must remain text when opened in a spreadsheet. DATA-03-ROLLOUT
-  still requires approved encrypted off-server storage, schedule, retention,
-  private configuration recovery, alerts and a real operator recovery drill.
+  implemented in [PR #27](https://github.com/tanmar-org/AssetTrackerProDTV/pull/27),
+  merged by the owner. DATA-05 import counts/capacity/metadata/history and protected
+  spreadsheet reports are implemented in
+  [PR #28](https://github.com/tanmar-org/AssetTrackerProDTV/pull/28) for owner review.
+  Production deployment has not started; scheduled/off-server backups are not configured.
+- Next task after import/report review: DATA-06 bounded pagination and filters.
+  QR requests and administrator activity currently return only the newest 500 rows;
+  older pending requests can become invisible behind newer records. Give staff
+  controls to find pending work and older activity while retaining server permissions.
+  DATA-03-ROLLOUT still requires approved encrypted off-server storage, schedule,
+  retention, private configuration recovery, alerts and a real operator recovery drill.
   Fully offline drafts still require exports; server recovery copies expire after
   seven days. Lint/dependency work, AUTH-01 company access decisions, QR-01 real
   label/mobile acceptance, MAIL-01 approved delivery, HOST-03/HOST-04/MIG-01
@@ -1268,3 +1270,113 @@ Publication: implementation commit `2e65ea2` pushed to
 [PR #27](https://github.com/tanmar-org/AssetTrackerProDTV/pull/27). Publication
 references are bundled into this same PR. Owner review/merge and production
 operational rollout remain pending; no merge or deployment was performed.
+
+## 2026-10-06, 09:25 CDT — Import correctness and protected CSV reports
+
+### Owner merge and scope
+
+The owner reported PR #27 merged. GitHub confirmed merge at `bafe966` on
+2026-10-06 13:31:10 UTC (08:31 CDT). Fetched main and created
+`Dev/import-export-correctness` from that revision. Completed DATA-05 implementation
+and bundled its documentation. No production records/settings/services, migrations,
+application dependencies or QR source were changed. Owner review/merge follows.
+
+### Resulting behavior
+
+Master and West Texas previews/Apply share row validation, duplicate handling and
+capacity planning. Previously, a full account could prevent an assignment while
+adding its receiver to Master and counting it as processed. Blocked rows now have
+no registry/account/metadata/history side effects. Apply considers only preview-
+eligible rows and checks them again against current tab capacity; skipped preview
+rows do not silently become eligible. Moves reserve/free slots in file order;
+already-assigned receivers need no extra slot, including full accounts. New
+accounts have the same 20-receiver limit. Invalid mapped fields and duplicate
+assets have explicit skip reasons; existing server validation remains authoritative.
+
+Nonempty mapped receiver/account fields are retained, blank cells preserve existing
+values, and textual/formatted leading-zero identifiers remain text. West Texas
+name carry-forward resets at a new account group instead of inheriting the previous
+customer's name. Office/notes are mapped; existing condition/rent/location survive.
+Moves retain assignment IDs, refresh assignment time and append receiver history;
+new assignments append history too. Counts distinguish new/updated/unchanged/skipped
+Master records and assigned/moved/already-present/skipped West Texas rows. No-op
+imports do not manufacture saves. Completion explicitly awaits sync confirmation;
+conflicts still pause the draft for existing recovery/export.
+
+Single-account previews stay bound to their target account across asynchronous
+reading and Apply, checking current capacity and assignment before registry writes.
+Regular users apply one eligible receiver per operation under the server's existing
+ordinary permission policy; administrators can use remaining capacity. Imports do
+not apply over a paused draft. TQ summaries separate updated/unchanged/skipped/
+company-wide ignored rows and count duplicate/deleted receivers accurately. Existing
+stock reconciliation and off-rent timer repair are retained without inventing
+status-change history for a timer-only repair.
+
+All three CSV downloads (account, audit, activity) use one quoted-field encoder,
+doubling internal quotes and adding an in-field tab to formula/control/full-width
+prefixes and leading-zero/long numeric text. Original inventory is unchanged.
+This follows the Excel-oriented approach in
+[OWASP CSV guidance](https://community.owasp.org/attacks/CSV_Injection); it is not a
+universal spreadsheet or lossless machine interchange guarantee. Actual desktop
+spreadsheet acceptance remains QA-01. JSON inventory snapshots and complete
+PostgreSQL backups remain the exact-value/recovery paths.
+
+Changed staff `app.js` and asset version 64, added eleven default regressions and
+four Chromium scenarios, and updated the existing browser recovery test wait.
+AGENTS, TODO, development/self-hosting guides and
+[the import/report policy](docs/IMPORTS-AND-EXPORTS.md) describe fields, counts,
+capacity ordering, server acknowledgement, report tabs and remaining limits.
+
+### Validation and test synchronization correction
+
+Fresh staff webpack build/default suite: **65 passed / 0 failed**. Standalone
+staff TypeScript passed. Full HTTP/PostgreSQL suite: **87 passed / 0 failed**;
+full Chromium suite: **34 passed / 0 failed**. Eleven new default scenarios exercise
+actual browser functions with the server schema/everyday permission checker,
+including new/existing full accounts, file-order moves, aged previews, duplicates,
+metadata/grouped names/leading-zero IDs, history, target switches, ordinary one-
+receiver permission, timer repair and all CSV encoders. Chromium uses actual local
+workers/file inputs/Apply controls, records PUT/PATCH payloads and reads all three
+actual downloaded CSV files. Outside traffic is blocked; fixtures are synthetic.
+
+The initial full browser run was **32 passed / 2 failed**, counting the parent,
+in an existing shared-device recovery scenario: its wait matched old error text
+while a new login still hid that text and remained pending. An isolated run passed;
+a temporary trace run also passed. Investigation found the wait ignored visibility
+and login completion. The final test deliberately holds the login response and
+asserts the old text is still present but hidden, then releases it and waits for
+visible error plus completed login. Original identity/privacy/draft-owner assertions
+remain unchanged; no runtime authentication code changed, retries were not added
+and no assertion was relaxed. Removed temporary tracing; final full suite passed.
+
+Focused changed-test lint, browser syntax and diff checks passed. Full root lint
+retains **2 inherited vendor errors / 146 warnings** (one fewer warning after the
+reviewed import rewrite); no suppression or third-party byte change. QR was not
+rebuilt because its source/dependencies were unchanged; its matching existing build
+was exercised through full browser/PostgreSQL checks. No new advisory query ran.
+Some PostgreSQL teardown emitted the previously recorded generic idle-connection
+notice; all scenarios passed. Cleanup confirmed **0** fixture databases and **0**
+fixture runtime/backup roles, and the synthetic cluster is stopped.
+
+### Remaining limits and next useful implementation
+
+Local previews cannot promise server acknowledgement, collection-size acceptance
+or the absence of another employee's concurrent revision. Preview renders up to
+200 rows with a truncation notice; counts include every row. Spreadsheet consumers
+see protective tabs, and saving/editing/reimporting can change protections or
+formatting. Physical spreadsheet/mobile/device acceptance remains QA-01. No live
+import or production rollout was performed.
+
+Next DATA-06: both the QR-request GET and administrator activity GET use `LIMIT 500`
+with newest-first ordering. Older pending work can disappear from the screen.
+Add bounded server pagination/filtering and staff controls for pending requests
+and older activity without bulk-loading private databases or changing permissions.
+Audit/history retention and storage scaling remain separate DATA-06 decisions;
+company access/mail/domains/services/off-server backup/cutover decisions still
+need operational acceptance before deployment.
+
+Publication: implementation commit `5280176` pushed to
+`Dev/import-export-correctness`; opened and attached
+[PR #28](https://github.com/tanmar-org/AssetTrackerProDTV/pull/28). Publication
+references are bundled into this same PR. Owner review/merge and any later
+production rollout remain pending; no merge or deployment was performed.

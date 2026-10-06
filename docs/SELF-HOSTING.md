@@ -230,7 +230,7 @@ splitting/reconciliation before import; no live data was fetched for these tests
 Tracker migration `0003_inventory_drafts.sql` adds account-owned recovery copies.
 Apply it with the migration owner and add `app_inventory_drafts` to the existing
 tracker runtime role grants before shipping the updated server/UI. Readiness checks
-access to the new table. Reload older staff tabs (asset version 63). Copies have
+access to the new table. Reload older staff tabs (asset version 64). Copies have
 seven-day visibility, five-active/20-retained-ID account quotas, and are included
 in complete tracker database backups. Successful owner recovery requests remove
 expired rows; scheduled expiry cleanup and backup retention remain operator work.
@@ -251,3 +251,14 @@ schedule backups, transfer archives off this VM, encrypt them or enforce retenti
 Complete DATA-03-ROLLOUT, including private environment/role recovery and an operator
 drill, before real data cutover. There is no global transaction between the two
 restored databases; retain the originals and review both apps before approved cutover.
+
+## Import/report corrections
+
+Reload staff tabs for asset version 64. Import previews/Apply now recheck capacity,
+keep skipped rows free of side effects, retain mapped metadata and assignment
+history, and report local outcomes pending sync confirmation. Ordinary account
+imports apply one receiver per operation under the existing server permission
+policy. CSV reports protect formula-like text/leading-zero or long numeric IDs
+using quoted fields with in-field tabs. See
+[the import/report policy](IMPORTS-AND-EXPORTS.md); verify actual target spreadsheet
+behavior before deployment and use JSON/database backups for exact recovery.
