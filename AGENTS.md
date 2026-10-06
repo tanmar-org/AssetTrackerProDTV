@@ -60,6 +60,17 @@ The journal records current evidence; older handoff statements may be stale.
   sessions/roles after waiting, and hold authorization through commit. Preserve
   this lock order. QR proxy deletion requires an admin; its upstream call is
   bounded to five seconds and uses the same account-authorization lock.
+- QR status/archive use durable tracker intent before any QR write, immutable
+  UUID/versioned commands and a QR receipt committed with the transition. Finish
+  server history/rent/derived stock/audit and done status in one tracker transaction;
+  never manufacture QR history in the browser. Preserve actor/approver, accepted
+  stable association, single unresolved intent/request and explicit rent-conflict
+  review. Recheck active approving account/admin deletion before new upstream writes;
+  already-applied proof may finish facts after logout/revocation. Receipt lookup and
+  mutation share a five-second budget. Run root `service:reconcile` as a separate
+  restricted VM process; reads do not drive mutations. Restored unfinished intents
+  stay paused for admin approval. Update both new tables in backup catalogs/drills.
+  Read [QR operations](docs/QR-OPERATIONS.md) before changing this protocol.
 - Regular browser operations queue separately. A permanent rejection/conflict
   pauses sync and retains the draft for export; do not silently overwrite it or
   resume failed operations after loading another revision/user. Explicit recovery

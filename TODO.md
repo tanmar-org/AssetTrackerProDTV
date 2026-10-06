@@ -7,23 +7,16 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 
 ## Implementation order and why
 
-1. **Review retained record browsing (DATA-06-LISTING).** Old pending QR requests
-   and older administrator activity now have server filters and bounded pages.
-   Owner review/merge follows this PR; counts/history/CSV describe their page scope.
-   Import/report correctness (DATA-05) was merged; physical spreadsheet/device
-   acceptance remains QA-01. Retention and storage sizing remain separate decisions.
-2. **Recover QR status and receiver history together (DATA-02).** A staff completion
-   currently changes the QR database first, then saves receiver history separately.
-   If the second save fails or the tab closes, completed work can lack its matching
-   history entry. Add a durable server operation with retries/duplicate protection,
-   explicit pending/failure status and permissions rechecked through completion.
-   Keep the separate databases and test interruptions after either write; the
-   browser alone cannot guarantee coordination.
-3. **Finish inherited lint failures (QA-02).** Two vendor-file errors currently make
-   the full root check fail even when changed application code passes. Use an
-   intentional verified-vendor policy and fix remaining application warnings so
-   future changes have a useful full check; preserve vendor bytes/licenses.
-4. **Prepare deployment decisions and acceptance.** Set company access policy,
+1. **Review recoverable QR actions (DATA-02).** Accepted status/delete actions now
+   persist a tracker intent before changing the QR database; receipts/retries finish
+   server history after an interrupted response or second-write failure. Staff can
+   inspect pending/rejected work and explicitly resolve rent conflicts. This PR
+   needs owner review; deploying its VM reconciler remains HOST-04.
+2. **Finish inherited lint failures (QA-02).** Two vendor-file errors currently make
+   the full root check fail even when changed application code passes. Establish an
+   intentional verified-vendor policy, preserve bytes/licenses and fix first-party
+   warnings so the full check can identify new application problems reliably.
+3. **Prepare deployment decisions and acceptance.** Set company access policy,
    approved email delivery, HTTPS/domains, service supervision and recovery
    operations; reconcile real records and old labels, then test actual devices.
    Scheduled encrypted off-server backups/retention/alerts remain DATA-03-ROLLOUT.
@@ -196,13 +189,22 @@ approval; unresolved owner/operational items remain listed below.
 - [ ] DATA-01-OFFLINE — Decide whether full offline recovery is needed beyond
   exported snapshots; any durable device storage requires a reviewed shared-device
   privacy design. Do not imply that server copies can protect disconnected edits.
-- [ ] DATA-02 — Make state/history/log writes consistent; protect recovery with
-  expected revisions and coordinate QR status with tracker updates. Test concurrent
-  recovery/save and failures between related writes.
+- [x] DATA-02 — State/history/audit and revision-protected recovery are atomic in
+  the tracker; QR transitions use durable intents, immutable versioned receipts,
+  server history completion, retries and explicit rent-conflict review. Independent
+  processes, lost responses and failed second writes are covered. Eventual
+  consistency still requires available services and conflict resolution. See
+  [QR operations](docs/QR-OPERATIONS.md); reconciler deployment remains HOST-04.
 - [x] DATA-02-TRACKER — PostgreSQL state/history/audit writes share one transaction;
   recovery uses expected revisions and the same lock. Concurrent save/restore,
   zero-row update, and audit-failure rollback tests pass. Coordination with the
-  separate QR database remains open under DATA-02.
+  separate QR database is implemented under DATA-02-QR.
+- [x] DATA-02-QR — Save intent before QR mutation; retain actor/approver/stable
+  receiver association, request CAS and replayable receipts. Finish inventory,
+  history, derived stock, audit and done state together. Provide staff queue,
+  safe Retry/history-only review and `service:reconcile` CLI/watch. Restore pauses
+  unfinished actions for administrator approval; both proof tables are backed up.
+  Legacy direct QR mutations are closed; compatible apps/UI must ship together.
 - [ ] DATA-03 — Complete backups and operational recovery for both apps. Operator
   tooling and isolated restoration are implemented below; production scheduling,
   off-server storage and operator acceptance remain open. Inventory exports are
@@ -288,7 +290,8 @@ approval; unresolved owner/operational items remain listed below.
   Remove localhost/old-host assumptions; verify generated URLs and font assets.
   Native static serving/system fonts and removal of the old Sites CORS allowlist
   are complete. Production domains, HTTPS, secrets, and QR destination remain open.
-- [ ] HOST-04 — Provision production services, least-privilege credentials, startup/
+- [ ] HOST-04 — Provision production web and QR reconciliation services
+  (`service:reconcile -- --watch`), least-privilege credentials, startup/
   restart supervision, health checks, monitoring, backup retention, and a documented
   rollback process. VM tools alone do not constitute a production deployment.
 - [ ] QR-01 — Complete printed-label/domain continuity, reprint historical labels

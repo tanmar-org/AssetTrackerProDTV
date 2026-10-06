@@ -19,6 +19,8 @@ as their implementation.
   QR/barcode libraries, and dependency lockfiles.
 - Public asset lookup, bounded/rate-limited requests, and atomic pending uniqueness;
   see [public request security](docs/PUBLIC-REQUEST-SECURITY.md).
+- Recoverable staff QR transitions, durable receipts and a local VM reconciliation
+  command; see [QR operations](docs/QR-OPERATIONS.md).
 
 Production records, database credentials, users, and inventory exports are not
 included. Browser sample initialization was removed. A code migration is not a production

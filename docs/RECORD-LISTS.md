@@ -106,5 +106,8 @@ existing PostgreSQL statement timeout protect response size/long queries but do
 not establish production capacity; representative sizing/search measurement is
 DATA-06-SCALE. Retention/archival policy is DATA-06-RETENTION: no automatic purge is
 introduced and the existing 25 inventory snapshots are not complete history.
-QR status and tracker history remain separate writes (DATA-02), so a successful
-QR change followed by a failed inventory save still needs durable coordination.
+QR status and tracker history remain in separate databases, but staff transitions
+now use durable intents, receipts and server-owned recovery under DATA-02. See
+[QR operations](QR-OPERATIONS.md) for the separate bounded operation queue, retries,
+conflict review and version66 rollout. Request-page history scope remains as above;
+committed receiver events and private operation records preserve confirmed changes.

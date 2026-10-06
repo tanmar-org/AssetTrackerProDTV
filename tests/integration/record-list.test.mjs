@@ -47,7 +47,7 @@ test("bounded request/activity pages over real PostgreSQL and HTTP",async(t)=>{
     assert.deepEqual(page.requests.map(row=>row.id),["request-0002","request-0000"]);
     assert.equal(page.page.nextCursor,null);
     const response=await direct("/api/requests?status=Pending");assert.equal(response.status,200);
-    assert.deepEqual((await response.json()).requests,page.requests);
+    assert.deepEqual((await response.json()).requests,page.requests.map(({synchronization,...row})=>{assert.equal(synchronization,null);return row;}));
   });
   await t.test("all request pages reach beyond 500 without duplicates, even with equal timestamps",async()=>{
     let cursor=null;const ids=[];let pages=0;

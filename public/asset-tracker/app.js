@@ -37,7 +37,9 @@ let deactivationBatches=[];
 let master=[],accounts=[],assignments=[],activations=[],receiverEvents=[];
 let rentalStock={batches:[]};
 let remoteActivations=[];
-const requestPager=newRecordPager(),activityPager=newRecordPager();
+const requestPager=newRecordPager(),activityPager=newRecordPager(),serviceOperationPager=newRecordPager();
+let serviceOperations=[],serviceMutationBusy=false,serviceOperationViewGeneration=0;
+const serviceCommands=new Map();
 let undoHistory=[];
 let currentAccountId=null;
 let currentReceiverInfoId=null;
@@ -503,7 +505,7 @@ closeSidebar();
 if(name==="dashboard")renderDashboard();
 if(name==="accounts")renderAccounts();
 if(name==="master")renderMaster();
-if(name==="activations"){renderActivations();loadRemoteActivations();}
+if(name==="activations"){renderActivations();loadRemoteActivations();loadServiceOperations();}
 if(name==="rentalStock")renderRentalStock();
 if(name==="audit")renderAuditResults();
 if(name==="labels")renderLabels();
@@ -1103,23 +1105,118 @@ async function loadRemoteActivations(showSuccess=false,direction="reset"){
   }
 }
 
-async function updateRemoteActivation(request,status){
-  const {response,result:data}=await staffRequest(SERVICE_REQUEST_API,{
-    method:"PATCH",
-    headers:{...serviceRequestHeaders(),"content-type":"application/json"},
-    body:JSON.stringify({id:request.id,status,notes:request.notes||""})
-  });
-  if(!response.ok)throw new Error(data.error||"Unable to update request.");
-  await loadRemoteActivations();
+// QR changes are server-owned durable operations. Never manufacture receiver
+// history or rent changes locally after an upstream success. Unconfirmed retries
+// reuse their UUID/body; locking destroys this tab's private command memory.
+function serviceOperationReady(){
+  if(serviceMutationBusy){toast("Another service action is being submitted. Wait for its result.");return false;}
+  if(!currentUser||!cloudReady||cloudQueued||cloudSaving||cloudCaptureQueued||cloudWriteBlocked||draftBusy){
+    toast("Save or review this tab's inventory edits before changing QR requests.");return false;
+  }
+  return true;
 }
+async function submitServiceAction(request,status=null){
+  if(!serviceOperationReady())return null;
+  const epoch=sessionEpoch,kind=status===null?"delete":"status";
+  const key=`${request.id}:${kind}:${status}:${request.version}`;
+  if(!serviceCommands.has(key))serviceCommands.set(key,{operationId:crypto.randomUUID(),expectedVersion:request.version,
+    baseRevision:cloudRevision,...(kind==="status"?{id:request.id,status,notes:request.notes||""}:{})});
+  const command=serviceCommands.get(key);serviceMutationBusy=true;renderActivations();renderServiceOperations();
+  try{
+    const {response,result}=await staffRequest(kind==="delete"?`${SERVICE_REQUEST_API}?id=${encodeURIComponent(request.id)}`:SERVICE_REQUEST_API,{
+      method:kind==="delete"?"DELETE":"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify(command)});
+    if(!sessionActive(epoch))return null;
+    if(!response.ok&&!result.accepted){
+      if(response.status<500)serviceCommands.delete(key);
+      throw new Error(result.operation?.message||result.error||"Service action could not be confirmed. Check synchronization before retrying.");
+    }
+    const operation=result.operation;
+    if(!operation)throw new Error("Service action response is incomplete. Check synchronization before retrying.");
+    if(["done","failed"].includes(operation.phase))serviceCommands.delete(key);
+    // readCloudState refuses to replace edits started during this request. Their
+    // normal revision conflict/recovery protects both the draft and server history.
+    let refreshFailed=false;
+    try{await readCloudState({quiet:true});}catch{refreshFailed=true;}
+    if(!sessionActive(epoch))return null;
+    await Promise.all([loadRemoteActivations(),loadServiceOperations()]);
+    if(sessionActive(epoch))toast(refreshFailed?"Operation accepted. Inventory refresh is unavailable; refresh before further edits.":operation.phase==="done"?
+      operation.historyScope==="operation"?"QR change saved. Receiver is absent; history is retained in the operation record.":"QR change and receiver history saved.":
+      operation.message||"Operation saved. Synchronization is pending; check the queue below.");
+    return operation;
+  }finally{
+    if(sessionActive(epoch)){serviceMutationBusy=false;renderActivations();renderServiceOperations();}
+  }
+}
+function updateRemoteActivation(request,status){return submitServiceAction(request,status);}
+function deleteRemoteActivation(request){return submitServiceAction(request);}
 
-async function deleteRemoteActivation(request){
-  const {response,result:data}=await staffRequest(`${SERVICE_REQUEST_API}?id=${encodeURIComponent(request.id)}`,{
-    method:"DELETE",
-    headers:serviceRequestHeaders()
-  });
-  if(!response.ok)throw new Error(data.error||"Unable to delete request.");
-  await loadRemoteActivations();
+async function loadServiceOperations(direction="reset"){
+  if(!currentUser||!cloudReady)return;
+  const page=beginRecordPage(serviceOperationPager,direction);if(!page)return;
+  const epoch=sessionEpoch;serviceOperations=[];renderServiceOperations();
+  try{
+    const params=new URLSearchParams({limit:"100",status:$("serviceOperationFilter").value,q:$("serviceOperationSearch").value.trim()});
+    if(page.cursor)params.set("cursor",page.cursor);
+    const {response,result}=await staffRequest(`/api/service-operations?${params}`,{cache:"no-store"});
+    if(!sessionActive(epoch)||page.generation!==serviceOperationPager.generation)return;
+    if(!response.ok)throw new Error(result.error||"Service synchronization is unavailable.");
+    serviceOperations=Array.isArray(result.operations)?result.operations:[];
+    serviceOperationPager.next=result.page?.nextCursor||null;
+  }catch(error){
+    if(!sessionActive(epoch)||page.generation!==serviceOperationPager.generation)return;
+    serviceOperationPager.error=error.message||"Service synchronization is unavailable. Refresh to retry.";
+  }finally{
+    if(sessionActive(epoch)&&page.generation===serviceOperationPager.generation){serviceOperationPager.loading=false;renderServiceOperations();}
+  }
+}
+function renderServiceOperations(){
+  recordPageControls(serviceOperationPager,"serviceOperation",`Page ${serviceOperationPager.index+1}: ${serviceOperations.length} matching operations`);
+  $("refreshServiceOperationsButton").disabled=serviceOperationPager.loading||serviceMutationBusy;
+  $("serviceOperationList").innerHTML=serviceOperationPager.loading?'<div class="empty-state"><strong>Loading synchronization</strong></div>':serviceOperationPager.error?
+    `<div class="empty-state"><strong>Synchronization unavailable</strong><span>${esc(serviceOperationPager.error)}</span></div>`:serviceOperations.length?serviceOperations.map(operation=>`
+    <div class="service-operation-row">
+      <div><strong>${esc(operation.assetNumber||operation.requestId)} · ${operation.kind==="delete"?"Delete":esc(operation.status)}</strong>
+        <span>${esc(({pending:"Waiting",blocked:"Approval needed",needs_review:"Rent status review",done:"Saved",failed:"Rejected"})[operation.phase]||"Unknown")}
+          · Requested by ${esc(operation.actorName)}${operation.approvedBy!==operation.actorName?` · Approved by ${esc(operation.approvedBy)}`:""}</span>
+        <span>${esc(operation.message||(operation.phase==="done"?"QR change and history have been saved.":operation.phase==="failed"?"Operation was rejected.":"Synchronization is pending."))}</span></div>
+      <div class="row-actions"><button class="small-button" data-service-operation-view="${esc(operation.id)}">View record</button>
+      ${operation.canRetry&&["pending","blocked"].includes(operation.phase)?`<button class="small-button" data-service-operation-retry="${esc(operation.id)}" ${serviceMutationBusy?"disabled":""}>Retry</button>`:""}
+      ${operation.canReview?`<button class="small-button" data-service-operation-review="${esc(operation.id)}" ${serviceMutationBusy?"disabled":""}>Record history; keep current rent status</button>`:""}</div>
+    </div>`).join(""):'<div class="empty-state"><strong>No matching operations</strong><span>Accepted QR changes are saved here. Use All Operations to inspect completed or rejected actions.</span></div>';
+}
+async function reviewServiceOperation(id,historyOnly=false){
+  if(!serviceOperationReady())return;
+  if(historyOnly&&!confirm("Record the confirmed QR change in receiver history while keeping the receiver's current rent status?"))return;
+  const epoch=sessionEpoch;serviceMutationBusy=true;renderActivations();renderServiceOperations();
+  try{
+    const {response,result}=await staffRequest("/api/service-operations",{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({id,mode:historyOnly?"history-only":"retry",...(historyOnly?{baseRevision:cloudRevision}:{})})});
+    if(!sessionActive(epoch))return;
+    if(!response.ok&&!result.operation)throw new Error(result.error||"Operation could not be retried.");
+    let refreshFailed=false;
+    try{await readCloudState({quiet:true});}catch{refreshFailed=true;}
+    if(!sessionActive(epoch))return;
+    await Promise.all([loadRemoteActivations(),loadServiceOperations()]);
+    if(sessionActive(epoch))toast(refreshFailed?"Operation recorded. Inventory refresh is unavailable; refresh before further edits.":result.operation?.phase==="done"?"QR change and history saved.":result.operation?.message||"Synchronization remains pending.");
+  }catch(error){if(sessionActive(epoch))toast(error.message||"Operation could not be retried.");}
+  finally{if(sessionActive(epoch)){serviceMutationBusy=false;renderActivations();renderServiceOperations();}}
+}
+async function viewServiceOperation(id){
+  const epoch=sessionEpoch,generation=++serviceOperationViewGeneration;
+  try{
+    const {response,result}=await staffRequest(`/api/service-operations?id=${encodeURIComponent(id)}`,{cache:"no-store"});
+    if(!sessionActive(epoch)||generation!==serviceOperationViewGeneration)return;
+    if(!response.ok)throw new Error(result.error||"Operation record unavailable.");
+    const request=result.request||{},operation=result.operation||{};
+    const rows=[["Asset",request.assetNumber],["Phase",operation.phase],["Message",operation.message],["Action",operation.kind==="delete"?"Delete":operation.status],
+      ["Requested by",operation.actorName],["Approved by",operation.approvedBy],["Request status",request.status],["Account",[request.accountNumber,request.accountName].filter(Boolean).join(" — ")],
+      ["Contact",[request.requesterName,request.requesterPhone].filter(Boolean).join(" · ")],["Operator",request.operatorName],["Rig / Frac",request.rigFrac],["Lease",request.lease],
+      ["Error",request.errorCode],["Notes",request.notes],["Recorded",formatHistoryDate(operation.updatedAt)]];
+    $("receiverEventTitle").textContent="QR operation record";
+    const mapUrl=safeMapsLink(request.mapUrl);
+    $("receiverEventBody").innerHTML=`<div class="receiver-event-grid">${rows.filter(([,value])=>value).map(([label,value])=>`<div><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join("")}</div>${mapUrl?`<a class="primary-button" href="${esc(mapUrl)}" target="_blank" rel="noopener">Open GPS Map ↗</a>`:""}`;
+    openModal("receiverEventModal");
+  }catch(error){if(sessionActive(epoch)&&generation===serviceOperationViewGeneration)toast(error.message||"Operation record unavailable.");}
 }
 
 function renderActivations(){
@@ -1147,14 +1244,14 @@ function renderActivations(){
       <td><strong>${highlightMatch(account?.number||"Unassigned",q)}</strong><span>${highlightMatch(account?.name||"",q)}</span></td>
       <td><span class="activation-action ${request.action.toLowerCase().replace(/[^a-z]+/g,"-").replace(/^-|-$/g,"")}">${esc(request.action)}</span></td>
       <td>${esc(formatUndoTime(request.requestedAt)||request.requestedAt||"—")}</td>
-      <td><span class="activation-status ${esc(String(request.status||"unknown").toLowerCase())}">${esc(request.status)}</span></td>
+      <td><span class="activation-status ${esc(String(request.status||"unknown").toLowerCase())}">${esc(request.status)}</span>${request.synchronization?`<span>Synchronization pending · ${esc(request.synchronization.message||"Check the queue below")}</span>`:""}</td>
       <td><div class="activation-location"><strong>${esc(request.errorCode?`Error ${request.errorCode}`:"—")}</strong>${mapUrl?`<a href="${esc(mapUrl)}" target="_blank" rel="noopener">Open GPS map ↗</a><span>±${esc(Math.round(Number(request.gpsAccuracy)||0))} m</span>`:""}</div></td>
       <td>${esc(request.completedAt?new Date(request.completedAt).toLocaleDateString():"—")}</td>
       <td class="activation-notes"><div class="activation-notes-stack" title="${esc(request.notes||"")}">${request.requesterName?`<span><b>Requested by:</b> ${esc(request.requesterName)}</span>`:""}${request.requesterPhone?`<span><b>Callback:</b> ${esc(request.requesterPhone)}</span>`:""}${request.operatorName?`<span><b>Operator:</b> ${esc(request.operatorName)}</span>`:""}${request.rigFrac?`<span><b>Rig/Frac:</b> ${esc(request.rigFrac)}</span>`:""}${request.lease?`<span><b>Lease:</b> ${esc(request.lease)}</span>`:""}${request.notes?`<span class="activation-request-note">${esc(request.notes)}</span>`:""}${!request.requesterName&&!request.requesterPhone&&!request.operatorName&&!request.rigFrac&&!request.lease&&!request.notes?"—":""}</div></td>
-      <td><div class="row-actions">
+      <td><fieldset class="row-actions service-action-controls" ${request.remote&&(serviceMutationBusy||request.synchronization)?"disabled":""}>
         ${request.status==="Pending"?`<button class="small-button" data-activation-complete="${esc(request.id)}">Complete</button>${request.remote?"":`<button class="small-button" data-activation-edit="${esc(request.id)}">Edit</button>`}<button class="small-button" data-activation-cancel="${esc(request.id)}">Cancel</button>`:`<button class="small-button" data-activation-reopen="${esc(request.id)}">Reopen</button>`}
         ${currentUser?.role==="admin"?`<button class="small-button danger" data-activation-delete="${esc(request.id)}">Delete</button>`:""}
-      </div></td>
+      </fieldset></td>
     </tr>`;
   }).join("");
   $("activationEmpty").hidden=requestPager.loading||Boolean(requestPager.error)||filtered.length!==0;
@@ -1636,6 +1733,16 @@ $("activationSearch").oninput=reloadRequestFilters;
 $("activationStatusFilter").onchange=reloadRequestFilters;
 $("activationPreviousButton").onclick=()=>loadRemoteActivations(false,"previous");
 $("activationNextButton").onclick=()=>loadRemoteActivations(false,"next");
+$("refreshServiceOperationsButton").onclick=()=>loadServiceOperations();
+$("serviceOperationPreviousButton").onclick=()=>loadServiceOperations("previous");
+$("serviceOperationNextButton").onclick=()=>loadServiceOperations("next");
+const reloadServiceFilters=()=>queueRecordFilter(serviceOperationPager,()=>{serviceOperations=[];},renderServiceOperations,()=>loadServiceOperations());
+$("serviceOperationSearch").oninput=reloadServiceFilters;$("serviceOperationFilter").onchange=reloadServiceFilters;
+$("serviceOperationList").addEventListener("click",event=>{
+  const view=event.target.closest("[data-service-operation-view]");if(view){viewServiceOperation(view.dataset.serviceOperationView);return;}
+  const retry=event.target.closest("[data-service-operation-retry]"),review=event.target.closest("[data-service-operation-review]");
+  if(retry||review)reviewServiceOperation(retry?.dataset.serviceOperationRetry||review.dataset.serviceOperationReview,Boolean(review));
+});
 $("activationAssetInput").oninput=updateActivationAccountDisplay;
 $("activationForm").addEventListener("submit",event=>{
   event.preventDefault();
@@ -1670,36 +1777,16 @@ $("activationRows").addEventListener("click",async event=>{
   if(edit){openActivationForm(activations.find(item=>item.id===edit.dataset.activationEdit));return}
   if(remove&&currentUser?.role!=="admin"){toast("Administrator access is required to delete service requests.");return;}
   const id=complete?.dataset.activationComplete||cancel?.dataset.activationCancel||reopen?.dataset.activationReopen||remove?.dataset.activationDelete;
-  const request=remoteActivations.find(item=>item.id===id)||activations.find(item=>item.id===id);
+  // Origin is determined by the server-loaded collection, never a display label.
+  const remote=remoteActivations.find(item=>item.id===id);
+  const request=remote||activations.find(item=>item.id===id);
   if(!request)return;
-  if(request.source==="QR"){
+  if(remote){
+    const epoch=sessionEpoch;
     try{
-      if(remove){
-        if(!confirm("Delete this QR service request?"))return;
-        const receiver=master.find(item=>item.assetNumber===request.assetNumber);
-        const account=activationAccount(request,receiver);
-        if(receiver){archiveActivationEvent(request,receiver,account,"archived");save("Archive receiver service history")}
-        await deleteRemoteActivation(request);
-        toast("Service request deleted.");
-      }else{
-        const status=complete?"Completed":cancel?"Cancelled":"Pending";
-        await updateRemoteActivation(request,status);
-        if(complete){
-          const receiver=master.find(item=>item.assetNumber===request.assetNumber);
-          if(receiver){
-            setReceiverRentState(receiver,"On Rent");
-            const completedRequest={...request,status:"Completed",completedAt:new Date().toISOString()};
-            archiveActivationEvent(completedRequest,receiver,activationAccount(request,receiver),"completed");
-            save("Complete QR service request");
-            renderDashboard();renderAccounts();renderMaster();
-          }
-        }
-        toast(status==="Completed"?"Service request completed.":status==="Cancelled"?"Service request cancelled.":"Service request reopened.");
-      }
-    }catch(error){
-      console.error(error);
-      toast(error instanceof Error?error.message:"Unable to update service request.");
-    }
+      if(remove){if(!confirm("Delete this QR service request and preserve its server history?"))return;await deleteRemoteActivation(request);}
+      else await updateRemoteActivation(request,complete?"Completed":cancel?"Cancelled":"Pending");
+    }catch(error){if(sessionActive(epoch))toast(error instanceof Error?error.message:"Unable to confirm service action. Check synchronization before retrying.");}
     return;
   }
   if(complete){
@@ -3592,7 +3679,8 @@ function lockSession(retainDraft=false,message=""){
   importCancellations.forEach(cancel=>cancel());importCancellations.clear();
   master=[];accounts=[];assignments=[];activations=[];receiverEvents=[];rentalStock={batches:[]};auditState=null;
   remoteActivations=[];undoHistory=[];activityRecords=[];cacheEntries.clear();
-  resetRecordPager(requestPager);resetRecordPager(activityPager);
+  resetRecordPager(requestPager);resetRecordPager(activityPager);resetRecordPager(serviceOperationPager);
+  serviceOperations=[];serviceCommands.clear();serviceMutationBusy=false;serviceOperationViewGeneration++;
   cloudReady=false;cloudQueued=false;cloudSaving=false;cloudCaptureQueued=false;cloudPendingStates=[];cloudWriteBlocked=false;cloudRevision=0;
   cloudBaseState=null;draftCopy=null;draftSavePromise=null;draftGeneration=0;draftSavedGeneration=-1;draftReview=null;draftBusy=false;
   $("applyDraftButton").hidden=true;

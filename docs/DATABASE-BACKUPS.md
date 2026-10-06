@@ -142,13 +142,18 @@ or `--create`, and never drops a database. See
 [PostgreSQL restore options and trusted-archive requirements](https://www.postgresql.org/docs/18/app-pgrestore.html).
 It checks schema, migration history, row counts and content fingerprints against
 the source snapshot before allowing runtime access. After **both** verify, it
-deletes restored tracker sessions, records the restore in the audit log, and
+deletes restored tracker sessions, pauses unfinished QR intents for administrator
+review (`blocked` / `restore_review`), records the restore in the audit log, and
 grants only operational table access to each fresh runtime role. The operator
 still owns the schema; runtime roles cannot read `schema_migrations` or run DDL.
 
-A successful restore intentionally differs from the backup by revoked sessions
-and the new audit entry. Staff must sign in again. Account/PIN data otherwise
-survives: review restored accounts, roles, lockouts and subsequent credential
+A successful restore intentionally differs from the backup by revoked sessions,
+the new audit entry, and paused unfinished QR intents. Staff must sign in again.
+The two source snapshots can straddle a QR transition; keep the reconciler paused
+for restored work until an administrator inspects and approves each intent. The
+versioned QR receipt prevents blind reapplication. See [QR operations](QR-OPERATIONS.md).
+
+Account/PIN data otherwise survives: review restored accounts, roles, lockouts and subsequent credential
 changes before cutover, because a historical backup can revive older account data.
 
 There is **no transaction spanning both databases**. A late failure can leave a

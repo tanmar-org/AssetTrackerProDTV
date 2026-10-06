@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark">
   <title>TanMar Receiver Control</title>
-  <link rel="stylesheet" href="app.css?v=65">
+  <link rel="stylesheet" href="app.css?v=66">
   <link rel="stylesheet" href="reskin.css?v=51">
   <link rel="stylesheet" href="capacity.css?v=1">
   <link rel="stylesheet" href="labels.css?v=55">
@@ -288,6 +288,21 @@
             </table>
           </div>
           <div class="empty-state" id="activationEmpty" hidden><strong>No activation requests found</strong><span>Create a request or change the current filter.</span></div>
+        </section>
+        <section class="panel service-operations-panel">
+          <div class="panel-header"><div><p class="eyebrow">Saved server actions</p><h3>QR Synchronization</h3></div>
+            <button class="secondary-button" id="refreshServiceOperationsButton" type="button">↻ Refresh</button></div>
+          <p class="activity-help">Accepted actions stay on the server until QR status and history are recorded. Review a rent-status conflict before it can finish.</p>
+          <div class="activation-filter-row">
+            <label class="search-field"><span>⌕</span><input id="serviceOperationSearch" type="search" maxlength="128" aria-label="Search QR operations" placeholder="Asset, request, employee, or notes..."></label>
+            <select id="serviceOperationFilter" aria-label="Operation status"><option value="active">Unfinished Operations</option><option value="all">All Operations</option><option value="done">Saved</option><option value="failed">Rejected</option></select>
+          </div>
+          <div class="record-pagination" aria-label="QR synchronization pages">
+            <button class="secondary-button" id="serviceOperationPreviousButton" type="button" disabled>← Previous</button>
+            <span id="serviceOperationPageSummary" role="status">Synchronization has not loaded.</span>
+            <button class="secondary-button" id="serviceOperationNextButton" type="button" disabled>Next →</button>
+          </div>
+          <div id="serviceOperationList"></div>
         </section>
       </section>
 
@@ -965,6 +980,6 @@
   <script src="vendor/qrcode.js"></script>
   <script src="vendor/jsbarcode.min.js"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=65"></script>
+  <script src="app.js?v=66"></script>
 </body>
 </html>

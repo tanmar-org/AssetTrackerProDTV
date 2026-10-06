@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 // Both Node apps use the same bounded listing contract. Filters are data, never
 // SQL fragments, upstream destinations or credentials. Cursors grant no access.
 export class ListingInputError extends Error {}
-type Kind = "requests" | "activity";
+type Kind = "requests" | "activity" | "operations";
 export type RecordList = {
   limit: number; q: string; status: string; type: string; from: string; through: string;
   fingerprint: string; after: { time: string; id: string } | null;
@@ -12,7 +12,7 @@ const invalid = (): never => { throw new ListingInputError("Invalid list filters
 
 export function readRecordList(url: URL, kind: Kind): RecordList {
   const params = url.searchParams;
-  const allowed = ["limit", "q", "cursor", ...(kind === "requests" ? ["status"] : ["type", "from", "through"])];
+  const allowed = ["limit", "q", "cursor", ...(kind === "activity" ? ["type", "from", "through"] : ["status"])];
   if (url.search.length > 4096) invalid();
   for (const key of params.keys()) if (!allowed.includes(key) || params.getAll(key).length !== 1) invalid();
   const limitText = params.get("limit") ?? "100";
@@ -20,7 +20,7 @@ export function readRecordList(url: URL, kind: Kind): RecordList {
   const q = (params.get("q") ?? "").trim();
   if (q.length > 128 || /[\x00-\x1f\x7f]/.test(q)) invalid();
   const status = params.get("status") ?? "all", type = params.get("type") ?? "all";
-  if (!["all", "Pending", "Completed", "Cancelled"].includes(status) || !["all", "data", "user", "denied"].includes(type)) invalid();
+  if (!(kind === "operations" ? ["all","active","pending","blocked","needs_review","done","failed"] : ["all", "Pending", "Completed", "Cancelled"]).includes(status) || !["all", "data", "user", "denied"].includes(type)) invalid();
   const from = params.get("from") ?? "", through = params.get("through") ?? "";
   for (const value of [from, through]) if (value &&
     (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString() !== value)) invalid();

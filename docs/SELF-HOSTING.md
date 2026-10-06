@@ -21,9 +21,10 @@ on every path. This is not a D1 emulator or a SQL translation layer.
 ## Data layout and compatibility
 
 Use two databases with separate application roles. Tracker tables are `app_users`,
-`app_sessions`, `app_change_log`, `app_state`, `app_state_history`, and
-`app_inventory_drafts`. The requests
-database contains `service_requests` and `request_rate_limits`. Each has operator-owned `schema_migrations`.
+`app_sessions`, `app_change_log`, `app_state`, `app_state_history`,
+`app_inventory_drafts`, and `app_service_operations`. The requests
+database contains `service_requests`, `request_rate_limits`, and
+`service_request_operations`. Each has operator-owned `schema_migrations`.
 
 Operational inventory remains one JSONB state document with explicit record and
 relationship validation on reads/saves/recovery. Native JSONB may reorder keys;
@@ -42,8 +43,9 @@ State saves and recovery share account-authorization and state transaction locks
 in that order, rechecking roles/sessions after waiting. The revision predicate
 also protects updates outside that lock; rejected updates create no history/audit.
 Recovery additionally requires the revision the administrator reviewed. A failure
-in history or audit writes rolls back the state change. The two databases still
-do not provide atomic coordination between inventory and QR status (DATA-02).
+in history or audit writes rolls back the state change. QR status/history now use
+durable intent, versioned receipts and a VM reconciler for recovery; there is still no transaction spanning both databases. Read
+[QR operations](QR-OPERATIONS.md) for pending/review states and deployment.
 
 ## Database ownership and permissions
 
@@ -73,12 +75,14 @@ GRANT CONNECT ON DATABASE assettracker TO assettracker_runtime;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO assettracker_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON
-  app_users, app_sessions, app_change_log, app_state, app_state_history, app_inventory_drafts
+  app_users, app_sessions, app_change_log, app_state, app_state_history,
+  app_inventory_drafts, app_service_operations
   TO assettracker_runtime;
 ```
 
 Apply equivalent database/schema access in the requests database, granting data
-access only on `service_requests` and `request_rate_limits` to its own runtime role. Do not grant runtime
+access only on `service_requests`, `request_rate_limits`, and
+`service_request_operations` to its own runtime role. Do not grant runtime
 access to `schema_migrations`. Review grants when future migrations add tables.
 Use authenticated local/socket access or loopback with SCRAM; never expose
 PostgreSQL publicly or reuse the test cluster's trust authentication in production.
@@ -285,3 +289,19 @@ No retention purge, archived-data service or production migration is executed by
 this development change. Snapshot/live-page limits and scoped UI counts/CSV are
 explained in [record browsing policy](RECORD-LISTS.md). Complete recovery remains
 [paired PostgreSQL backups](DATABASE-BACKUPS.md).
+
+## QR coordination upgrade
+
+Apply tracker `0005_service_operations.sql` and requests
+`0004_operation_receipts.sql` with their respective owners and explicitly grant
+runtime access on `app_service_operations` / `service_request_operations`.
+Both health checks require these tables. Ship compatible apps/UI together, reload
+staff tabs (version 66), and update private integrations: the old direct QR
+PATCH/DELETE endpoint is closed. Run root `npm run service:reconcile -- --watch`
+as a separately supervised restricted VM process using the private tracker runtime
+environment. No production process is installed by the implementation. See
+[QR operation policy](QR-OPERATIONS.md) for intent/receipt semantics, manual retries,
+rent conflicts, shutdown, retention and restored-operation approval. Updating the
+supported backup catalog means new backup sets require the current migrations;
+older archives need a separately reviewed upgrade plan before this restore tool
+can accept them. Do not edit recorded migration checksums or bypass verification.

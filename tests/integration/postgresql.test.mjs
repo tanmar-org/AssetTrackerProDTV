@@ -38,7 +38,7 @@ test("Node/PostgreSQL integration", async (t) => {
   });
   const api = (path, method, body, cookie) => call(staffServer, path, method, body, cookie);
   const count = async (table) => Number((await tracker.database.prepare(`SELECT COUNT(*) AS total FROM ${table}`).first()).total);
-  const reset = () => tracker.database.prepare("TRUNCATE app_inventory_drafts, app_sessions, app_users, app_change_log, app_state, app_state_history").run();
+  const reset = () => tracker.database.prepare("TRUNCATE app_service_operations, app_inventory_drafts, app_sessions, app_users, app_change_log, app_state, app_state_history").run();
   const signIn = async (credentials = fixture) => {
     const response = await api("/api/auth", "POST", { action: "login", ...credentials });
     assert.equal(response.status, 200);
@@ -54,7 +54,7 @@ test("Node/PostgreSQL integration", async (t) => {
 
   await t.test("migrations are repeatable, checksummed, and cannot mix applications", async () => {
     await migrate(tracker.database, "tracker");
-    assert.equal(Number((await tracker.database.prepare("SELECT COUNT(*) AS total FROM schema_migrations").first()).total), 4);
+    assert.equal(Number((await tracker.database.prepare("SELECT COUNT(*) AS total FROM schema_migrations").first()).total), 5);
     await assert.rejects(migrate(tracker.database, "requests"), /other application/);
     await tracker.database.prepare("UPDATE schema_migrations SET checksum = 'synthetic-changed-checksum' WHERE name = 'tracker/0001_initial.sql'").run();
     await assert.rejects(migrate(tracker.database, "tracker"), /has changed/);
@@ -267,9 +267,9 @@ test("Node/PostgreSQL integration", async (t) => {
     assert.equal(listed.requests[0].serialNumber, "00000123");
     assert.equal(listed.requests[0].latitude, payload.latitude);
     const notes = "Synthetic apostrophe ' and SQL-like text ; DROP TABLE service_requests;";
-    assert.equal((await api("/api/service-requests", "PATCH", { id, status: "Completed", notes }, cookie)).status, 200);
+    assert.equal((await api("/api/service-requests", "PATCH", { id, status: "Completed", notes, operationId:randomUUID(),expectedVersion:1,baseRevision:1 }, cookie)).status, 200);
     assert.equal((await requests.database.prepare("SELECT notes FROM service_requests WHERE id = $1").bind(id).first()).notes, notes);
-    assert.equal((await api(`/api/service-requests?id=${id}`, "DELETE", undefined, cookie)).status, 200);
+    assert.equal((await api(`/api/service-requests?id=${id}`, "DELETE", {operationId:randomUUID(),expectedVersion:2,baseRevision:2}, cookie)).status, 200);
     assert.equal((await (await api("/api/service-requests", "GET", undefined, cookie)).json()).requests.length, 0);
     assert.ok((await requests.database.prepare("SELECT deleted_at FROM service_requests WHERE id = $1").bind(id).first()).deleted_at);
   });
