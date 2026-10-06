@@ -9,6 +9,8 @@ import { createDatabase } from "@tanmar/database";
 import { backupDatabases, configuration, restoreDatabases } from "../../scripts/postgresql-backups.mjs";
 import { provisionAdmin } from "../../scripts/admin-provisioning.mjs";
 import { createPostgresFixture } from "../helpers/postgres.mjs";
+import { serviceFingerprint } from "../../lib/service-protocol.ts";
+import { snapshot } from "../helpers/service-fixture.mjs";
 import { inventory, batch, history, when } from "../helpers/inventory-fixture.mjs";
 import { startNext, unusedPort } from "../helpers/next-server.mjs";
 
@@ -72,12 +74,21 @@ test("complete PostgreSQL backup and isolated restore",{timeout:120000},async t=
   await requests.database.prepare(`INSERT INTO service_requests (id,asset_id,asset_number,account_number,requester_name,requester_phone,error_code,latitude,longitude,gps_accuracy,gps_captured_at,requested_at)
     VALUES ('synthetic-request','receiver-0','TEST-0','000001','Synthetic requester','555-0100','771',31.9,-102.2,10,$1,$1)`).bind(when).run();
   await requests.database.prepare("INSERT INTO request_rate_limits VALUES ('synthetic-rate-bucket',3,4102444800)").run();
+  // A split backup may contain a pending tracker intent and an already committed
+  // QR receipt. Restore preserves both and pauses automatic writes for review.
+  const operationId=randomUUID(),command={operationId,id:"synthetic-request",kind:"status",status:"Completed",notes:"Recovered note",expectedVersion:1};
+  const fingerprint=serviceFingerprint(command),receipt={operationId,requestId:command.id,fingerprint,outcome:"applied",reason:"",appliedAt:when,deleted:false,request:{...snapshot(),id:command.id,notes:command.notes}};
+  await tracker.database.prepare(`INSERT INTO app_service_operations(id,request_id,kind,target_status,notes,expected_version,fingerprint,actor_id,actor_name,approver_id,approver_name,receiver_id,receiver_baseline,snapshot,created_at,updated_at)
+    VALUES($1,$2,'status','Completed',$3,1,$4,$5,'testadmin',$5,'testadmin','receiver-0',$6::jsonb,$7::jsonb,$8,$8)`)
+    .bind(operationId,command.id,command.notes,fingerprint,user.id,JSON.stringify({rentState:"Off Rent",offRentSince:state.master[0].offRentSince}),JSON.stringify({...receipt.request,status:"Pending",version:1,completedAt:null}),when).run();
+  await requests.database.prepare("UPDATE service_requests SET status='Completed',version=2,notes=$1,completed_at=$2 WHERE id=$3").bind(command.notes,when,command.id).run();
+  await requests.database.prepare("INSERT INTO service_request_operations VALUES($1,$2,$3,$4::jsonb,$5)").bind(operationId,command.id,fingerprint,JSON.stringify(receipt),when).run();
   let set,manifest;
 
   await t.test("read-only sources produce private, complete archives with matching snapshot evidence",async()=>{
     set=await backupDatabases(backupConfig,backupRoot);
     manifest=JSON.parse(await readFile(path.join(set,"manifest.json"),"utf8"));
-    assert.equal(manifest.version,1);assert.equal(manifest.databases.tracker.tables.length,7);assert.equal(manifest.databases.requests.tables.length,3);
+    assert.equal(manifest.version,1);assert.equal(manifest.databases.tracker.tables.length,8);assert.equal(manifest.databases.requests.tables.length,4);
     for(const app of ["tracker","requests"]){
       const record=manifest.databases[app];assert.equal(record.identity.user,backupRole);assert.match(record.sha256,/^[a-f0-9]{64}$/);
       assert.ok(record.tables.every(table=>Number(table.rows)>0));
@@ -96,6 +107,10 @@ test("complete PostgreSQL backup and isolated restore",{timeout:120000},async t=
     assert.equal((await trackerTarget.database.prepare("SELECT draft_state FROM app_inventory_drafts").first()).draft_state.accounts[0].number,"000001");
     assert.equal(Number((await trackerTarget.database.prepare("SELECT count(*) AS total FROM app_state_history").first()).total),1);
     assert.ok(await trackerTarget.database.prepare("SELECT id FROM app_change_log WHERE action='Restored database; previous sessions revoked'").first());
+    const restoredOperation=await trackerTarget.runtime.prepare("SELECT * FROM app_service_operations").first();
+    assert.equal(restoredOperation.id,operationId);assert.equal(restoredOperation.fingerprint,fingerprint);
+    assert.equal(restoredOperation.phase,"blocked");assert.equal(restoredOperation.error_code,"restore_review");
+    assert.deepEqual((await requestsTarget.runtime.prepare("SELECT result FROM service_request_operations").first()).result,receipt);
     const request=await requestsTarget.runtime.prepare("SELECT * FROM service_requests").first();
     assert.equal(request.account_number,"000001");assert.equal(request.requester_phone,"555-0100");assert.equal(request.latitude,31.9);
     assert.equal((await requestsTarget.runtime.prepare("SELECT hits FROM request_rate_limits").first()).hits,3);

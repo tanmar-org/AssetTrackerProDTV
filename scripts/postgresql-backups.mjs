@@ -16,8 +16,8 @@ export function operatorCancellation() {
 
 const repository = path.resolve(fileURLToPath(new URL("../", import.meta.url)));
 export const applications = {
-  tracker: ["app_change_log", "app_inventory_drafts", "app_sessions", "app_state", "app_state_history", "app_users"],
-  requests: ["request_rate_limits", "service_requests"],
+  tracker: ["app_change_log", "app_inventory_drafts", "app_service_operations", "app_sessions", "app_state", "app_state_history", "app_users"],
+  requests: ["request_rate_limits", "service_request_operations", "service_requests"],
 };
 const identifier = value => {
   if(typeof value !== "string" || !/^[a-z][a-z0-9_]{0,62}$/.test(value)) throw new BackupError("Invalid database object name.");
@@ -316,7 +316,7 @@ export async function restoreDatabases(config, directory) {
       assertGuards();
       const {role} = targets[app];
       await psql(config.services[app],config,`BEGIN;
-        ${app === "tracker" ? "DELETE FROM app_sessions; INSERT INTO app_change_log (id,user_name,action,created_at) VALUES ('"+randomUUID()+"','Database operator','Restored database; previous sessions revoked','"+new Date().toISOString()+"');" : ""}
+        ${app === "tracker" ? "DELETE FROM app_sessions; UPDATE app_service_operations SET phase='blocked',error_code='restore_review',updated_at='"+new Date().toISOString()+"' WHERE phase IN ('pending','blocked','needs_review'); INSERT INTO app_change_log (id,user_name,action,created_at) VALUES ('"+randomUUID()+"','Database operator','Restored database; previous sessions revoked','"+new Date().toISOString()+"');" : ""}
         REVOKE ALL ON SCHEMA public FROM PUBLIC; GRANT USAGE ON SCHEMA public TO ${identifier(role)};
         REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC, ${identifier(role)};
         GRANT SELECT,INSERT,UPDATE,DELETE ON ${applications[app].map(identifier).join(",")} TO ${identifier(role)}; COMMIT;`);

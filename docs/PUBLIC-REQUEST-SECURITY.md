@@ -28,8 +28,9 @@ The lookup is a snapshot at submission, not a transaction across both databases.
 Inventory assignments can change afterwards. Staff receiver association uses the
 stable ID through renames and does not match a deleted ID to another receiver
 reusing its asset number. Legacy rows without IDs retain the old number fallback.
-DATA-02 still covers coordination
-between tracker inventory and the separate request database.
+Staff transitions now use durable intent/QR receipts and server-owned history
+recovery; see [QR operations](QR-OPERATIONS.md). Public submission still uses the
+private lookup snapshot described above.
 
 ## Printed-label compatibility
 

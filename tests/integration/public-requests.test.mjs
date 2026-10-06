@@ -40,12 +40,18 @@ test("public request trust boundary, duplicate races and shared abuse controls",
   });
   const post = (body = payload(), server = qr, headers = {}) => call(server, "/api/requests", "POST", body, headers);
   const staffHeaders = { authorization: `Bearer ${secret}` };
+  // Mutate through the versioned private protocol; legacy endpoints are closed.
+  const change = async body => {
+    const found = await call(qr,"/api/requests/item?id="+encodeURIComponent(body.id),"GET",undefined,staffHeaders);
+    const current = found.ok ? (await found.json()).request : {version:1};
+    return call(qr,"/api/requests/operations","PATCH",{operationId:randomUUID(),kind:"status",expectedVersion:current.version,...body},staffHeaders);
+  };
   const setInventory = (state) => tracker.database.prepare(`INSERT INTO app_state (id, payload, revision, updated_at)
     VALUES ('tanmar-receiver-control', $1::jsonb, 1, $2) ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload`)
     .bind(JSON.stringify(state), new Date().toISOString()).run();
   const rows = async () => (await requests.database.prepare("SELECT * FROM service_requests ORDER BY requested_at").all()).results;
   t.beforeEach(async () => {
-    await requests.database.prepare("TRUNCATE service_requests, request_rate_limits").run();
+    await requests.database.prepare("TRUNCATE service_request_operations, service_requests, request_rate_limits").run();
     await setInventory(inventory());
   });
 
@@ -54,11 +60,12 @@ test("public request trust boundary, duplicate races and shared abuse controls",
     try {
       // Reconstruct only this disposable database's pre-upgrade schema. Never
       // reverse a production migration or change the checked-in first migration.
-      await legacy.database.prepare(`DROP INDEX service_requests_pending_number_unique;
+      await legacy.database.prepare(`DROP TABLE service_request_operations; ALTER TABLE service_requests DROP COLUMN version;
+        DROP INDEX service_requests_pending_number_unique;
         DROP INDEX service_requests_pending_id_unique; DROP TABLE request_rate_limits;
         ALTER TABLE service_requests DROP CONSTRAINT service_request_coordinates,
           DROP CONSTRAINT service_request_asset_id, DROP COLUMN asset_id;
-        DELETE FROM schema_migrations WHERE name IN ('requests/0002_public_request_security.sql', 'requests/0003_request_pagination.sql');
+        DELETE FROM schema_migrations WHERE name IN ('requests/0002_public_request_security.sql', 'requests/0003_request_pagination.sql', 'requests/0004_operation_receipts.sql');
         DROP INDEX service_requests_page_idx; DROP INDEX service_requests_status_page_idx`).run();
       await legacy.database.prepare(`INSERT INTO service_requests
         (id,asset_number,error_code,latitude,longitude,gps_accuracy,gps_captured_at,requested_at)
@@ -73,7 +80,7 @@ test("public request trust boundary, duplicate races and shared abuse controls",
       await assert.rejects(migrate(legacy.database, "requests"), { code: "23514" });
       await legacy.database.prepare("UPDATE service_requests SET latitude = 31.9 WHERE id = 'legacy-2'").run();
       await migrate(legacy.database, "requests"); await migrate(legacy.database, "requests");
-      assert.equal(Number((await legacy.database.prepare("SELECT COUNT(*) AS total FROM schema_migrations").first()).total), 3);
+      assert.equal(Number((await legacy.database.prepare("SELECT COUNT(*) AS total FROM schema_migrations").first()).total), 4);
       assert.equal((await legacy.database.prepare("SELECT asset_id FROM service_requests LIMIT 1").first()).asset_id, null);
     } finally { await legacy.close(); }
   });
@@ -161,12 +168,13 @@ test("public request trust boundary, duplicate races and shared abuse controls",
 
   await t.test("a reopen racing a new submission retains one pending row and rolls back the loser", async () => {
     const created = await post(); const { id } = await created.json();
-    assert.equal((await call(qr, "/api/requests", "PATCH", { id, status: "Completed", notes: "Test complete" }, staffHeaders)).status, 200);
-    const responses = await Promise.all([post(), call(qr, "/api/requests", "PATCH", { id, status: "Pending", notes: "Reopen" }, staffHeaders)]);
-    assert.equal(responses.filter((item) => item.ok).length, 1);
-    assert.equal(responses.filter((item) => item.status === 409).length, 1);
+    assert.equal((await change({ id, status: "Completed", notes: "Test complete" })).status, 200);
+    const responses = await Promise.all([post(), change({ id, status: "Pending", notes: "Reopen" })]);
+    const receipt=await responses[1].json();
+    assert.equal(Number(responses[0].status===201)+Number(receipt.outcome==="applied"),1);
+    assert.equal(Number(responses[0].status===409)+Number(receipt.reason==="pending_conflict"),1);
     assert.equal((await rows()).filter((row) => row.status === "Pending").length, 1);
-    if (responses[1].status === 409) assert.equal((await rows()).find((row) => row.id === id).notes, "Test complete");
+    if (receipt.outcome === "rejected") assert.equal((await rows()).find((row) => row.id === id).notes, "Test complete");
   });
 
   await t.test("per-receiver rate limits persist denied attempts and cannot be reset by fake forwarded headers", async () => {
@@ -213,8 +221,9 @@ test("public request trust boundary, duplicate races and shared abuse controls",
     assert.equal((await call(qr, "/api/requests", "PATCH", { notes: "a".repeat(10000) })).status, 401);
     const { id } = await (await post()).json();
     for (const changes of [{ notes: "a".repeat(2049) }, { notes: null }, { id: "<img>" }, { status: "forged" }, { assetNumber: "forged" }])
-      assert.equal((await call(qr, "/api/requests", "PATCH", { id, status: "Completed", ...changes }, staffHeaders)).status, 400);
-    assert.equal((await call(qr, `/api/requests?id=${id}&id=other`, "DELETE", undefined, staffHeaders)).status, 400);
+      assert.equal((await change({ id, status: "Completed", ...changes })).status, 400);
+    assert.equal((await call(qr, `/api/requests/item?id=${id}&id=other`, "GET", undefined, staffHeaders)).status, 400);
+    assert.equal((await call(qr, `/api/requests?id=${id}`, "DELETE", undefined, staffHeaders)).status, 410);
     assert.equal((await rows())[0].status, "Pending");
   });
 

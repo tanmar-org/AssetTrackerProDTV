@@ -10,6 +10,7 @@ export async function GET() {
     await database().prepare("SELECT asset_id FROM service_requests LIMIT 1").first();
     await database().prepare("SELECT 1 FROM request_rate_limits LIMIT 1").first();
     if (!process.env.ADMIN_SHARED_SECRET || !process.env.TRACKER_ASSET_API_URL) throw new Error("Missing lookup configuration.");
+    await database().prepare("SELECT 1 FROM service_request_operations LIMIT 1").first();
     return Response.json({ status: "ok" }, { headers: { "cache-control": "no-store" } });
   } catch {
     return Response.json({ status: "unavailable" }, { status: 503, headers: { "cache-control": "no-store" } });

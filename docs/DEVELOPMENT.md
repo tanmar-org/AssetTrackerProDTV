@@ -245,6 +245,19 @@ to prove generation/session isolation, clears stale rows on outages, downloads a
 The browser fixture supplies API responses; only PostgreSQL checks prove server
 permissions, SQL and migrations. See [listing policy](RECORD-LISTS.md).
 
+## Durable QR operation checks
+
+See [QR operations](QR-OPERATIONS.md) for the current cross-database contract.
+`tests/service-operations.test.mjs` runs with the default suite. Integration
+`service-operations.test.mjs` runs both real apps/restricted roles behind a synthetic
+loopback gateway to drop acknowledgements after QR commit and stall attempts. It
+also invokes a fresh reconciliation CLI process, checks tracker audit rollback,
+account changes, conflict review, archival, stable association and pagination.
+The real dump/restore drill verifies both new tables and restored-operation pause.
+Chromium `service-operations.test.mjs` tests actual controls, UUID reuse, reload,
+review, no browser-generated QR saves, private details, draft and lock handling.
+No tests contact production or install a supervised reconciliation service.
+
 ## Finishing implementation
 
 Review diffs and `git diff --check`; run checks appropriate to the change. Update

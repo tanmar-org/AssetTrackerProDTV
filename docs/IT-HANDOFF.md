@@ -68,6 +68,9 @@ Keep `.dev.vars`, database dumps, application backups and secrets out of source 
 Tracker migrations are in root `drizzle/`; service migrations are in `service-request/drizzle/`. Apply each set to its own database. README local setup commands were exercised on isolated databases.
 
 The tracker keeps operational data as a JSON payload in `app_state`, with a revision and snapshots in `app_state_history`. Users, hashed PINs, sessions and change logs have separate tables. The service database stores `service_requests`, including GPS and soft-deletion timestamps.
+Current staff QR transitions also use tracker `app_service_operations` intents and
+QR `service_request_operations` receipts; [QR operations](QR-OPERATIONS.md) describes
+version checks, server-owned history and the separate VM reconciliation process.
 
 For IT hosting:
 

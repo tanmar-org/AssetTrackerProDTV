@@ -1487,3 +1487,135 @@ Publication: implementation commit `dca0fe1` pushed to
 references and explicit staff-tab reload guidance are bundled into this same PR.
 Owner final review/merge and production rollout remain pending; no merge or
 deployment was performed.
+
+## 2026-10-06 10:58 CDT — Recoverable QR status and receiver history (DATA-02)
+
+### Baseline and implementation
+
+Confirmed owner merge of [PR #29](https://github.com/tanmar-org/AssetTrackerProDTV/pull/29)
+at `50b869e` (10:12:59 CDT). Branched `Dev/qr-history-coordination` from that
+current `origin/main`; the active worktree was clean. The original checkout's
+unrelated authentication-file edits are preserved. No live databases, provider
+configuration, domains or production services were changed.
+
+Previously completion changed the separate QR database before the browser saved
+receiver history; deletion archived locally before contacting QR. A lost response,
+failed second write or closed tab could leave either database out of step. Staff
+mutations now commit a durable tracker intent before any QR write. They require an
+immutable UUID, current request version and inventory revision, strict bounded
+JSON and authoritative metadata preflight. The accepted actor/approver and receiver
+association are retained independently of account changes; no session/bearer secret
+is stored. Only one unfinished intent per request can proceed.
+
+QR requests gain integer versions and a private item/operation protocol. A QR
+transaction locks the operation UUID and request row, checks the expected version,
+and commits the transition with its durable receipt. Replays return the original
+receipt/completion time; changed payloads cannot reuse the UUID. Version conflicts,
+missing requests and conflicting Pending reopens receive permanent rejection proof.
+A savepoint retains that proof while rolling back a uniqueness-rejected reopen.
+Old direct unversioned QR PATCH/DELETE now return 410 after bearer authentication.
+Public submission, private paged listing, GPS/rate limits and privacy stay enforced.
+
+The tracker finishes proven history, current inventory/rent, derived rental-stock
+release, audit and done status together. It preserves unrelated edits and uses the
+normal schema/ordinary permission checker even for administrator completion.
+Failures retain intent; a later process fetches the committed QR receipt instead of
+reapplying. Account lock precedes the operation/state locks; current approval is
+checked before a new QR write, and receipt lookup/mutation share one five-second
+budget with redacted bounded/redirect-safe responses. Already committed proof can
+finish factual history after logout/deactivation without another QR mutation.
+
+A receiver rent status/timer changed while waiting pauses completion for explicit
+review. Owner/admin history-only review requires a fresh revision and preserves
+current rent fields. Stable association survives renaming/number reuse; missing
+receivers retain authoritative history/proof in the operation ledger and audit
+without inventing a row. All operation/receipt records are retained; existing
+receiver-event/snapshot bounds continue. There is no distributed transaction:
+consistency is recoverable, with service availability/conflict resolution required.
+
+### Staff interface, VM process and restoration
+
+Staff QR controls now use the durable server path without generating local QR
+history/rent saves. Unconfirmed retries reuse the tab-memory UUID/body. Local drafts
+block new actions; edits begun during an attempt survive subsequent refresh. A
+private paged synchronization queue provides Retry, View record, phase/filter/search
+controls and explicit rent-conflict review. Pending work disables overtaking. A
+known rejection refreshes state/lists and reports its reason; failed inventory
+refresh after acknowledgement reports acceptance accurately. Session lock clears
+commands, queue/detail DOM, filters and late responses. Assets advance to version66.
+
+Root `service:reconcile` runs one bounded batch; `--watch` provides a separately
+supervised VM process with backoff, aggregate/redacted logs and orderly shutdown.
+No outside Worker is required, GET requests do not drive mutations, and no
+production daemon/schedule was installed. Manual Retry also works. HOST-04 must
+supervise/monitor the runtime command and unfinished/rejected/review-needed work.
+
+Tracker migration `0005_service_operations.sql` and requests
+`0004_operation_receipts.sql` add the intent/receipt tables, version and indexes;
+earlier migrations/checksums are unchanged. Both health checks/runtime grants and
+explicit backup catalogs include the new tables. Real paired backup/restore drills
+retain their proof. Because snapshots can straddle a transition, restoration pauses
+unfinished intents with `restore_review` before runtime grants; workers skip them
+until administrator approval. Compatible apps/UI, both owner-run migrations and
+explicit new-table grants are required together; old tabs/integrations must reload.
+Older backups need a separately reviewed schema/tool upgrade plan.
+
+### Validation and corrections
+
+Final staff default **77 passed / 0 failed**, QR default **4 passed / 0 failed**;
+full real PostgreSQL/HTTP **111 passed / 0 failed**; full Chromium **49 passed /
+0 failed**. Both webpack builds and standalone TypeScript checks pass. Focused
+changed-code/test lint, browser/operator syntax and diff checks pass. Root full
+lint remains **2 inherited vendor errors / 146 warnings**, and QR full lint passes
+with **3 inherited image warnings**. Vendor bytes/licenses, dependencies and
+lockfiles are unchanged; no advisory submissions or tools were added. QR build
+retains the documented multiple-lockfile workspace warning.
+
+New SQL/HTTP cases use separate restricted roles and independent tracker/QR
+processes: same-command replay, competing versions, multibyte notes, acknowledgement
+lost after QR commit, failed tracker audit rollback, fresh CLI-process recovery,
+logout/inactive-account/demotion/reapproval, rent conflicts/fresh review, renamed/
+deleted receivers, overtaking denial, Pending uniqueness, archival, restored pause,
+strict media/body/version selectors and more than200 paged operation records.
+Backup drills verify both new tables and private restore guards. Chromium exercises
+actual controls, UUID reuse, no browser QR save, reload, conflicts/rejections,
+refresh outages, preserved local drafts, unsafe private details/maps and late lock
+cleanup. Synthetic API fixtures prove UI behavior; SQL tests prove permissions.
+Actual staff/mobile/label/production acceptance remains QA-01.
+
+Initial protocol checks were **6/7**: explicit null notes were being coalesced to
+empty text. Corrected both protocol and tracker parsing to reject null. First
+affected SQL run **77/79** exposed a stub that committed HTTP200 before setting its
+missing-receipt404; corrected the synthetic fixture while retaining the permission
+assertions, then focused inventory **19/19** and full SQL **111/111** passed. The
+first browser run **0/9** used a request without its display source label and
+exposed legacy action classification: it fell through to the manual local-save
+path. Classification now uses the actual server-loaded request collection. After
+that, **7/9** passed; the final failure was an event listener registered after its
+request already started. Registering the test listener before clicking retained
+all privacy assertions; focused **9/9** and full **49/49** passed. No security or
+recovery assertions were weakened.
+
+Some fixture teardown emits the known generic idle-connection notice; every final
+scenario passes. Cleanup confirmed **0** synthetic fixture databases and **0**
+fixture roles, and stopped the private development PostgreSQL cluster. Documentation
+is bundled: AGENTS/TODO/journal, the new [QR operation policy](docs/QR-OPERATIONS.md),
+setup/grants, backups/restore, public-request/listing guidance and development tests.
+DATA-02 is implemented; owner review/merge and production rollout remain separate.
+
+### Next useful implementation and publication
+
+Next QA-02: full root lint currently fails on two minified vendor-library errors
+and reports146 warnings. This obscures whether a future application change adds a
+real issue. Establish a verified-vendor lint policy without editing/suppressing
+first-party code, fix application warnings and make the full check useful again.
+Company access/email requirements, HTTPS/domains, web/reconciler supervision,
+monitored encrypted off-server backups, real-data/old-label reconciliation and
+physical-device acceptance remain deployment work.
+
+Publication: implementation commit `beaef0a` pushed to
+`Dev/qr-history-coordination`; opened and attached
+[PR #30](https://github.com/tanmar-org/AssetTrackerProDTV/pull/30). Publication
+references and a trailing-blank-line cleanup are bundled into this same PR.
+Owner review/merge and production rollout remain pending. No merge or deployment
+was performed.

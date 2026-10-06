@@ -69,7 +69,7 @@ test("staff service and event renderers escape records and omit unsafe map ancho
   const request = { id: attack, action: "Reactivate / Refresh", status: attack, requestedAt: "2026-10-05T18:00:00Z", notes: attack };
   const entry = { id: "event", title: attack, notes: attack };
   const context = vm.createContext({ URL, $: get, currentUser: { role: "admin" }, receiverEvents: [entry], openModal() {},
-    requestPager:{loading:false,error:"",index:0,next:null},remoteActivations:[],
+    requestPager:{loading:false,error:"",index:0,next:null},remoteActivations:[],serviceMutationBusy:false,
     formatUndoTime: (value) => value, allActivationRows: () => [{ request, receiver: { assetNumber: attack }, account: { name: attack } }] });
   vm.runInContext(functions(["esc", "highlightMatch", "safeMapsLink", "recordPageControls", "renderActivations", "openReceiverEvent"]), context);
   for (const mapUrl of unsafeMaps) {

@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 import { provisionAdmin } from "../../scripts/admin-provisioning.mjs";
 import { createPostgresFixture } from "../helpers/postgres.mjs";
 import { startNext } from "../helpers/next-server.mjs";
+import { serviceFingerprint } from "../../lib/service-protocol.ts";
+import { snapshot } from "../helpers/service-fixture.mjs";
 import { inventory, batch, history, when } from "../helpers/inventory-fixture.mjs";
 
 // Real HTTP/SQL permission checks; the upstream stub contains no production data
@@ -14,7 +16,8 @@ import { inventory, batch, history, when } from "../helpers/inventory-fixture.mj
 test("inventory permissions, validation, and recovery", async (t) => {
   let tracker, server, upstream;
   const calls = [];
-  let hang = false, upstreamMode = "normal";
+  let hang = false, upstreamMode = "normal", qrRow={...snapshot(),id:"request-0",version:1,status:"Pending",completedAt:null};
+  const receipts=new Map();
   const secret = randomUUID();
   t.after(async () => {
     await server?.close();
@@ -28,8 +31,20 @@ test("inventory permissions, validation, and recovery", async (t) => {
     if (hang) return;
     if(upstreamMode === "redirect") {response.writeHead(302,{location:"/redirect-target"});response.end();return;}
     if(upstreamMode === "large") {response.writeHead(200,{"content-type":"application/json"});response.end("x".repeat(2*1024*1024+1));return;}
-    response.writeHead(200, { "content-type": "application/json" });
-    response.end(JSON.stringify(request.method === "GET" ? { requests: [] } : { ok: true }));
+    response.setHeader("content-type","application/json");
+    if(request.url.startsWith("/api/requests/item"))return response.end(JSON.stringify({request:qrRow}));
+    if(request.url.startsWith("/api/requests/operations")){
+      if(request.method==="GET"){
+        const receipt=receipts.get(new URL(request.url,"http://localhost").searchParams.get("id"));
+        if(!receipt)response.statusCode=404;
+        return response.end(JSON.stringify(receipt||{error:"Not found"}));
+      }
+      const command=JSON.parse(body),appliedAt=new Date().toISOString();
+      qrRow={...qrRow,version:qrRow.version+1,...(command.kind==="status"?{status:command.status,notes:command.notes,completedAt:command.status==="Completed"?appliedAt:null}:{})};
+      const receipt={operationId:command.operationId,requestId:command.id,fingerprint:serviceFingerprint(command),outcome:"applied",reason:"",appliedAt,deleted:command.kind==="delete",request:qrRow};
+      receipts.set(command.operationId,receipt);return response.end(JSON.stringify(receipt));
+    }
+    response.end(JSON.stringify({ requests: [] }));
   });
   await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
   tracker = await createPostgresFixture("tracker");
@@ -37,10 +52,16 @@ test("inventory permissions, validation, and recovery", async (t) => {
     DATABASE_URL: tracker.url, ADMIN_SHARED_SECRET: secret,
     SERVICE_REQUEST_API_URL: `http://127.0.0.1:${upstream.address().port}/api/requests`,
   });
-  const api = (path, method = "GET", body, cookie) => fetch(`${server.url}${path}`, {
+  const api = async (path, method = "GET", body, cookie) => {
+    if(path.startsWith("/api/service-requests")&&["PATCH","DELETE"].includes(method)){
+      const revision=(await tracker.database.prepare("SELECT revision FROM app_state").first())?.revision||0;
+      body={operationId:randomUUID(),expectedVersion:qrRow.version,baseRevision:revision,...body};
+    }
+    return fetch(`${server.url}${path}`, {
     method, headers: { "content-type": "application/json", ...(cookie ? { cookie, ...sessionHeaders(cookie) } : {}) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
+  };
   const signin = async (name, pin) => {
     const response = await api("/api/auth", "POST", { action: "login", name, pin });
     assert.equal(response.status, 200);
@@ -53,7 +74,8 @@ test("inventory permissions, validation, and recovery", async (t) => {
   };
   const save = (cookie, state, baseRevision, method = "PATCH", action = "Client label") => api("/api/app-state", method, { state, baseRevision, action }, cookie);
   const setup = async (state = inventory()) => {
-    await tracker.database.prepare("TRUNCATE app_inventory_drafts, app_sessions, app_users, app_change_log, app_state, app_state_history").run();
+    receipts.clear();qrRow={...snapshot(),id:"request-0",version:1,status:"Pending",completedAt:null};
+    await tracker.database.prepare("TRUNCATE app_service_operations, app_inventory_drafts, app_sessions, app_users, app_change_log, app_state, app_state_history").run();
     await provisionAdmin(tracker.database, { name: "testadmin", pin: "482631" });
     const admin = await signin("testadmin", "482631");
     assert.equal((await api("/api/users", "POST", { name: "testuser", pin: "593742" }, admin)).status, 200);
@@ -195,7 +217,8 @@ test("inventory permissions, validation, and recovery", async (t) => {
     assert.equal((await api("/api/service-requests", "PATCH", { id: "request-0", status: "Anything", notes: "Invalid" }, regular)).status, 400);
     assert.equal((await api("/api/service-requests?id=request-0", "DELETE", undefined, admin)).status, 200);
     assert.equal(calls.at(-1).authorization, `Bearer ${secret}`);
-    assert.equal(calls.at(-1).method, "DELETE");
+    assert.equal(calls.at(-1).method, "PATCH");
+    assert.equal(JSON.parse(calls.at(-1).body).kind,"delete");
   });
 
   await t.test("listing proxy forwards only valid filters to its configured endpoint",async()=>{

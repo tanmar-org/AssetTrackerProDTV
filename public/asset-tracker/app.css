@@ -935,3 +935,10 @@ body.auth-locked .modal-backdrop,body.auth-locked .profile-menu,body.auth-locked
 /* Wrap page controls on phones without hiding the result/error description. */
 .record-pagination{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 0;}
 .record-pagination [role="status"]{flex:1;min-width:180px;color:var(--muted);font-size:13px;}
+
+/* Unresolved work remains readable on a phone and cannot be overtaken by clicks. */
+.service-operations-panel{margin-top:20px;}
+.service-operation-row{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:14px 0;border-top:1px solid var(--border);flex-wrap:wrap;}
+.service-operation-row>div:first-child{flex:1;min-width:220px;}
+.service-operation-row span{display:block;color:var(--muted);margin-top:5px;font-size:13px;}
+.service-action-controls{border:0;margin:0;padding:0;min-width:0;}
