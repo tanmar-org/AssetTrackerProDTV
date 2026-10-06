@@ -75,6 +75,8 @@ input {
 .company-logo {
   display: block;
   width: min(100%, 360px);
+  /* Intrinsic dimensions reserve space; CSS keeps the logo ratio on narrow screens. */
+  height: auto;
   max-height: 112px;
   object-fit: contain;
   filter: drop-shadow(0 8px 18px rgba(0,0,0,.4));

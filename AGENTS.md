@@ -114,6 +114,14 @@ The journal records current evidence; older handoff statements may be stale.
   cell limits and formatted/leading-zero identifiers. See
   [dependency/import evidence](docs/DEPENDENCY-REMEDIATION.md). Worker parsing runs
   on the staff device and is unrelated to Cloudflare/server workers.
+- QR/barcode generation uses pinned local qrcode-generator 1.4.4 and JsBarcode
+  3.11.6. Root `npm run lint` verifies all three vendor scripts, page SRI and their
+  licenses before excluding only those exact upstream JavaScript files. Never
+  ignore the whole vendor directory or edit upstream bytes to satisfy application
+  rules. Update provenance/pins/licenses/SRI together for a reviewed version change;
+  run label/import regressions. See [vendor provenance](public/asset-tracker/vendor/README.md).
+  Both app lint commands use `--max-warnings=0`; preserve that gate and first-party
+  checks. `npm run vendor:verify` performs the offline integrity check separately.
 - Import Center previews and Apply share `planReceiverImport`; recheck current
   tab capacity before any registry/account/history side effect and keep skipped
   preview rows skipped. Preserve nonempty metadata, text IDs and assignment history.

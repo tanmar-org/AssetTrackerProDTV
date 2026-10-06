@@ -7,21 +7,20 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 
 ## Implementation order and why
 
-1. **Review recoverable QR actions (DATA-02).** Accepted status/delete actions now
-   persist a tracker intent before changing the QR database; receipts/retries finish
-   server history after an interrupted response or second-write failure. Staff can
-   inspect pending/rejected work and explicitly resolve rent conflicts. This PR
-   needs owner review; deploying its VM reconciler remains HOST-04.
-2. **Finish inherited lint failures (QA-02).** Two vendor-file errors currently make
-   the full root check fail even when changed application code passes. Establish an
-   intentional verified-vendor policy, preserve bytes/licenses and fix first-party
-   warnings so the full check can identify new application problems reliably.
+1. **Review the lint baseline (QA-02).** Both apps now require zero errors/warnings;
+   root lint verifies exact vendor bytes/licenses/SRI before excluding only upstream
+   scripts. First-party rules and label/import behavior remain covered. Owner
+   review/merge is pending; recoverable QR actions (DATA-02) were merged in PR #30.
+2. **Automate PR validation (QA-01-CI).** Current evidence comes from manual VM runs.
+   Add GitHub checks for both apps' lint/types/builds and meaningful synthetic
+   regressions so later changes cannot quietly break these guarantees. Keep tests
+   isolated from production; owner review/merging and physical acceptance stay required.
 3. **Prepare deployment decisions and acceptance.** Set company access policy,
    approved email delivery, HTTPS/domains, service supervision and recovery
    operations; reconcile real records and old labels, then test actual devices.
    Scheduled encrypted off-server backups/retention/alerts remain DATA-03-ROLLOUT.
 
-Lint cleanup, company access decisions, approved email delivery, HTTPS/domains,
+Lint review, automated checks, company access decisions, approved email delivery, HTTPS/domains,
 service supervision, old-label continuity and actual device acceptance remain
 release requirements. The order above is implementation planning, not deployment
 approval; unresolved owner/operational items remain listed below.
@@ -206,7 +205,8 @@ approval; unresolved owner/operational items remain listed below.
   unfinished actions for administrator approval; both proof tables are backed up.
   Legacy direct QR mutations are closed; compatible apps/UI must ship together.
   Implemented on `Dev/qr-history-coordination` in
-  [PR #30](https://github.com/tanmar-org/AssetTrackerProDTV/pull/30), awaiting owner review.
+  [PR #30](https://github.com/tanmar-org/AssetTrackerProDTV/pull/30), merged by the owner
+  at `3123095`.
 - [ ] DATA-03 — Complete backups and operational recovery for both apps. Operator
   tooling and isolated restoration are implemented below; production scheduling,
   off-server storage and operator acceptance remain open. Inventory exports are
@@ -266,8 +266,8 @@ approval; unresolved owner/operational items remain listed below.
   filter/session results. Tiles/history/CSV explicitly describe their limited scope.
   New ordered indexes preserve all rows; proxy input, redirects and response bytes
   are bounded. Implemented on `Dev/request-activity-pagination` in
-  [PR #29](https://github.com/tanmar-org/AssetTrackerProDTV/pull/29); owner
-  review/merge pending. See [record browsing policy](docs/RECORD-LISTS.md).
+  [PR #29](https://github.com/tanmar-org/AssetTrackerProDTV/pull/29), merged by the owner.
+  See [record browsing policy](docs/RECORD-LISTS.md).
 - [ ] DATA-06-RETENTION **Owner + operator decision** — Decide audit/request/history
   retention, archive access, and legal/business preservation needs. No purge policy
   is enabled; the existing 25 inventory snapshots are not complete audit recovery.
@@ -320,9 +320,16 @@ approval; unresolved owner/operational items remain listed below.
 - [ ] QA-01 — Add meaningful API/permission/concurrency/import/backup tests; validate
   iPad/phone GPS and email flows, Brother label dimensions/cutting and actual scanning,
   staff workflows, production-like deployment, and owner acceptance before cutover.
-- [ ] QA-02 — Repair inherited lint/type-check setup and source errors. Root lint
-  must exclude nested generated bundles and use an intentional vendor-file policy;
-  finish the remaining staff lint work. Native runtime types and separate app
-  TypeScript scopes pass. The QR form rewrite removed both effect-state errors;
-  QR lint now passes with 3 inherited image warnings. Record the current root totals
-  in the journal and pass the remaining check without suppressing application failures.
+- [ ] QA-01-CI — Add automated GitHub PR checks for both apps' zero-warning lint,
+  types/builds and synthetic regression suites. Define restricted test services and
+  avoid production credentials/data. CI status alone does not enforce branch
+  protection or replace owner review/actual-device acceptance.
+- [x] QA-02 — Both apps pass lint with zero errors/warnings and require
+  `--max-warnings=0`. Root verifies pinned local QR/barcode/SheetJS bytes, licenses
+  and page SRI before exact upstream exclusions; first-party rules stay enabled.
+  Removed unused staff helpers/state reads and made checkbox selection explicit;
+  QR branding uses original local unoptimized images with explicit dimensions.
+  Meaningful tamper/warning-gate and actual browser label/image checks pass.
+  Builds and separate TypeScript scopes pass. Implemented on `Dev/lint-baseline` in
+  [PR #31](https://github.com/tanmar-org/AssetTrackerProDTV/pull/31), awaiting owner
+  review/merge. Vendor versions/bytes and lockfiles are unchanged.

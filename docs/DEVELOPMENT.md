@@ -67,10 +67,14 @@ and credential-free deactivation drafts/served JavaScript. After an unchanged
 successful build, run `node --experimental-strip-types --test tests/*.test.mjs`.
 Wait for a build to finish before running that app's standalone type check:
 the build replaces `.next/types`, which TypeScript includes in its file list.
-On 2026-10-05 both builds/type checks passed. Inherited lint issues remain under
-QA-02: root vendor errors/browser warnings. QR lint now passes with three
-image warnings; the public-form rewrite removed its two effect-state errors.
-Changed server/helper code passes focused lint checks.
+QA-02 establishes a zero-error/zero-warning lint baseline for both apps; their npm
+commands use `--max-warnings=0` so future warnings fail validation. Root lint first
+verifies three exact vendor scripts, their licenses and page SRI using local bytes.
+Only those upstream scripts are excluded; staff code, parser worker and new files
+in the vendor directory remain linted. Run root `npm run vendor:verify` for the
+offline integrity check alone. See [provenance/update policy](../public/asset-tracker/vendor/README.md).
+QR branding uses unoptimized Next Image components with unchanged original local
+URLs/bytes, eager loading and explicit dimensions; no remote image service is used.
 
 On this VM, the Codex tool sandbox needs suitable child-process/local-socket
 permissions for real verification. Restricted attempts can fail TypeScript
@@ -104,9 +108,10 @@ npm run test:browser
 The suite starts two isolated loopback Node servers with no database connection.
 It supplies synthetic GPS, cache records, and session/API fixtures, blocks external
 requests, and closes servers/browser. The spreadsheet reader is now served locally.
-Five service scenarios cover private-field-free legacy redirects, React QR
+Seven service scenarios cover private-field-free legacy redirects, React QR
 text/submission, GPS denial and staff fallback, staff cached record IDs/history/audit
-counts, and unsafe versus valid Maps links.
+counts, unsafe versus valid Maps links, actual SRI-loaded QR/barcode label selection,
+and original local branding on desktop/narrow screens.
 These checks prove rendering behavior; PostgreSQL suites separately verify actual
 authentication/authorization. Mobile GPS, email delivery, and physical label scanning
 still require QA-01 acceptance. Six fast redirect/rendering/stable-identity/URL
@@ -130,6 +135,9 @@ limits, malformed archives and inconsistent deflate output, and worker terminati
 See [the dependency review](DEPENDENCY-REMEDIATION.md) for current advisories,
 import limits, and vendor update instructions. Do not edit or lint the pinned
 third-party minified bytes as application code; keep attribution/license intact.
+Default integrity regressions also reject edited bytes, altered/missing licenses,
+symlinks and missing/duplicate/incorrect page SRI. They verify that new first-party
+files remain linted and both actual npm lint commands reject synthetic warnings.
 
 Import/report regressions also use actual browser functions with the server schema
 and ordinary permission checker. Chromium uploads then applies West Texas/account

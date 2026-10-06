@@ -93,12 +93,14 @@ Run in each app directory:
 ```bash
 npm test
 npm run typecheck
+npm run lint
 ```
 
 `npm test` builds native Next.js and exercises its production Node server. To run
 both apps against real isolated PostgreSQL databases, follow the integration test
-setup in [the development guide](docs/DEVELOPMENT.md). Lint still has inherited
-failures tracked under QA-02.
+setup in [the development guide](docs/DEVELOPMENT.md). Both apps require lint with
+zero warnings. Root lint first verifies the exact local vendor bytes, licenses and
+page integrity attributes; first-party code remains checked.
 
 After a build, `npm start` runs the corresponding Node server on its loopback port.
 `/api/health` checks PostgreSQL connectivity and the application's schema. Process
@@ -109,7 +111,7 @@ historical evidence, not current setup instructions.
 Spreadsheet reading is served locally from the pinned SheetJS asset. Imports use a
 bounded browser parser worker; no runtime spreadsheet CDN is required. See the
 [dependency review and import limits](docs/DEPENDENCY-REMEDIATION.md). npm currently
-reports zero production findings, but GitHub separately flags the QR lockfile's
-older main source-map-js version until the reviewed patch is merged/rescanned.
-Both current lockfiles use patched 1.2.2; an unpatched lint-only dependency remains
+reports zero production findings at the recorded check time. Both current lockfiles
+use patched source-map-js 1.2.2, and GitHub reported alert 162 fixed after the owner
+merged PR #25. An unpatched lint-only dependency remains
 DEP-01. Scanner results are not production acceptance.

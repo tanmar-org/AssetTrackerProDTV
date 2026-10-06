@@ -27,12 +27,13 @@ test("public and staff pages safely render malicious label/cache/API values in C
     requestedAt: "2026-10-05T18:00:00Z", requesterName: attack, notes: attack, mapUrl: "javascript:window.injected=true" };
   let savedRequest;
   let currentState = inventory();
+  let publicAssetNumber = attack;
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (!origins.includes(url.origin)) return route.abort();
     if (url.pathname === "/asset-tracker/config.js") return route.fulfill({ contentType: "application/javascript",
       body: `window.TANMAR_CONFIG = { serviceRequestUrl: ${JSON.stringify(qr.url)} };` });
-    if (url.pathname === "/api/asset") return route.fulfill({ json: { id: "receiver-01", assetNumber: attack } });
+    if (url.pathname === "/api/asset") return route.fulfill({ json: { id: "receiver-01", assetNumber: publicAssetNumber } });
     if (url.pathname === "/api/auth") return route.fulfill({ json: { user: { id: "test-admin", name: "testadmin", role: "admin" }, sessionContext: "1".repeat(64) } });
     if (url.pathname === "/api/app-state") return route.fulfill({ json: { state: currentState, revision: 1 } });
     if (url.pathname === "/api/service-requests") return route.fulfill({ json: { requests: [remoteRequest] } });
@@ -103,6 +104,54 @@ test("public and staff pages safely render malicious label/cache/API values in C
       assert.equal(await page.locator("button.primary").isEnabled(), false);
       await assertSafe(page);
     } finally { await page.close(); }
+  });
+
+  // These controls exercise the real SRI-loaded libraries, not mocked generators.
+  // Rendered SVGs prove loading/selection; physical printing/scanning stays QA-01.
+  await t.test("verified local libraries generate labels through staff selection controls", async () => {
+    const page = await context.newPage();
+    try {
+      await page.goto(`${tracker.url}/asset-tracker/index.html`);
+      await page.waitForFunction(() => document.getElementById("authGate").hidden);
+      await page.locator('[data-view="labels"]').click();
+      await page.locator('[data-label-id="receiver-0"]').check();
+      assert.ok(await page.locator("#labelPreviewGrid .dk-barcode rect").count() > 0);
+      assert.ok((await page.locator("#labelPreviewGrid .dk-service-qr > svg > path").getAttribute("d")).length > 100);
+      assert.equal(await page.locator("#labelPreviewGrid [data-code-error]").count(), 0);
+      assert.equal(await page.locator("#printLabelsButton").isEnabled(), true);
+      assert.equal(await page.locator("#printServiceLabelsButton").isEnabled(), true);
+      await page.locator('[data-label-id="receiver-0"]').uncheck();
+      assert.equal(await page.locator("#labelPreviewGrid .dk-label").count(), 0);
+      assert.equal(await page.locator("#printLabelsButton").isEnabled(), false);
+      assert.equal(await page.locator("#printServiceLabelsButton").isEnabled(), false);
+    } finally { await page.close(); }
+  });
+
+  // Framework image markup must keep local original URLs and intrinsic dimensions,
+  // with neither a remote optimizer nor a broken mobile logo introduced by lint fixes.
+  await t.test("QR branding uses original local images on desktop and narrow screens", async () => {
+    const page = await context.newPage();
+    // Use an ordinary receiver number for layout; adjacent security scenarios
+    // retain their deliberately oversized malicious API text unchanged.
+    publicAssetNumber = "TEST-01";
+    try {
+      for (const width of [1280, 280]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(`${qr.url}/?id=receiver-01`);
+        await page.waitForFunction(() => [...document.images].length === 3 && [...document.images].every(image => image.complete && image.naturalWidth > 0));
+        const images = await page.locator("img").evaluateAll(elements => elements.map(image => ({
+          src: new URL(image.currentSrc).pathname,
+          naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight,
+          width: parseFloat(getComputedStyle(image).width), height: parseFloat(getComputedStyle(image).height),
+        })));
+        assert.deepEqual(images.map(image => image.src), ["/tanmar-companies-logo.png", "/tanmar-emblem-tight.png", "/tanmar-emblem-tight.png"]);
+        assert.equal(images[0].naturalWidth, 1874); assert.equal(images[0].naturalHeight, 648);
+        assert.ok(images[0].width > 0 && images[0].width <= Math.min(width, 360), JSON.stringify({ viewport: width, images }));
+        assert.ok(images[0].height > 0 && images[0].height <= (width < 640 ? 88 : 112));
+        if (width === 280) assert.ok(Math.abs(images[0].height / images[0].width - 648 / 1874) < 0.01);
+        assert.deepEqual(images.slice(1).map(image => [image.width, image.height]), [[64, 64], [24, 24]]);
+      }
+    } finally { publicAssetNumber = attack; await page.close(); }
   });
 
   await t.test("staff API IDs, history, and audit counts cannot create markup", async () => {

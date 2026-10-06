@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 
 // The browser receives only these public fields; full metadata stays server-side.
 type Receiver = { id: string; assetNumber: string };
@@ -177,14 +178,23 @@ export default function Home() {
     <main className="request-shell">
       <section className="request-card">
         <div className="company-logo-wrap">
-          <img
+          {/* Local branding keeps its original bytes/URLs; no image service is needed. */}
+          <Image
+            unoptimized
+            loading="eager"
+            width={1874}
+            height={648}
             className="company-logo"
             src="/tanmar-companies-logo.png"
             alt="TanMar Companies"
           />
         </div>
         <header className="brand-header">
-          <img
+          <Image
+            unoptimized
+            loading="eager"
+            width={64}
+            height={64}
             className="emblem"
             src="/tanmar-emblem-tight.png"
             alt="TanMar emblem"
@@ -347,7 +357,7 @@ export default function Home() {
             : "Your contact, work site, and GPS information will be shared with TanMar staff to handle this request."}
         </p>
         <footer className="service-footer">
-          <img src="/tanmar-emblem-tight.png" alt="" />
+          <Image unoptimized loading="eager" width={24} height={24} src="/tanmar-emblem-tight.png" alt="" />
           <span>TanMar Receiver Control · DirecTV Asset Management</span>
         </footer>
       </section>
