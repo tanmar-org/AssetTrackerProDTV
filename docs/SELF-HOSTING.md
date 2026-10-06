@@ -22,7 +22,7 @@ on every path. This is not a D1 emulator or a SQL translation layer.
 
 Use two databases with separate application roles. Tracker tables are `app_users`,
 `app_sessions`, `app_change_log`, `app_state`, and `app_state_history`. The requests
-database contains `service_requests`. Each has operator-owned `schema_migrations`.
+database contains `service_requests` and `request_rate_limits`. Each has operator-owned `schema_migrations`.
 
 Operational inventory remains one JSONB state document with explicit record and
 relationship validation on reads/saves/recovery. Native JSONB may reorder keys;
@@ -77,7 +77,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
 ```
 
 Apply equivalent database/schema access in the requests database, granting data
-access only on `service_requests` to its own runtime role. Do not grant runtime
+access only on `service_requests` and `request_rate_limits` to its own runtime role. Do not grant runtime
 access to `schema_migrations`. Review grants when future migrations add tables.
 Use authenticated local/socket access or loopback with SCRAM; never expose
 PostgreSQL publicly or reuse the test cluster's trust authentication in production.
@@ -89,6 +89,9 @@ Each app's `.env.local` contains **only runtime settings** from its `.env.exampl
 - `DATABASE_URL`: that app's restricted PostgreSQL connection.
 - `ADMIN_SHARED_SECRET`: the same newly generated server-only credential in both apps.
 - `SERVICE_REQUEST_API_URL`: tracker-only, the trusted QR server's `/api/requests` URL.
+- `TRACKER_ASSET_API_URL`: QR-only, the trusted tracker `/api/service-assets` URL.
+- `REQUEST_PROXY_SECRET`: QR-only; authenticate the production reverse proxy's
+  overwritten client-IP/secret headers. See [the ingress policy](PUBLIC-REQUEST-SECURITY.md).
 
 Keep `.env.migrate` owner credentials separate from the web process environment
 and production service account. Protect private files and backups; do not commit
@@ -98,7 +101,9 @@ database before running operator commands. No connection URL or PIN is printed.
 
 The browser calls its same-origin staff proxy, so the old Sites CORS allowlist is
 removed. Direct cross-origin browser staff reads are not enabled. Public request
-POST remains public and still needs the pending abuse/asset validation work.
+POST remains public, with server asset lookup, bounded validation, shared rate
+budgets and atomic duplicate prevention. Production ingress still needs setup.
+See [public request security](PUBLIC-REQUEST-SECURITY.md).
 Set the non-secret label destination in `public/asset-tracker/config.js` to the
 approved reachable QR HTTPS URL before printing real labels (HOST-03/QR-01).
 
@@ -119,7 +124,11 @@ format checks, a 0–4 failure-counter bound, and a session-user lookup index. I
 requires no new table grants and does not rewrite credentials or copy D1 data.
 If existing/imported rows violate these checks, the migration rolls back and the
 operator must reconcile those rows through the authorized migration plan; do not
-bypass constraints or edit an applied migration. The QR schema is unchanged.
+bypass constraints or edit an applied migration. The tracker account migration
+is separate from QR
+`requests/0002_public_request_security.sql`. Before applying the QR migration,
+review its duplicate/GPS preflight and new runtime grant in
+[the public request policy](PUBLIC-REQUEST-SECURITY.md).
 
 Login holds a PostgreSQL user-row lock through PIN verification and session
 insertion. Five failed attempts lock that account for 15 minutes, including
@@ -170,24 +179,29 @@ References: [Next.js self-hosting](https://nextjs.org/docs/app/guides/self-hosti
 
 ## Service-form compatibility and safe links
 
-Existing `/asset-tracker/service-request.html` links remain available. This legacy
-form now renders QR parameters as literal text; it still only opens a device email
-draft and does not save a request to the QR database. New labels use the separate
-QR application configured by `serviceRequestUrl`. Preserve printed-label/domain
-continuity during cutover (MIG-01); removing a legacy file or silently redirecting
-labels would change the request workflow.
+New QR links contain only a stable receiver ID. The separate QR server resolves
+current inventory through a private tracker endpoint and returns only ID/asset
+number to the visitor. Public submissions save a request for staff review; they
+no longer open an email draft. Automatic delivery remains MAIL-01.
+
+Existing `/asset-tracker/service-request.html` links now redirect to the configured
+QR application using only a validated ID or legacy asset number. Old React links
+can still resolve by asset number. No private historical metadata is forwarded.
+Both public pages use no-referrer; the current QR page replaces its history query.
+Printed old private URLs, prior logs, renamed old asset-number labels and original
+hostnames require QR-01/MIG-01 cutover planning. Staff must monitor saved requests
+until email delivery is implemented. Review this workflow before deployment.
 
 Staff pages escape cached/API values and only show GPS anchors for bounded HTTPS
 Google Maps URLs (`maps.google.com`, or `google.com` / `www.google.com` paths beginning
-with `/maps`), without credentials or nondefault ports. Invalid destinations have
-no clickable map link. This display check does not modify stored records or replace
-server schema validation. Configured QR destinations must be HTTP/HTTPS without
-embedded credentials; an invalid setting produces the existing label-generation
-error. Set approved HTTPS production URLs before printing labels (HOST-03).
+with `/maps`), without credentials or nondefault ports. Configured QR destinations
+must be HTTP/HTTPS without embedded credentials; invalid settings produce the
+existing label-generation error. Set approved reachable HTTPS URLs before printing
+real labels and have staff reload existing tabs after shipping updated scripts.
 
-Ship the updated public JavaScript with the server build and have staff reload
-existing tabs. Private metadata in existing QR URLs/mail drafts, public submission
-abuse controls, and automatic server email remain QR-01/SEC-05/MAIL-01 blockers.
+See [public request security](PUBLIC-REQUEST-SECURITY.md) for validation/rate budgets,
+trusted ingress headers, duplicate/GPS migration preflight, role grants, and GPS
+fallback limits. No production configuration or database is changed by a merge.
 
 ## Local spreadsheet assets
 

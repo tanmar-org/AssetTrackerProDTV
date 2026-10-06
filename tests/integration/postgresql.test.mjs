@@ -6,7 +6,7 @@ import { createDatabase } from "@tanmar/database";
 import { provisionAdmin } from "../../scripts/admin-provisioning.mjs";
 import { migrate } from "../../scripts/migrations.mjs";
 import { createPostgresFixture } from "../helpers/postgres.mjs";
-import { startNext } from "../helpers/next-server.mjs";
+import { startNext, unusedPort } from "../helpers/next-server.mjs";
 
 // Every database and credential below is synthetic. Use real PostgreSQL pools,
 // restricted web roles, and built Node servers to verify the replacement backend.
@@ -21,13 +21,15 @@ test("Node/PostgreSQL integration", async (t) => {
   tracker = await createPostgresFixture("tracker");
   requests = await createPostgresFixture("requests");
   const secret = randomUUID();
-  qrServer = await startNext(fileURLToPath(new URL("../../service-request/", import.meta.url)), {
-    DATABASE_URL: requests.url, ADMIN_SHARED_SECRET: secret,
-  });
+  const qrPort = await unusedPort();
   staffServer = await startNext(fileURLToPath(new URL("../../", import.meta.url)), {
     DATABASE_URL: tracker.url, ADMIN_SHARED_SECRET: secret,
-    SERVICE_REQUEST_API_URL: `${qrServer.url}/api/requests`,
+    SERVICE_REQUEST_API_URL: `http://127.0.0.1:${qrPort}/api/requests`,
   });
+  qrServer = await startNext(fileURLToPath(new URL("../../service-request/", import.meta.url)), {
+    DATABASE_URL: requests.url, ADMIN_SHARED_SECRET: secret,
+    TRACKER_ASSET_API_URL: `${staffServer.url}/api/service-assets`,
+  }, { port: qrPort });
   const fixture = { name: "jdoe", pin: "482631" };
   const call = (server, path, method = "GET", body, cookie, headers = {}) => fetch(`${server.url}${path}`, {
     method, headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}), ...headers },
@@ -243,11 +245,13 @@ test("Node/PostgreSQL integration", async (t) => {
   await t.test("public QR submission and authenticated tracker proxy preserve request lifecycle", async () => {
     const cookie = await admin();
     const payload = {
-      assetNumber: "TEST-QR-01", serialNumber: "00000123", rid: "00000456", accessCard: "00000789",
-      accountNumber: "000001", requesterName: "Synthetic Requester", requesterPhone: "555-0100",
+      assetId: "qr-receiver", requesterName: "Synthetic Requester", requesterPhone: "555-0100",
       operatorName: "Test Operator", rigFrac: "Test Rig", lease: "Test Lease", errorCode: "771",
       latitude: 32.123456789, longitude: -102.987654321, gpsAccuracy: 10, gpsCapturedAt: new Date().toISOString(),
     };
+    const inventory = state("qr-receiver");
+    inventory.master[0] = { id: "qr-receiver", assetNumber: "TEST-QR-01", serial: "00000123", rid: "00000456", accessCard: "00000789", rentState: "Off Rent" };
+    assert.equal((await api("/api/app-state", "PUT", { state: inventory, baseRevision: 0 }, cookie)).status, 200);
     const response = await call(qrServer, "/api/requests", "POST", payload);
     assert.equal(response.status, 201);
     const { id } = await response.json();
@@ -258,7 +262,7 @@ test("Node/PostgreSQL integration", async (t) => {
     assert.equal((await api("/api/service-requests")).status, 401);
     const listed = await (await api("/api/service-requests", "GET", undefined, cookie)).json();
     assert.equal(listed.requests[0].id, id);
-    assert.equal(listed.requests[0].serialNumber, payload.serialNumber);
+    assert.equal(listed.requests[0].serialNumber, "00000123");
     assert.equal(listed.requests[0].latitude, payload.latitude);
     const notes = "Synthetic apostrophe ' and SQL-like text ; DROP TABLE service_requests;";
     assert.equal((await api("/api/service-requests", "PATCH", { id, status: "Completed", notes }, cookie)).status, 200);

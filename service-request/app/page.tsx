@@ -2,21 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-const TEST_RECIPIENT = "earrieta@tanmarcompanies.com";
-
-type Receiver = {
-  asset: string;
-  model: string;
-  type: string;
-  serial: string;
-  rid: string;
-  card: string;
-  rentState: string;
-  accountNumber: string;
-  accountName: string;
-  recordedLocation: string;
-  office: string;
-};
+// The browser receives only these public fields; full metadata stays server-side.
+type Receiver = { id: string; assetNumber: string };
 
 type GpsPing = {
   latitude: number;
@@ -25,23 +12,10 @@ type GpsPing = {
   capturedAt: string;
 };
 
-const valueOrDash = (value: string) => value || "—";
-
 export default function Home() {
-  const [receiver, setReceiver] = useState<Receiver>({
-    asset: "",
-    model: "",
-    type: "",
-    serial: "",
-    rid: "",
-    card: "",
-    rentState: "",
-    accountNumber: "",
-    accountName: "",
-    recordedLocation: "",
-    office: "",
-  });
-  const asset = receiver.asset;
+  const [receiver, setReceiver] = useState<Receiver | null>(null);
+  const [lookupError, setLookupError] = useState("");
+  const asset = receiver?.assetNumber ?? "";
   const [requesterName, setRequesterName] = useState("");
   const [requesterPhone, setRequesterPhone] = useState("");
   const [errorCode, setErrorCode] = useState("");
@@ -59,23 +33,28 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  // Label parameters are an untrusted historical snapshot. React renders them
-  // as text, but a stable ID/server lookup must replace private URL data (QR-01).
+  // Historical labels can supply only an asset number. Ignore their private
+  // snapshots and erase those parameters from this browser history entry before
+  // lookup. The server re-resolves the stable ID again when the form is submitted.
   useEffect(() => {
+    const controller = new AbortController();
     const params = new URLSearchParams(window.location.search);
-    setReceiver({
-      asset: params.get("a") || "",
-      model: params.get("m") || "",
-      type: params.get("t") || "",
-      serial: params.get("s") || "",
-      rid: params.get("r") || "",
-      card: params.get("c") || "",
-      rentState: params.get("rs") || "",
-      accountNumber: params.get("an") || "",
-      accountName: params.get("ac") || "",
-      recordedLocation: params.get("al") || "",
-      office: params.get("ao") || "",
-    });
+    const key = params.has("id") ? "id" : "a";
+    const value = params.get(key) ?? "";
+    const query = new URLSearchParams({ [key]: value });
+    window.history.replaceState(null, "", `${window.location.pathname}?${query}`);
+    fetch(`/api/asset?${query}`, { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Receiver lookup unavailable.");
+        if (!controller.signal.aborted) {
+          setReceiver({ id: result.id, assetNumber: result.assetNumber });
+          window.history.replaceState(null, "", `${window.location.pathname}?${new URLSearchParams({ id: result.id })}`);
+        }
+      }).catch((error) => {
+        if (!controller.signal.aborted) setLookupError(error instanceof Error ? error.message : "Receiver lookup unavailable.");
+      });
+    return () => controller.abort();
   }, []);
 
   // A fresh high-accuracy browser reading requires HTTPS/localhost and permission;
@@ -85,7 +64,7 @@ export default function Home() {
     if (!navigator.geolocation) {
       setGps(null);
       setLocationState("error");
-      setMessage("GPS location is not available on this device.");
+      setMessage("GPS location is not available on this device. Contact TanMar for help.");
       return;
     }
 
@@ -109,59 +88,15 @@ export default function Home() {
         setGps(null);
         setLocationState("error");
         setMessage(
-          "Location permission must be allowed before this request can be created.",
+          "GPS could not be captured. Allow location access and retry, or contact TanMar for help.",
         );
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   }, []);
 
-  useEffect(() => {
-    requestLocation();
-  }, [requestLocation]);
-
-  // Saving the request and opening a mail draft are separate actions. mailto
-  // supplies no delivery confirmation and still targets a test recipient (MAIL-01).
-  function openEmail(trimmedError: string, location: GpsPing) {
-    const mapsLink = `https://maps.google.com/?q=${location.latitude},${location.longitude}`;
-    const body = [
-      "Please reactivate or refresh this receiver.",
-      "",
-      `On-Screen Error Code: ${trimmedError}`,
-      "",
-      `Requester Name: ${requesterName.trim()}`,
-      `Callback Phone: ${requesterPhone.trim()}`,
-      "",
-      "WORK SITE INFORMATION",
-      `Operator Name: ${operatorName.trim()}`,
-      `Rig/Frac: ${rigFrac.trim()}`,
-      `Lease: ${lease.trim()}`,
-      "",
-      "RECEIVER INFORMATION",
-      `Asset Number: ${valueOrDash(receiver.asset)}`,
-      `Model: ${valueOrDash(receiver.model)}`,
-      `Receiver Type: ${valueOrDash(receiver.type)}`,
-      `Serial Number: ${valueOrDash(receiver.serial)}`,
-      `Receiver ID (RID): ${valueOrDash(receiver.rid)}`,
-      `Access Card: ${valueOrDash(receiver.card)}`,
-      `Rent Status: ${valueOrDash(receiver.rentState)}`,
-      `Current Account: ${valueOrDash(receiver.accountNumber)}`,
-      `Account Name: ${valueOrDash(receiver.accountName)}`,
-      `Recorded Location: ${valueOrDash(receiver.recordedLocation)}`,
-      `Office / Yard: ${valueOrDash(receiver.office)}`,
-      "",
-      "SCAN LOCATION",
-      `GPS Coordinates: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`,
-      `GPS Accuracy: ${Math.round(location.accuracy)} meters`,
-      `Map: ${mapsLink}`,
-      `Captured: ${new Date(location.capturedAt).toLocaleString()}`,
-    ].join("\n");
-    const subject = `${valueOrDash(receiver.asset)} / Service Request`;
-    window.location.href = `mailto:${TEST_RECIPIENT}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  }
-
   // Client checks help form completion but can be bypassed with a direct POST.
-  // The API must own validation and abuse prevention (SEC-05).
+  // The API independently validates claims and rejects private snapshot fields.
   async function submitRequest() {
     const trimmedError = errorCode.trim();
     const trimmedOperator = operatorName.trim();
@@ -169,14 +104,8 @@ export default function Home() {
     const trimmedLease = lease.trim();
     const trimmedRequester = requesterName.trim();
     const trimmedPhone = requesterPhone.trim();
-    if (!asset) {
+    if (!receiver) {
       setFormError("Scan a receiver label with an asset number.");
-      return;
-    }
-    if (!receiver.serial && !receiver.rid && !receiver.card) {
-      setFormError(
-        "This link is missing the receiver details required for the service email. Scan the receiver label again. If needed, generate a new Receiver / Service label in the tracker.",
-      );
       return;
     }
     if (!trimmedRequester || !trimmedPhone) {
@@ -193,7 +122,7 @@ export default function Home() {
     }
     if (!gps) {
       setFormError(
-        "Location required. Share your GPS location before creating the email.",
+        "Location required. Share your GPS location before submitting the request.",
       );
       requestLocation();
       return;
@@ -206,17 +135,7 @@ export default function Home() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          assetNumber: asset,
-          model: receiver.model,
-          receiverType: receiver.type,
-          serialNumber: receiver.serial,
-          rid: receiver.rid,
-          accessCard: receiver.card,
-          rentState: receiver.rentState,
-          accountNumber: receiver.accountNumber,
-          accountName: receiver.accountName,
-          recordedLocation: receiver.recordedLocation,
-          office: receiver.office,
+          assetId: receiver.id,
           requesterName: trimmedRequester,
           requesterPhone: trimmedPhone,
           operatorName: trimmedOperator,
@@ -232,7 +151,6 @@ export default function Home() {
       const result = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(result.error || "Request was not saved.");
       setSubmitted(true);
-      openEmail(trimmedError, gps);
     } catch (error) {
       setFormError(
         error instanceof Error
@@ -244,7 +162,7 @@ export default function Home() {
     }
   }
 
-  const canCreateEmail = Boolean(
+  const canSubmit = Boolean(
     gps &&
       asset &&
       requesterName.trim() &&
@@ -279,7 +197,8 @@ export default function Home() {
 
         <section className="receiver-summary">
           <span>Asset Number</span>
-          <strong>{valueOrDash(asset)}</strong>
+          <strong>{asset || "—"}</strong>
+          <p role="status">{lookupError || (receiver ? "Receiver verified." : "Checking receiver label…")}</p>
         </section>
 
         <section className="worksite-fields" aria-label="Requester information">
@@ -412,7 +331,7 @@ export default function Home() {
             className="primary"
             type="button"
             onClick={submitRequest}
-            disabled={!canCreateEmail || submitting || submitted}
+            disabled={!canSubmit || submitting || submitted}
           >
             {submitted
                 ? "Request Submitted"
@@ -424,8 +343,8 @@ export default function Home() {
 
         <p className="privacy-note" role="status">
           {submitted
-            ? "Request saved. For testing, review the email draft and tap Send."
-            : "For testing, Submit saves your request and opens an email draft. Review it and tap Send."}
+            ? "Request saved for TanMar staff review. This confirmation does not mean service is complete."
+            : "Your contact, work site, and GPS information will be shared with TanMar staff to handle this request."}
         </p>
         <footer className="service-footer">
           <img src="/tanmar-emblem-tight.png" alt="" />

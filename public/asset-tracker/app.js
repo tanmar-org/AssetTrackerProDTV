@@ -856,7 +856,11 @@ function activationAccount(request,receiver){
 }
 
 function remoteReceiver(request){
-  return master.find(receiver=>String(receiver.assetNumber).toUpperCase()===String(request.assetNumber||"").toUpperCase())||{
+  // New requests retain receiver identity through renames. Do not associate a
+  // deleted receiver's request with a different receiver reusing its old number.
+  // Historical rows without IDs keep their original asset-number fallback.
+  const receiver=request.assetId?assetById(request.assetId):master.find(item=>String(item.assetNumber).toUpperCase()===String(request.assetNumber||"").toUpperCase());
+  return receiver||{
     assetNumber:request.assetNumber,
     model:request.model||request.receiverType,
     serial:request.serialNumber,
@@ -1137,29 +1141,17 @@ function serviceQrMarkup(value,assetNumber){
   }catch{return ""}
 }
 
-// Printed links freeze private receiver/account metadata in a public URL. QR-01
-// replaces this with a stable identifier and server lookup of current details.
-function serviceRequestLink(receiver,account=null){
-  // QR destinations are operator configuration, never executable/credential URLs.
+// A label is an asset reference, not a frozen customer/account snapshot. IDs
+// survive asset-number changes; they are public identifiers, not authentication.
+function serviceRequestLink(receiver){
   let requestUrl;
   try{requestUrl=new URL(PUBLIC_SERVICE_REQUEST_URL)}catch{return "";}
   if(!["http:","https:"].includes(requestUrl.protocol)||requestUrl.username||requestUrl.password)return "";
-  const requestData={
-    a:receiver.assetNumber,
-    m:receiver.model,
-    t:receiver.type,
-    s:receiver.serial,
-    r:receiver.rid,
-    c:receiver.accessCard,
-    rs:receiver.rentState,
-    an:account?.number||"",
-    ac:account?.name||"",
-    al:account?.location||"",
-    ao:account?.office||""
-  };
-  Object.entries(requestData).forEach(([key,value])=>{
-    if(value)requestUrl.searchParams.set(key,value);
-  });
+  if(typeof receiver.id!=="string"||!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(receiver.id))return "";
+  // Clear pre-existing queries/fragments too: configuration must not smuggle old
+  // private metadata into every newly printed label.
+  requestUrl.search="";requestUrl.hash="";
+  requestUrl.searchParams.set("id",receiver.id);
   return requestUrl.href;
 }
 

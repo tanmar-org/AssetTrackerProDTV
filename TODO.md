@@ -97,13 +97,18 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   Five unit regressions and four Chromium scenarios plus their parent passed,
   covering legacy, React QR, and staff pages. Implemented on
   `Dev/safe-service-rendering` in
-  [PR #20](https://github.com/tanmar-org/AssetTrackerProDTV/pull/20); owner
-  merged by the owner. Legacy requests still
-  create mail drafts only; private URL metadata and public API validation remain
-  QR-01/MAIL-01/SEC-05.
-- [ ] SEC-05 — Add public-request abuse controls, size/field limits, asset lookup,
-  valid coordinate/time bounds, and atomic duplicate prevention. Test malformed,
-  oversized, repeated, unknown-asset, and concurrent submissions.
+  [PR #20](https://github.com/tanmar-org/AssetTrackerProDTV/pull/20), merged by
+  the owner. Its legacy mail-only/private-query limitations were
+  subsequently corrected under SEC-05/QR-01-METADATA; automatic delivery remains
+  MAIL-01.
+- [x] SEC-05 — Public request POST rejects private/unknown metadata and enforces
+  streamed 8-KiB JSON, text/GPS/time bounds, authenticated current-asset lookup,
+  database-shared global/receiver/client rate budgets, and atomic pending uniqueness
+  including status reopens/renames. Direct staff mutations are bounded too.
+  Implemented on `Dev/public-request-security`; see
+  [policy/migration/ingress requirements](docs/PUBLIC-REQUEST-SECURITY.md).
+  Configure trusted production ingress and reconcile any historical duplicates/bad
+  GPS before migration; these controls do not prove identity/ownership/location.
 - [ ] AUTH-01 — Decide company authentication requirements (existing PINs versus
   company SSO/outer access policy) and complete shared-device sign-out/cache policy.
   Per-account lockout is enforced below; broader login traffic/unknown-account abuse
@@ -177,12 +182,19 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 - [ ] HOST-04 — Provision production services, least-privilege credentials, startup/
   restart supervision, health checks, monitoring, backup retention, and a documented
   rollback process. VM tools alone do not constitute a production deployment.
-- [ ] QR-01 — Replace private QR metadata with a stable asset/opaque label identifier.
-  Resolve current receiver/account details server-side and keep them out of public
-  URLs/responses. Define GPS-denied/unavailable flow and test mobile HTTPS behavior.
-- [ ] MAIL-01 — Replace test `mailto:` drafts with approved server-side delivery,
-  configurable recipients, retries/idempotency, and delivery status. Verify failure
-  handling and full internal email content without exposing it to customers.
+- [ ] QR-01 — Complete printed-label/domain continuity, reprint historical labels
+  carrying private URL metadata, confirm the contact-staff fallback policy, and
+  test mobile HTTPS/GPS behavior. GPS stays required; automatic email is MAIL-01.
+- [x] QR-01-METADATA — New QR links contain only a stable receiver ID; server lookup
+  resolves current receiver/account details without returning private metadata.
+  Old React asset-number links still resolve current inventory. The legacy static
+  form redirects without forwarding private parameters or opening a mail-only draft.
+  Browser history queries are replaced and public pages use no-referrer. Staff
+  request association uses stable IDs across renames and number reuse. Already
+  printed private URLs/history/logs need separate continuity/reprinting work.
+- [ ] MAIL-01 — Add approved server-side delivery for saved QR requests (their
+  public test drafts were removed for privacy), with configurable recipients,
+  retries/idempotency, and delivery status. Verify failure handling and full internal email content without exposing it to customers.
 - [ ] MAIL-02 **Requirements decision** — Confirm Monday report contents, recipients,
   America/Chicago schedule, and retry behavior; implement and test scheduling if needed.
 - [ ] MIG-01 — Obtain authorized production exports separately from source; migrate
@@ -194,7 +206,7 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   staff workflows, production-like deployment, and owner acceptance before cutover.
 - [ ] QA-02 — Repair inherited lint/type-check setup and source errors. Root lint
   must exclude nested generated bundles and use an intentional vendor-file policy;
-  resolve the QR page's effect-state lint errors. Native runtime types and separate
-  app TypeScript scopes now pass. Root lint has 2 inherited vendor errors/147 warnings;
-  QR lint retains 2 effect errors/3 warnings. Pass both checks without suppressing
-  real application failures.
+  finish the remaining staff lint work. Native runtime types and separate app
+  TypeScript scopes pass. The QR form rewrite removed both effect-state errors;
+  QR lint now passes with 3 inherited image warnings. Record the current root totals
+  in the journal and pass the remaining check without suppressing application failures.

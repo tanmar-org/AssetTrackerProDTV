@@ -4,7 +4,10 @@ import "./globals.css";
 // System fonts keep builds and page rendering independent of Google Fonts.
 export const metadata: Metadata = {
   title: "TanMar Receiver Control — Service Request",
-  description: "Submit a GPS-verified receiver activation or refresh request.",
+  description: "Submit a receiver activation or refresh request with your contact and GPS information.",
+  // Historical label queries may contain private snapshots; never send them as
+  // referrers. Location is a client claim, so avoid promising GPS verification.
+  referrer: "no-referrer",
   other: {
     "codex-preview": "development",
   },

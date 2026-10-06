@@ -4,8 +4,8 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/dependency-remediation`, based on merged
-  `main` at `e0a137f`.
+- Development branch: `Dev/public-request-security`, based on merged
+  `main` at `7829525`.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -26,12 +26,15 @@
   SEC-04 safe service rendering in
   [PR #20](https://github.com/tanmar-org/AssetTrackerProDTV/pull/20) is merged by
   the owner. Local bounded spreadsheet parsing/dependency corrections are
-  implemented on `Dev/dependency-remediation` in
-  [PR #21](https://github.com/tanmar-org/AssetTrackerProDTV/pull/21) for owner review.
-  Production deployment has not started.
-- Next task: public QR validation/abuse/server lookup work and remaining lint dependency,
-  and AUTH-01/DATA-01/DATA-04 access/conflict/cache requirements. Production domains/services/backups/data cutover remain
-  under HOST-03/HOST-04/MIG-01. SEC-01-OWNER still needs owner confirmation.
+  merged by the owner in
+  [PR #21](https://github.com/tanmar-org/AssetTrackerProDTV/pull/21). Public-request
+  security and QR metadata removal are implemented on `Dev/public-request-security`
+  for owner review. Production deployment has not started.
+- Next task: staff shared-device cache/sign-out corrections (DATA-04), then the
+  remaining lint/dependency work and AUTH-01/DATA-01 access/conflict requirements.
+  QR-01 still needs old-label/domain continuity and mobile GPS acceptance; MAIL-01
+  still needs approved delivery settings. Production domains/services/backups/data
+  cutover remain under HOST-03/HOST-04/MIG-01. SEC-01-OWNER still needs owner confirmation.
 
 ## 2026-10-05 — Repository access and read-only review
 
@@ -744,3 +747,96 @@ spreadsheet test servers and browser threads closed after tests; the private
 PostgreSQL test cluster was not started or changed. The owner performs final review
 and merging. GitHub's push notice still reflects the default branch before this
 QR lockfile correction; the fresh npm evidence above is scoped separately.
+
+## 2026-10-05 19:22 CDT — Public request validation, privacy, and abuse controls
+
+Owner confirmed PR #21 merged; fetched `origin/main` at `7829525` and created
+`Dev/public-request-security` in the existing clean security working copy. The
+owner asked to continue after the explanation of public QR submissions. Changes
+remain for owner review/merge; no deployment, live database, email transmission,
+public hostname change, or original-provider configuration was performed.
+
+### Implemented behavior
+
+- Tracker `/api/service-assets` returns one validated committed inventory snapshot
+  only with the server bearer credential. QR `/api/asset` exposes just receiver
+  ID/asset number. Submission performs lookup again and stores private receiver/
+  account metadata internally, rejecting caller-supplied snapshots/unknown fields.
+  Redirects, malformed/oversized lookup responses, and a stalled lookup fail closed.
+- Public POST and private PATCH use streamed 8-KiB JSON bounds and strict fields.
+  GPS must have finite bounded numeric coordinates/accuracy and a fresh canonical
+  timestamp; null/string coercion and stale/impossible readings are rejected.
+  Staff notes stay bounded and support multiline text; raw errors remain private.
+- `requests/0002_public_request_security.sql` adds stable IDs, coordinate checks,
+  unique partial pending indexes by normalized number/ID, and shared rate counters.
+  Atomic insert and conflicting reopen retain exactly one pending request through
+  concurrency/renames. Legacy rows keep their historical metadata and null IDs.
+  Duplicate/bad-coordinate historical rows stop migration atomically for operator
+  reconciliation; no automatic deletion/cancellation or fabricated location.
+- Atomic counters persist denied attempts across Node processes; global, resolved
+  receiver, and optional authenticated-proxy client budgets bound abuse. Expired
+  buckets are removed and digests hide raw IPs/labels. Retry-After reports the
+  remaining window. Unverified forwarded headers are ignored. Configured ingress
+  headers fail closed if missing/forged. Rate ceilings are not identity checks or
+  comprehensive network/bot protection; configure/tune production ingress.
+- New QR labels use only the stable receiver ID and remove old query/fragment
+  metadata. Old React asset-number links resolve current inventory; the historical
+  static page redirects with only a validated ID/asset number. No private snapshot
+  is displayed/forwarded. QR history queries are replaced; both pages use
+  no-referrer. Staff association uses stable IDs through renames and number reuse.
+- Public submissions now confirm saving for staff review, without opening a private
+  test email draft. No automatic alert/delivery is implemented (MAIL-01); staff
+  must monitor saved requests. GPS capture is explicitly requested by the visitor;
+  denied/unavailable GPS disables submission and directs them to contact staff.
+  Mobile HTTPS/fallback acceptance and old printed URLs/domains remain QR-01/QA-01.
+- Added `TRACKER_ASSET_API_URL` and optional `REQUEST_PROXY_SECRET` configuration.
+  Readiness checks the new schema, rate-table grant and lookup-setting presence.
+  Added comments, policy/migration/preflight/grant/ingress guidance, and updated
+  AGENTS/README/development/self-hosting/TODO/current handoff in this same task.
+
+### Validation evidence
+
+Both webpack production builds and TypeScript checks passed. The final root suite
+passed **39** checks; QR smoke suite passed **1**. The complete PostgreSQL suite
+passed **63** checks (59 scenarios plus four parent tests). After the final strict
+null-note change and adding a stalled-lookup case, the public-request suite passed
+**14** checks (13 scenarios plus parent), including five-second timeout behavior.
+The optional Chromium suite passed **12** checks (ten scenarios plus two parents);
+its final service/rendering subset passed **6** (five scenarios plus parent).
+All fixtures are synthetic and external browser traffic is blocked.
+
+Coverage includes private/public response separation, changed inventory metadata,
+leading zeroes, legacy links, malformed/oversized/unknown/forged input, independent
+server duplicate races, reopen races/rollback, receiver/global/client budget
+persistence and expiry, invalid proxy headers, and migration rollback/retry.
+New input/redirect/stable-association regressions run in the default tracker suite.
+The helper supports preselected loopback ports for the reciprocal private endpoints.
+
+Changed tracker/server/test files pass focused lint with the same four inherited
+staff warnings. **QR full lint now passes** with three inherited image warnings;
+removing the auto-GPS/state effects eliminated its two prior errors. Root full lint
+still fails with **2 inherited vendor errors / 147 warnings** under QA-02; none
+were suppressed. Dependency versions/lockfiles/vendor bytes were unchanged.
+`git diff --check` passed. The QR build retains its existing multiple-lockfile
+workspace-root warning.
+
+Initial sandbox-only attempts failed to parse TypeScript --showConfig and showed
+file-only test successes without executing registered subtests. Those results were
+discarded. All reported successful verification used the VM tool permissions needed
+for child processes/local servers and showed actual named scenarios. Preserve this
+verification distinction for future work. Disposable databases/roles were removed;
+the private test cluster is stopped after validation.
+
+### Remaining work
+
+Review this PR's saved-request/legacy redirect behavior before merging. Before
+cutover, apply authorized requests migrations after duplicate/GPS preflight, grant
+the new rate table, configure both private URLs and authenticated ingress, and
+confirm live inventory/label/domain continuity. Printed private URLs/prior logs
+cannot be erased by browser query cleanup. Stable IDs and GPS remain public/client
+claims; no caller identity or physical-presence guarantee is made.
+
+Next useful implementation: shared-device cache/sign-out handling (DATA-04).
+Remaining dependency/lint work, approved email delivery settings, mobile/printing
+acceptance, backups/services/domains, and live exports remain separately tracked.
+SEC-01-OWNER credential-rotation confirmation is still outstanding.

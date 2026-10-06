@@ -1,144 +1,21 @@
-// Keep old printed-label URLs usable alongside the React QR app. This legacy
-// form creates only a local mail draft; it does not persist a request (MAIL-01).
-const TEST_RECIPIENT="earrieta@tanmarcompanies.com";
-const params=new URLSearchParams(location.search);
-const data={
-  asset:params.get("a")||"",
-  model:params.get("m")||"",
-  type:params.get("t")||"",
-  serial:params.get("s")||"",
-  rid:params.get("r")||"",
-  card:params.get("c")||"",
-  rentState:params.get("rs")||"",
-  accountNumber:params.get("an")||"",
-  accountName:params.get("ac")||"",
-  recordedLocation:params.get("al")||"",
-  office:params.get("ao")||""
-};
-let gps=null;
-
-const byId=id=>document.getElementById(id);
-const clean=value=>value||"—";
-const details=[
-  ["Model",data.model],
-  ["Receiver Type",data.type],
-  ["Serial Number",data.serial],
-  ["Receiver ID (RID)",data.rid],
-  ["Access Card",data.card],
-  ["Rent Status",data.rentState],
-  ["Current Account",data.accountNumber],
-  ["Account Name",data.accountName],
-  ["Recorded Location",data.recordedLocation],
-  ["Office / Yard",data.office]
-];
-
-byId("assetNumber").textContent=clean(data.asset);
-// Old labels supply arbitrary URL text. Build fixed elements and assign textContent
-// so markup, quotes, and URL-like values cannot create elements or attributes.
-const detailNodes=document.createDocumentFragment();
-for(const [label,value] of details){
-  if(!value)continue;
-  const term=document.createElement("dt");
-  const description=document.createElement("dd");
-  term.textContent=label;
-  description.textContent=clean(value);
-  detailNodes.append(term,description);
-}
-byId("receiverDetails").replaceChildren(detailNodes);
-
-function setLocationState(kind,title,message){
-  const panel=document.querySelector(".location-panel");
-  panel.classList.remove("ready","error");
-  if(kind)panel.classList.add(kind);
-  byId("locationTitle").textContent=title;
-  byId("locationMessage").textContent=message;
-}
-
-function updateReadyState(){
-  byId("emailButton").disabled=!(gps&&byId("errorCode").value.trim());
-}
-
-// GPS depends on browser permission and a secure context; it is not independent
-// proof of a receiver's location. Validate mobile behavior during QR-01/QA-01.
-function requestLocation(){
-  byId("formError").hidden=true;
-  if(!navigator.geolocation){
-    gps=null;
-    setLocationState("error","Location required","GPS location is not available on this device.");
-    updateReadyState();
-    return;
+// Preserve the historical printed path, but retire its mail-only form and private
+// snapshots. The current QR application resolves live inventory on the server.
+(() => {
+  try {
+    const destination=new URL(window.TANMAR_CONFIG?.serviceRequestUrl||"http://localhost:5174/");
+    if(!["http:","https:"].includes(destination.protocol)||destination.username||destination.password)throw new Error();
+    if(destination.origin===location.origin&&destination.pathname===location.pathname)throw new Error();
+    const params=new URLSearchParams(location.search);
+    const key=params.has("id")?"id":"a";
+    const value=params.get(key)||"";
+    const pattern=key==="id"?/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/:/^[A-Za-z0-9][A-Za-z0-9 ._:/-]{0,127}$/;
+    if(!pattern.test(value))throw new Error();
+    destination.search="";destination.hash="";
+    destination.searchParams.set(key,value);
+    // Replace this history entry. Already printed URLs/history/server logs cannot
+    // be erased by this redirect; never forward their private query fields.
+    location.replace(destination.href);
+  } catch {
+    document.getElementById("redirectMessage").textContent="This label cannot open the service form. Contact TanMar for help.";
   }
-  byId("locationButton").disabled=true;
-  setLocationState("","Requesting location…","Approve the location prompt on your device.");
-  navigator.geolocation.getCurrentPosition(position=>{
-    gps={
-      latitude:position.coords.latitude,
-      longitude:position.coords.longitude,
-      accuracy:position.coords.accuracy,
-      capturedAt:new Date().toISOString()
-    };
-    setLocationState("ready","GPS location captured",`${gps.latitude.toFixed(6)}, ${gps.longitude.toFixed(6)} · accuracy ${Math.round(gps.accuracy)} m`);
-    byId("locationButton").textContent="Refresh GPS Location";
-    byId("locationButton").disabled=false;
-    updateReadyState();
-  },()=>{
-    gps=null;
-    setLocationState("error","Location required","Location permission must be allowed before this request can be created.");
-    byId("locationButton").textContent="Try Location Again";
-    byId("locationButton").disabled=false;
-    updateReadyState();
-  },{enableHighAccuracy:true,timeout:15000,maximumAge:0});
-}
-
-// mailto opens the user's configured email client; it cannot confirm delivery.
-function createEmail(){
-  const errorCode=byId("errorCode").value.trim();
-  if(!errorCode){
-    byId("formError").textContent="Enter the on-screen error code.";
-    byId("formError").hidden=false;
-    byId("errorCode").focus();
-    return;
-  }
-  if(!gps){
-    byId("formError").textContent="Location required. Share your GPS location before creating the email.";
-    byId("formError").hidden=false;
-    requestLocation();
-    return;
-  }
-  byId("formError").hidden=true;
-  const mapsLink=`https://maps.google.com/?q=${gps.latitude},${gps.longitude}`;
-  const lines=[
-    "Please reactivate or refresh this receiver.",
-    "",
-    `On-Screen Error Code: ${errorCode}`,
-    "",
-    "RECEIVER INFORMATION",
-    `Asset Number: ${clean(data.asset)}`,
-    `Model: ${clean(data.model)}`,
-    `Receiver Type: ${clean(data.type)}`,
-    `Serial Number: ${clean(data.serial)}`,
-    `Receiver ID (RID): ${clean(data.rid)}`,
-    `Access Card: ${clean(data.card)}`,
-    `Rent Status: ${clean(data.rentState)}`,
-    `Current Account: ${clean(data.accountNumber)}`,
-    `Account Name: ${clean(data.accountName)}`,
-    `Recorded Location: ${clean(data.recordedLocation)}`,
-    `Office / Yard: ${clean(data.office)}`,
-    "",
-    "SCAN LOCATION",
-    `GPS Coordinates: ${gps.latitude.toFixed(6)}, ${gps.longitude.toFixed(6)}`,
-    `GPS Accuracy: ${Math.round(gps.accuracy)} meters`,
-    `Map: ${mapsLink}`,
-    `Captured: ${new Date(gps.capturedAt).toLocaleString()}`
-  ];
-  const subject=`${clean(data.asset)} / Service Request`;
-  location.href=`mailto:${TEST_RECIPIENT}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
-}
-
-byId("errorCode").addEventListener("input",()=>{
-  byId("formError").hidden=true;
-  updateReadyState();
-});
-byId("locationButton").addEventListener("click",requestLocation);
-byId("emailButton").addEventListener("click",createEmail);
-requestLocation();
+})();
