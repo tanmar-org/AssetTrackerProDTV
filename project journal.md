@@ -40,7 +40,8 @@
   the owner. Complete operator backups and isolated verified restoration are
   implemented in [PR #27](https://github.com/tanmar-org/AssetTrackerProDTV/pull/27),
   merged by the owner. DATA-05 import counts/capacity/metadata/history and protected
-  spreadsheet reports are implemented on the current branch for owner review.
+  spreadsheet reports are implemented in
+  [PR #28](https://github.com/tanmar-org/AssetTrackerProDTV/pull/28) for owner review.
   Production deployment has not started; scheduled/off-server backups are not configured.
 - Next task after import/report review: DATA-06 bounded pagination and filters.
   QR requests and administrator activity currently return only the newest 500 rows;
@@ -1373,3 +1374,9 @@ and older activity without bulk-loading private databases or changing permission
 Audit/history retention and storage scaling remain separate DATA-06 decisions;
 company access/mail/domains/services/off-server backup/cutover decisions still
 need operational acceptance before deployment.
+
+Publication: implementation commit `5280176` pushed to
+`Dev/import-export-correctness`; opened and attached
+[PR #28](https://github.com/tanmar-org/AssetTrackerProDTV/pull/28). Publication
+references are bundled into this same PR. Owner review/merge and any later
+production rollout remain pending; no merge or deployment was performed.

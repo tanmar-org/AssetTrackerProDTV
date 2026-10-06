@@ -244,7 +244,9 @@ approval; unresolved owner/operational items remain listed below.
   regular account imports apply one receiver under existing server permissions.
   TQ distinguishes changed/unchanged/skipped/ignored rows. All three CSV downloads
   quote fields and protect formula/control/full-width prefixes and numeric text.
-  Implemented on `Dev/import-export-correctness`; owner review/merge pending.
+  Implemented on `Dev/import-export-correctness` in
+  [PR #28](https://github.com/tanmar-org/AssetTrackerProDTV/pull/28);
+  owner review/merge pending.
   See [policy and spreadsheet limits](docs/IMPORTS-AND-EXPORTS.md). Actual desktop
   spreadsheet/device acceptance remains QA-01; reports are not lossless backups.
 - [ ] DATA-06 — Add pagination/filtering so older pending QR requests and activity
