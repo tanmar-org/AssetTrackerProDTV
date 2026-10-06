@@ -419,7 +419,8 @@ approval; unresolved owner/operational items remain listed below.
   role-isolated random credentials, explicit runtime/SELECT-only backup grants,
   checksummed owner migrations, real wrong-password/startup checks and partial
   failure containment. Prepared on `Dev/production-database-provisioning` for
-  owner review. See [database setup](docs/PRODUCTION-DATABASES.md). Staging is
+  owner review in [PR #38](https://github.com/tanmar-org/AssetTrackerProDTV/pull/38).
+  See [database setup](docs/PRODUCTION-DATABASES.md). Staging is
   offline; initialization requires an approved deployment and new target names.
   No production database/import/administrator/service is created by this work.
 - [ ] MIG-01-LAUNCH **Owner decision** — Confirm empty first-launch inventory or

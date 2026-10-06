@@ -2623,7 +2623,8 @@ source/dependencies. After final authentication/containment refinements, all ten
 focused real-SCRAM provisioning checks pass; zero-warning lint/vendor checks,
 actionlint and diff checks pass. The shared test cluster was stopped; both private
 AD preview services remain active. Full final-head hosted results will be saved
-privately and reported in this task's PR; bundle them in the next substantive
+privately and reported in [PR #38](https://github.com/tanmar-org/AssetTrackerProDTV/pull/38);
+bundle them in the next substantive
 journal change rather than a separate documentation PR.
 
 No production database/role, migration/import, administrator, system unit, listener,
