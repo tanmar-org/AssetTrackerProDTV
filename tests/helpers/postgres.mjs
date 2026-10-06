@@ -30,7 +30,7 @@ export async function createPostgresFixture(app, { empty = false } = {}) {
     await database.prepare(`GRANT CONNECT ON DATABASE "${name}" TO "${role}"`).run();
     await database.prepare(`GRANT USAGE ON SCHEMA public TO "${role}"`).run();
     const tables = app === "tracker"
-      ? "app_users, app_sessions, app_change_log, app_state, app_state_history, app_inventory_drafts, app_service_operations"
+      ? "app_users, app_sessions, app_change_log, app_state, app_state_history, app_inventory_drafts, app_service_operations, app_login_rate_limits"
       : "service_requests, request_rate_limits, service_request_operations";
     if(!empty) await database.prepare(`GRANT SELECT, INSERT, UPDATE, DELETE ON ${tables} TO "${role}"`).run();
     const runtimeUrl = new URL(url);

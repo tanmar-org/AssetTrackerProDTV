@@ -79,6 +79,10 @@ input, and refuses if any user already exists. The website only permits login.
 Ports default to 5173 (staff) and 5174 (QR), bound to loopback. Open
 `http://localhost:5173/` and `http://localhost:5174/` with synthetic data. Sessions use
 Secure cookies; phone GPS and real staff access require correctly configured HTTPS.
+Staff login traffic uses shared PostgreSQL counters (tracker migration 0006).
+Internet ingress needs `LOGIN_PROXY_SECRET` and overwritten trusted headers;
+AD username/password integration remains pending under the owner's no-MFA policy.
+See [staff authentication and rollout](docs/STAFF-AUTHENTICATION.md).
 
 Staff inventory loads from the authenticated server; unsaved edits stay only in
 the current tab. Download a snapshot before reloading/closing/signing out. Older

@@ -108,6 +108,13 @@ The journal records current evidence; older handoff statements may be stale.
   session revocation, and audit changes together. Login locks the target user row
   through PIN verification/session issuance. Preserve those lock boundaries;
   a PIN reset must invalidate sessions even when a login races it.
+- Staff sign-in reserves shared PostgreSQL traffic budgets before account lookup
+  or credential verification, in a separate committed transaction. Preserve global,
+  trusted-client and canonical-username ceilings, bounded bucket cardinality and
+  fail-closed ingress/schema errors. Never trust plain forwarded IP headers. See
+  [staff authentication](docs/STAFF-AUTHENTICATION.md). Owner chose internet access,
+  private on-premises AD and no MFA; AD integration is still pending. Preserve
+  existing application IDs/roles/draft ownership during explicit AD identity mapping.
 - Spreadsheet imports use pinned local SheetJS 0.20.3 and the same-origin
   `spreadsheet-worker.js` browser worker. Keep vendor bytes/license/SRI/digests
   consistent; never restore a runtime CDN fallback. Preserve file/time/ZIP/range/

@@ -15,8 +15,10 @@ export function operatorCancellation() {
 }
 
 const repository = path.resolve(fileURLToPath(new URL("../", import.meta.url)));
+// Include pre-authentication counters in archives and restored runtime grants;
+// a complete recovery must not silently omit the login protection schema.
 export const applications = {
-  tracker: ["app_change_log", "app_inventory_drafts", "app_service_operations", "app_sessions", "app_state", "app_state_history", "app_users"],
+  tracker: ["app_change_log", "app_inventory_drafts", "app_login_rate_limits", "app_service_operations", "app_sessions", "app_state", "app_state_history", "app_users"],
   requests: ["request_rate_limits", "service_request_operations", "service_requests"],
 };
 const identifier = value => {

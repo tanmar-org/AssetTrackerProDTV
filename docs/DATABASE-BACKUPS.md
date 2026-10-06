@@ -3,7 +3,13 @@
 Inventory downloads omit accounts, sessions, QR requests, rate counters, change
 logs, server history and account-owned draft copies. The root operator commands
 back up both PostgreSQL databases, including every current application table and
-`schema_migrations`. They are separate from either web server.
+`schema_migrations`. They are separate from either web server. Tracker archives
+also include `app_login_rate_limits` from migration 0006: short-lived hashed
+username/client selectors, counters and expiry timestamps, never submitted PINs or
+AD passwords. Treat these pseudonymous records as private metadata. Add the new
+table to explicit SELECT grants for the backup role. The current catalog expects
+migration 0006; older archives require a reviewed schema upgrade before this
+restore tool can accept them.
 
 This implementation has passed synthetic recovery drills. No production backup
 job, off-server storage, encryption service or retention schedule is configured.

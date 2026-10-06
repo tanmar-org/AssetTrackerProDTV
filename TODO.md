@@ -7,15 +7,16 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 
 ## Implementation order and why
 
-1. **Review automated PR validation (QA-01-CI).** The new GitHub check installs
-   both lockfiles, runs lint/types/builds/default tests, real PostgreSQL/backup
-   drills and Chromium on a disposable runner. The initial full hosted run passes;
-   owner review/merge and required-check rules remain separate. QA-02 was merged
-   by the owner in PR #31.
-2. **Decide the staff access policy (AUTH-01).** Existing application PINs do not
-   define whether employees connect through a company network/VPN or internet
-   company SSO. Confirm that direction before preparing ingress/login traffic
-   controls and public exposure; customer QR access remains separate.
+1. **Prepare internet staff authentication (AUTH-01).** Owner confirmed AD-only
+   infrastructure, private VM-to-AD connectivity and password-only sign-in with
+   no MFA. First bound login traffic before account reads; next implement private,
+   certificate-validated LDAPS authentication and explicit stable identity linking.
+   Preserve existing app roles, recovery ownership and shared-device sign-out.
+   AD sign-in is not active yet; public customer QR access remains separate.
+2. **Retain automated validation (QA-01-CI).** Owner merged PR #32 at `396be11`.
+   Both full hosted runs passed 250 checks plus builds/types/lint. Keep the same
+   complete checks for authentication changes; required branch rules remain an
+   owner setting.
 3. **Prepare remaining deployment decisions and acceptance.** Set
    approved email delivery, HTTPS/domains, service supervision and recovery
    operations; reconcile real records and old labels, then test actual devices.
@@ -143,10 +144,35 @@ approval; unresolved owner/operational items remain listed below.
   [policy/migration/ingress requirements](docs/PUBLIC-REQUEST-SECURITY.md).
   Configure trusted production ingress and reconcile any historical duplicates/bad
   GPS before migration; these controls do not prove identity/ownership/location.
-- [ ] AUTH-01 — Decide company authentication requirements (existing PINs versus
-  company SSO/outer access policy). Shared-device sign-out/cache code is DATA-04.
-  Per-account lockout is enforced below; broader login traffic/unknown-account abuse
-  controls remain a deployment requirement. Inventory permissions remain SEC-03.
+- [ ] AUTH-01 — Implement internet staff sign-in with on-premises AD. Owner
+  confirmed no existing AD FS/Entra/SSO, private AD reachability, and no MFA on
+  2026-10-06. Use direct private LDAPS with certificate/hostname verification;
+  retain app-managed access/admin roles, stable user IDs/recovery ownership,
+  revocation and shared-device sign-out (DATA-04). No live AD connection or
+  production configuration is approved by this implementation.
+- [x] AUTH-01-ACCESS — Owner chose internet access for staff, with on-premises AD.
+  This records the access requirement; no live access or authentication was changed.
+- [x] AUTH-01-POLICY — Owner answered no existing identity service, yes private
+  VM-to-AD connectivity, no MFA and explicitly requested no MFA. Use AD
+  username/password for the planned integration. Earlier broker/MFA suggestions
+  are superseded; do not add a broker or MFA requirement without an owner change.
+- [ ] AUTH-01-INTEGRATION — Implement private LDAPS credential verification and
+  staff password UI. Escape directory filters, validate TLS/hostname, bound
+  connections/timeouts, check disabled/locked accounts and use immutable AD
+  objectGUID links with explicit operator mapping to existing application users.
+  Preserve their IDs, roles, drafts, revocation and shared-device sessions; no
+  automatic linking by username/email or public PIN fallback in AD mode. Define
+  directory rechecks/session invalidation and operator recovery. Real AD settings,
+  certificates, service accounts and production cutover remain operational work.
+- [x] AUTH-01-TRAFFIC — PostgreSQL counters limit eligible sign-ins before account
+  lookup/PIN hashing: 300 global, 60 authenticated client, 30 canonical username
+  per fixed 60-second window across processes. Return noncacheable 429/Retry-After;
+  missing counter schema or configured ingress fails closed. Unknown accounts,
+  success, incorrect credentials and account-read failures consume reservations.
+  Tracker migration 0006, runtime/backup grants and production trusted ingress
+  are required before rollout. Implemented on `Dev/ad-authentication`; see
+  [staff login policy](docs/STAFF-AUTHENTICATION.md). This does not enable AD or
+  establish internet deployment readiness.
 - [x] AUTH-01-ACCOUNTS — Account updates, session revocation, and audit writes commit
   together. PIN resets, role changes, and activation changes revoke all target
   sessions. Recheck administrator access inside the serialized mutation; retain at
@@ -324,7 +350,7 @@ approval; unresolved owner/operational items remain listed below.
 - [x] QA-01-CI — Add automated GitHub PR checks for both apps' zero-warning lint,
   types/builds and synthetic regression suites. Implemented on `Dev/github-validation`
   in [PR #32](https://github.com/tanmar-org/AssetTrackerProDTV/pull/32); the full
-  hosted run passes, owner review/merge pending. Includes actual PostgreSQL
+  hosted runs pass; owner merged at `396be11`. Includes actual PostgreSQL
   permission/concurrency/backup drills and Chromium, with no production secrets/VM
   runner. See [CI operations](docs/CONTINUOUS-INTEGRATION.md). CI status alone does
   not enforce branch protection or replace owner review/actual-device acceptance.

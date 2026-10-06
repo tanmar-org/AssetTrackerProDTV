@@ -50,7 +50,8 @@ test("durable QR coordination across interruptions, permissions and processes",{
   const count=async(store,table)=>Number((await store.prepare(`SELECT count(*) AS n FROM ${table}`).first()).n);
   const setup=async(state=inventory())=>{
     mode="normal";mutations=0;
-    await tracker.database.prepare("TRUNCATE app_service_operations,app_inventory_drafts,app_sessions,app_users,app_change_log,app_state,app_state_history").run();
+    // Isolate this scenario's login budget together with its accounts/sessions.
+    await tracker.database.prepare("TRUNCATE app_login_rate_limits,app_service_operations,app_inventory_drafts,app_sessions,app_users,app_change_log,app_state,app_state_history").run();
     await requests.database.prepare("TRUNCATE service_request_operations,service_requests,request_rate_limits").run();
     await provisionAdmin(tracker.database,{name:"testadmin",pin:"482631"});const admin=await login("testadmin");
     for(const name of ["testuser","otheruser"])assert.equal((await api("/api/users","POST",{name,pin:"593742"},admin)).status,200);

@@ -193,8 +193,9 @@ races, all-session revocation, concurrent last-admin demotions, authorization af
 waiting on a transaction lock, and account/audit/session rollback. Existing-row
 upgrades test migration failure/retry without credential rewrites. Unit checks
 cover chunked UTF-8 body limits and malformed cookies before database work.
-The existing PIN policy/outer company authentication still needs an owner decision
-under AUTH-01. Shared-device HTTP tests cover non-bearer contexts, missing/mismatched
+AUTH-01 now records the owner's AD-only/private-connectivity/no-MFA decisions.
+AD authentication remains unimplemented; current PIN checks are still active.
+Shared-device HTTP tests cover non-bearer contexts, missing/mismatched
 headers, shared-cookie changes, stale logout acknowledgement, failed deletion,
 revocation and logout account locking. Older tabs/integrations must reload/update
 context headers, and legacy device caches need DATA-04-ROLLOUT cleanup.
@@ -281,3 +282,21 @@ journal/TODO/setup docs within the same implementation branch, commit and push,
 then open/update one focused PR. Keep runtime secrets, test databases, dumps,
 node_modules, `.next/`, legacy ignored build output, and VM-specific configuration
 out of Git. Do not merge or deploy; the owner performs final review and merging.
+
+## Staff login traffic checks
+
+`tests/login-rate-limit.test.mjs` checks authenticated ingress and cross-site
+rejection. `tests/integration/login-rate-limit.test.mjs` uses independent database
+pools and three real Node servers to prove shared global/client/username ceilings,
+concurrent admissions, bounded selector cardinality, expiry, spoof rejection,
+canonical aliases, committed denied/failed admissions, missing schema and readiness.
+Account lookup privileges are temporarily removed in synthetic fixtures to prove
+that an exhausted budget stops before account reads. Existing scenario resets clear
+login counters alongside users/sessions so unrelated scenarios do not share quotas;
+the dedicated rate suite deliberately retains counters across concurrent callers.
+
+Build both apps before SQL checks. Leave `LOGIN_PROXY_SECRET` blank for local PIN
+fixtures except those explicitly exercising trusted ingress; no real AD address,
+password or connection is used. See [staff policy](STAFF-AUTHENTICATION.md). The
+backup drill seeds, archives and restores the new counter table and verifies its
+restricted runtime grant.
