@@ -44,7 +44,12 @@ secrets are never prefixed with `NEXT_PUBLIC_` or put in `public/asset-tracker/c
 Run `npm run db:migrate` separately in each app, then `npm run admin:provision` at
 the root in a terminal. PIN entry is hidden; no PIN arguments, environment variables,
 or SQL files are used. Bootstrap takes a PostgreSQL table lock and refuses if any
-user exists, including inactive users. Public HTTP setup always returns 403.
+user exists, including inactive users. Public HTTP setup always returns 403. In
+AD mode, provisioning asks only for an app username; operator `auth:link-ad` uses
+the owner URL/namespace in `.env.migrate` to map a reviewed GUID without replacing
+the application user. See [AD configuration and linking](STAFF-AUTHENTICATION.md).
+Keep local development explicitly `AUTH_MODE=pin` when using PIN fixtures; incomplete
+AD settings without an explicit mode fail closed. Do not use company AD for tests.
 
 `npm run dev` uses loopback ports 5173/5174. `npm start` runs a built production Node
 server on the same defaults. Local D1/Workers are no longer part of either path.
@@ -218,6 +223,20 @@ input, independent-process duplicate/rate races, conflicting status reopens,
 trusted ingress headers, denied-attempt persistence, expiry, lookup errors and
 atomic failure/retry of the requests migration on historical duplicates/bad GPS.
 See [the public request policy](PUBLIC-REQUEST-SECURITY.md).
+
+AD regressions use `tests/helpers/ldap-directory.mjs`, a real loopback TLS/LDAP
+server with freshly generated two-day synthetic certificates. OpenSSL must be
+available (installed on this VM and the hosted Ubuntu runner). Temporary keys/CA
+files and sockets are cleaned up; no company endpoint or credentials are used.
+The helper independently reads/writes LDAP BER, including known binary GUID bytes.
+Default tests cover certificates/hostname rejection, required account attributes,
+bounded operations and the total deadline. PostgreSQL/HTTP tests cover two staff
+processes, prior PIN sessions, explicit links/CAS/rollback, reused/renamed usernames,
+role/deactivation changes, cached status/revocation/outages and readiness. Complete
+backup drills preserve mappings/AD metadata while clearing both session providers.
+Chromium checks the real password UI, clearing/transient storage, failure lock and
+role management without PIN/password writes. These fixtures do not establish
+actual AD policy/replication behavior; operator acceptance remains separate.
 
 Full browser/mobile/printing acceptance still belongs to QA-01; Node/VM checks
 do not stand in for physical-device testing. See [the policy](INVENTORY-PERMISSIONS.md).

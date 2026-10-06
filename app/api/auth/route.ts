@@ -5,6 +5,8 @@ import {
 } from "../../../lib/pin-auth";
 import { accessError, readAccessBody } from "../../../lib/access-input";
 import { guardLogin } from "../../../lib/login-rate-limit";
+import { adConfiguration, authenticationMode, canonicalAdUsername, validAdPassword } from "../../../lib/ad-auth";
+import { adLogin } from "../../../lib/ad-login";
 
 // Server-only PostgreSQL connections require the Node runtime and fresh responses.
 export const runtime = "nodejs";
@@ -18,12 +20,14 @@ const loginColumns = "id, name, role, pin_hash, pin_salt, active, failed_attempt
 
 export async function GET(request: Request) {
   try {
+    const mode = authenticationMode();
+    if (mode === "ad") adConfiguration(); // Advertise AD only with valid local settings.
     const count = await db().prepare("SELECT COUNT(*) AS count FROM app_users").first<{ count: number }>();
     const user = await getSessionUser(request);
-    return Response.json({ needsProvisioning: Number(count?.count || 0) === 0, user,
+    return Response.json({ needsProvisioning: Number(count?.count || 0) === 0, user, authMode: mode,
       sessionContext: user ? await sessionContext(request) : null }, { headers: { "cache-control": "no-store" } });
   } catch {
-    return Response.json({ error: "Access service unavailable." }, { status: 503 });
+    return Response.json({ error: "Access service unavailable." }, { status: 503, headers: { "cache-control": "no-store" } });
   }
 }
 
@@ -35,6 +39,15 @@ export async function POST(request: Request) {
       return Response.json({ error: "Initial administrator setup requires the server operator." }, { status: 403 });
     if (body.action !== "login")
       return Response.json({ error: "Unsupported authentication action." }, { status: 400 });
+    const mode = authenticationMode();
+    if (mode === "ad") {
+      const name = canonicalAdUsername(body.name);
+      if (!name || !validAdPassword(body.password) || body.pin !== undefined)
+        return Response.json({ error: "Enter your AD username and password." }, { status: 400, headers: { "cache-control": "no-store" } });
+      const limited = await guardLogin(request, name, db());
+      if (limited) return limited;
+      return await adLogin(name, body.password);
+    }
     const name = typeof body.name === "string" && body.name.length <= 128 ? normalizeUsername(body.name) : "";
     const pin = body.pin;
     if (!validateUsername(name) || !validatePin(pin))

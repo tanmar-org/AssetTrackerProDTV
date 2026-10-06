@@ -3,13 +3,15 @@ import { hashPin, newSalt, normalizeUsername, validatePin, validateUsername } fr
 // Operator-only bootstrap uses bound parameters and a table lock. PostgreSQL
 // permits concurrent inserts, so a conditional INSERT alone is not sufficient.
 // Acquire the lock before inspecting emptiness; any existing user blocks bootstrap.
-export async function provisionAdmin(database, { name, pin }) {
+export async function provisionAdmin(database, { name, pin }, { mode = "pin" } = {}) {
   const username = normalizeUsername(name);
-  if (!validateUsername(username) || !validatePin(pin))
+  if (!validateUsername(username) || !["pin", "ad"].includes(mode) || (mode === "pin" && !validatePin(pin)))
     throw new Error("Enter a username such as jdoe and a 4–8 digit PIN.");
   const id = crypto.randomUUID();
   const salt = newSalt();
-  const pinHash = await hashPin(pin, salt);
+  // AD mode creates only an app role record. A separate explicit GUID link grants
+  // directory access; no local PIN is chosen or advertised as an AD fallback.
+  const pinHash = mode === "ad" ? newSalt() + newSalt() : await hashPin(pin, salt);
   const now = new Date().toISOString();
   const created = await database.transaction(async (tx) => {
     await tx.prepare("LOCK TABLE app_users IN EXCLUSIVE MODE").run();

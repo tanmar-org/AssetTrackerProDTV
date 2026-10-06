@@ -4,6 +4,7 @@ import {
   validatePin, validateUsername, type SessionUser,
 } from "../../../lib/pin-auth";
 import { AccessInputError, accessError, readAccessBody } from "../../../lib/access-input";
+import { authenticationMode, adConfiguration } from "../../../lib/ad-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,9 +44,10 @@ export async function GET(request: Request) {
     if (auth.response) return auth.response;
     // Never return PIN hashes/salts or session tokens to the management UI.
     const users = await db().prepare(
-      "SELECT id, name, role, active, failed_attempts, locked_until, last_login_at, created_at, updated_at FROM app_users ORDER BY active DESC, lower(name)",
-    ).all();
-    return Response.json({ users: users.results }, { headers: { "cache-control": "no-store" } });
+      `SELECT id, name, role, active, failed_attempts, locked_until, last_login_at, created_at, updated_at,
+        (ad_guid IS NOT NULL AND ad_directory = $1) AS ad_linked FROM app_users ORDER BY active DESC, lower(name)`,
+    ).bind(authenticationMode() === "ad" ? adConfiguration().id : null).all();
+    return Response.json({ users: users.results, authMode: authenticationMode() }, { headers: { "cache-control": "no-store" } });
   } catch (error) { return accountError(error); }
 }
 
@@ -54,12 +56,19 @@ export async function POST(request: Request) {
     const initial = await requireUser(request, "admin");
     if (initial.response) return initial.response;
     const body = await readAccessBody(request);
+    const mode = authenticationMode();
+    // Browser account management changes app access only; identity linking is
+    // operator-only and AD passwords/unlocks belong to the directory.
+    if (body.ad_guid !== undefined || body.ad_directory !== undefined || body.password !== undefined ||
+        (mode === "ad" && body.pin !== undefined && body.pin !== ""))
+      throw new AccessInputError("Manage directory identities and credentials through your administrator.");
     const name = username(body.name);
     const pin = body.pin;
     const role = roleValue(body.role, "user");
-    if (!validatePin(pin)) throw new AccessInputError("PIN must be 4–8 digits.");
+    if (mode === "pin" && !validatePin(pin)) throw new AccessInputError("PIN must be 4–8 digits.");
     const salt = newSalt();
-    const pinHash = await hashPin(pin as string, salt);
+    // Preserve historical schema constraints without inventing an AD-mode PIN.
+    const pinHash = mode === "ad" ? newSalt() + newSalt() : await hashPin(pin as string, salt);
     return await db().transaction(async (tx) => {
       // Serialize all account mutations before checking the actor or admin count.
       // Authorization outside this transaction can become stale while queued.
@@ -82,6 +91,9 @@ export async function PATCH(request: Request) {
     const initial = await requireUser(request, "admin");
     if (initial.response) return initial.response;
     const body = await readAccessBody(request);
+    if (body.ad_guid !== undefined || body.ad_directory !== undefined || body.password !== undefined ||
+        (authenticationMode() === "ad" && ((body.pin !== undefined && body.pin !== "") || body.unlock === true)))
+      throw new AccessInputError("Manage directory identities and credentials through your administrator.");
     if (typeof body.id !== "string" || !body.id || body.id.length > 128)
       throw new AccessInputError("Choose a user to update.");
     const providedName = body.name === undefined ? undefined : username(body.name);

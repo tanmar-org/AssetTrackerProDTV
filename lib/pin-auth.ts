@@ -1,5 +1,6 @@
 import { database } from "./database.ts";
 import type { Database } from "@tanmar/database";
+import { adConfiguration, authenticationMode, directoryRecheckSeconds, lookupAdGuid, type AdIdentity } from "./ad-auth.ts";
 
 export type SessionUser = {
   id: string;
@@ -93,12 +94,40 @@ export async function getSessionUser(request: Request, connection?: Database): P
   const token = cookieValue(request, SESSION_COOKIE);
   if (!token) return null;
   const tokenHash = await sha256(token);
-  const row = await (connection ?? db()).prepare(
-    `SELECT u.id, u.name, u.role
+  const store = connection ?? db(), mode = authenticationMode();
+  const config = mode === "ad" ? adConfiguration() : null;
+  const row = await store.prepare(
+    `SELECT u.id, u.name, u.role, s.id AS session_id, s.ad_guid, s.ad_password_stamp, s.directory_checked_at
      FROM app_sessions s JOIN app_users u ON u.id = s.user_id
-     WHERE s.token_hash = $1 AND s.expires_at > $2 AND u.active = 1`,
-  ).bind(tokenHash, new Date().toISOString()).first<SessionUser>();
-  return row || null;
+     WHERE s.token_hash = $1 AND s.expires_at > $2 AND u.active = 1 AND s.auth_method = $3
+       AND ($3 = 'pin' OR (s.auth_binding = $4 AND s.ad_guid = u.ad_guid AND u.ad_directory = $5))`,
+  ).bind(tokenHash, new Date().toISOString(), mode, config?.binding ?? null, config?.id ?? null)
+    .first<SessionUser & { session_id: string; ad_guid: string; ad_password_stamp: string; directory_checked_at: string }>();
+  if (!row) return null;
+  const now = Math.floor(Date.now() / 1000), checked = Number(row.directory_checked_at);
+  if (config && (checked > now || now - checked >= directoryRecheckSeconds)) {
+    // Shared DB timestamps bound cached directory approval across processes.
+    // Outages throw without extending approval; disabled/deleted/locked accounts
+    // or changed passwords revoke sessions. LDAP/SQL cannot share a transaction.
+    const identity = await lookupAdGuid(config, row.ad_guid);
+    if (!identity || identity.guid !== row.ad_guid || identity.passwordStamp !== row.ad_password_stamp) {
+      // Revoke this credential/configuration epoch, not a newer successful login
+      // using a changed password or freshly configured directory binding.
+      await store.prepare(`DELETE FROM app_sessions WHERE user_id = $1 AND auth_method = 'ad'
+        AND ad_guid = $2 AND ad_password_stamp = $3 AND auth_binding = $4`)
+        .bind(row.id, row.ad_guid, row.ad_password_stamp, config.binding).run();
+      return null;
+    }
+    // A slow successful check cannot recreate a revoked/relinked session. Recheck
+    // current account/session records after directory I/O, including role changes.
+    const renewed = await store.prepare(`UPDATE app_sessions SET directory_checked_at = $1
+      WHERE id = $2 AND auth_binding = $3 AND ad_guid = $4 AND ad_password_stamp = $5
+        AND expires_at > $6 RETURNING id`).bind(now, row.session_id, config.binding, row.ad_guid,
+      row.ad_password_stamp, new Date().toISOString()).first();
+    if (!renewed) return null;
+    return getSessionUser(request, store);
+  }
+  return { id: row.id, name: row.name, role: row.role };
 }
 
 export async function requireUser(request: Request, role?: "admin", connection?: Database) {
@@ -130,13 +159,17 @@ export async function requireUser(request: Request, role?: "admin", connection?:
 // JavaScript and Secure requires HTTPS outside localhost development handling.
 // Login supplies its transaction so session issuance and account checks commit
 // together. PIN/role updates lock the same user row before revoking sessions.
-export async function createSession(userId: string, connection: Database = db()) {
+export async function createSession(userId: string, connection: Database = db(), directory?: { identity: AdIdentity; binding: string; checkedAt: number }) {
   const token = randomHex(32);
   const now = new Date();
   const expires = new Date(now.getTime() + 12 * 60 * 60 * 1000);
   await connection.prepare(
-    "INSERT INTO app_sessions (id, user_id, token_hash, expires_at, created_at) VALUES ($1, $2, $3, $4, $5)",
-  ).bind(crypto.randomUUID(), userId, await sha256(token), expires.toISOString(), now.toISOString()).run();
+    `INSERT INTO app_sessions (id, user_id, token_hash, expires_at, created_at,
+      auth_method, auth_binding, ad_guid, ad_password_stamp, directory_checked_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+  ).bind(crypto.randomUUID(), userId, await sha256(token), expires.toISOString(), now.toISOString(),
+    directory ? "ad" : "pin", directory?.binding ?? null, directory?.identity.guid ?? null,
+    directory?.identity.passwordStamp ?? null, directory?.checkedAt ?? null).run();
   return {
     token,
     cookie: `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=43200`,

@@ -63,8 +63,16 @@ test("complete PostgreSQL backup and isolated restore",{timeout:120000},async t=
   state.auditState={fileName:"synthetic.csv",importedAt:when,results:[]};
   await provisionAdmin(tracker.database,{name:"testadmin",pin:"482631"});
   const user=await tracker.database.prepare("SELECT * FROM app_users WHERE name='testadmin'").first();
+  // Archives retain AD ownership links; restore revokes sessions from both modes.
+  const adGuid="12345678-90ab-cdef-8123-456789abcdef";
+  await tracker.database.prepare("UPDATE app_users SET ad_directory='synthetic-ad',ad_guid=$1 WHERE id=$2").bind(adGuid,user.id).run();
+  await tracker.database.prepare(`INSERT INTO app_sessions
+    (id,user_id,token_hash,expires_at,created_at,auth_method,auth_binding,ad_guid,ad_password_stamp,directory_checked_at)
+    VALUES ($1,$2,$3,$4,$5,'ad',$6,$7,'134000000000000000',$8)`)
+    .bind(randomUUID(),user.id,createHash("sha256").update(randomBytes(32)).digest("hex"),new Date(Date.now()+43200000).toISOString(),when,
+      "b".repeat(64),adGuid,Math.floor(Date.now()/1000)).run();
   const oldToken=randomBytes(32).toString("hex");
-  await tracker.database.prepare("INSERT INTO app_sessions VALUES ($1,$2,$3,$4,$5)")
+  await tracker.database.prepare("INSERT INTO app_sessions (id,user_id,token_hash,expires_at,created_at) VALUES ($1,$2,$3,$4,$5)")
     .bind(randomUUID(),user.id,createHash("sha256").update(oldToken).digest("hex"),new Date(Date.now()+3600000).toISOString(),when).run();
   await tracker.database.prepare("INSERT INTO app_state VALUES ('tanmar-receiver-control',$1,2,$2,'testadmin')").bind(JSON.stringify(state),when).run();
   await tracker.database.prepare("INSERT INTO app_state_history VALUES ($1,1,$2,'Before synthetic backup',$3,'testadmin')").bind(randomUUID(),JSON.stringify(inventory()),when).run();
@@ -105,6 +113,7 @@ test("complete PostgreSQL backup and isolated restore",{timeout:120000},async t=
     const restored=(await trackerTarget.database.prepare("SELECT payload FROM app_state").first()).payload;
     assert.deepEqual(restored,state);assert.equal(restored.accounts[0].number,"000001");assert.equal(restored.master[0].accessCard,"0000");
     assert.equal((await trackerTarget.database.prepare("SELECT pin_hash FROM app_users").first()).pin_hash,user.pin_hash);
+    assert.deepEqual(await trackerTarget.runtime.prepare("SELECT ad_directory,ad_guid FROM app_users").first(),{ad_directory:"synthetic-ad",ad_guid:adGuid});
     assert.equal(Number((await trackerTarget.database.prepare("SELECT count(*) AS total FROM app_sessions").first()).total),0);
     assert.equal((await trackerTarget.database.prepare("SELECT draft_state FROM app_inventory_drafts").first()).draft_state.accounts[0].number,"000001");
     assert.equal((await trackerTarget.runtime.prepare("SELECT hits FROM app_login_rate_limits WHERE bucket_key='synthetic-login-budget'").first()).hits,1);

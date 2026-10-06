@@ -11,7 +11,8 @@ Worker bindings, Sites hosting metadata, Wrangler, or Vinext.
 | Public QR service | Loopback port 5174 | Separate requests database/runtime role |
 | Staff request proxy | Configured QR `/api/requests` URL | Server-only shared credential |
 | Operator migrations | `npm run db:migrate` in each app | Separate schema-owner connection |
-| Initial admin | Root `npm run admin:provision` | Tracker only; hidden interactive PIN |
+| Initial admin | Root `npm run admin:provision` | Tracker only; AD-mode app record or hidden local PIN |
+| AD identity links | Root `npm run auth:link-ad` | Tracker operator connection; reviewed directory/GUID mapping |
 
 The shared `packages/database/` module owns a bounded pool of four connections per
 Node process. Its query facade accepts native PostgreSQL statements and bound `$1`
@@ -98,6 +99,10 @@ Each app's `.env.local` contains **only runtime settings** from its `.env.exampl
 - `LOGIN_PROXY_SECRET`: tracker-only; authenticate the reverse proxy's overwritten
   client-IP/secret headers for shared staff login limits. See
   [staff login ingress and limits](STAFF-AUTHENTICATION.md).
+- `AUTH_MODE`, `AD_DIRECTORY_ID`, `AD_LDAP_URL`, `AD_BASE_DN`, `AD_BIND_DN`,
+  `AD_BIND_PASSWORD`, `AD_CA_FILE`: tracker-only AD selection/private directory
+  settings. `AUTH_MODE=ad` requires all settings, certificate/hostname validation
+  and a restricted reader. Use the [AD setup and explicit linking runbook](STAFF-AUTHENTICATION.md).
 - `REQUEST_PROXY_SECRET`: QR-only; authenticate the production reverse proxy's
   overwritten client-IP/secret headers. See [the ingress policy](PUBLIC-REQUEST-SECURITY.md).
 
@@ -122,7 +127,12 @@ Apply migrations in both apps, then provision the first tracker administrator in
 a terminal. The operator command hides PIN echo and uses bound parameters; it
 writes no temporary SQL file. A table lock precedes the empty-user check, because
 a conditional INSERT alone cannot serialize concurrent PostgreSQL provisioners.
-Any existing user blocks bootstrap; HTTP setup remains unavailable.
+Any existing user blocks bootstrap; HTTP setup remains unavailable. In AD mode,
+provisioning prompts only for an app username and creates no chosen PIN. Follow
+the AD runbook to explicitly link the reviewed administrator GUID. Existing users
+must be linked in place, preserving IDs, roles and draft ownership. Configure the
+same `AD_DIRECTORY_ID` in protected `.env.migrate` for `auth:link-ad`; the reader
+password is unnecessary for that command.
 
 ## Account security and upgrades
 
@@ -138,7 +148,7 @@ is separate from QR
 review its duplicate/GPS preflight and new runtime grant in
 [the public request policy](PUBLIC-REQUEST-SECURITY.md).
 
-Login holds a PostgreSQL user-row lock through PIN verification and session
+Local PIN login holds a PostgreSQL user-row lock through verification and session
 insertion. Five failed attempts lock that account for 15 minutes, including
 concurrent requests across Node processes. Expired sessions for the account are
 pruned on successful login. Access endpoints require JSON objects of at most
@@ -153,11 +163,16 @@ Resetting your own PIN/changing your own role clears your cookie and locks the
 staff sign-in gate. Unlocking alone does not revoke sessions. Account changes,
 revocation, and audit writes share one transaction; audit failure cancels the change.
 
-These protections retain the existing 4–8 digit PIN policy and 12-hour sessions.
-Shared login traffic limits are implemented in tracker migration 0006. AD
-username/password integration remains AUTH-01; the owner chose private AD access
-and no MFA. Current PIN login does not implement AD authentication. See
-[staff login policy](STAFF-AUTHENTICATION.md) for limits and required ingress.
+Local mode retains the 4–8 digit PIN policy; both modes retain 12-hour sessions.
+Tracker migration 0006 supplies shared login limits. Migration 0007 adds explicit
+directory/GUID links and provider-specific session metadata to existing tables;
+existing table grants cover the new columns. AD verifies credentials/status
+before taking the account/linked-user locks for session issuance. AD mode rejects
+PIN login/sessions and delegates password/unlock operations to directory admins.
+Approval is cached in SQL for at most 60 seconds; expired approval requires an AD
+check, and outages fail closed without extension. Company AD setup and acceptance
+remain AUTH-01-ROLLOUT. See [staff login policy](STAFF-AUTHENTICATION.md) for private
+TLS settings, identity links, revocation limits, recovery and trusted internet ingress.
 Shared-device code now uses tab memory, server-bound session contexts, acknowledged sign-out/retry, and
 administrator cleanup of quarantined legacy storage. Ship server/UI together,
 reload old tabs and update staff integrations to supply the session context header.
@@ -177,6 +192,8 @@ production setup must add approved HTTPS domains/reverse proxy, restricted servi
 users, startup/restart supervision, logging/monitoring, and environment handling.
 `/api/health` checks the selected database and required application tables, returning a
 small no-cache 200/503 response without connection details. Use it for readiness.
+For AD mode it checks local configuration/CA and required identity/session columns,
+without contacting AD; 200 does not establish directory availability.
 Phone GPS and Secure session cookies require proper HTTPS outside local testing.
 
 ## Cutover remains separate
