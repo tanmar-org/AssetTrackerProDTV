@@ -2491,8 +2491,13 @@ real proxy suite passes 10, with zero failures/cancellations/skips. Actual socke
 verify forged headers under inherited real-IP rules, both-hop route denial, QR
 creation/lookup, QR ceiling/large staff body, untrusted backend TLS/wrong name,
 source-rule forgery rejection and empty access logs. No company AD, production DB,
-certificate or existing proxy was used for those regressions. Hosted final-head
-validation and PR reference will be recorded before handoff.
+certificate or existing proxy was used for those regressions.
+
+Opened [PR #36](https://github.com/tanmar-org/AssetTrackerProDTV/pull/36) from
+`Dev/https-ingress-preparation` for owner review/merge. Hosted validation is
+pending at this commit; inspect the final head before merging. Final hosted
+evidence will be saved privately and reported in the handoff, then bundled into
+the next substantive journal update rather than creating a documentation-only PR.
 
 Next install/supervise the reviewed production services with matching protected
 settings, provide the backend certificate and configure the two actual NPM hosts.

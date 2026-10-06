@@ -393,7 +393,8 @@ approval; unresolved owner/operational items remain listed below.
 - [x] HOST-03-INGRESS — Prepare Nginx Proxy Manager/private VM TLS gateway files,
   separate authenticated client-IP credentials, both-hop private-route denial and
   the deployment-only QR HTTPS destination. Owner-specific protected files are
-  staged outside Git; four operator and ten real proxy checks pass. Source-IP
+  staged outside Git in [PR #36](https://github.com/tanmar-org/AssetTrackerProDTV/pull/36);
+  four operator and ten real proxy checks pass. Source-IP
   restriction is optional, TLS/secrets mandatory. See [the runbook](docs/HTTPS-INGRESS.md).
 - [ ] HOST-03-INGRESS-ROLLOUT — Review/merge the preparation PR, install the VM
   leaf/key and trusted issuer bundle, configure actual NPM hosts and loopback web
