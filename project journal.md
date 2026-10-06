@@ -4,8 +4,8 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/public-request-security`, based on merged
-  `main` at `7829525`.
+- Development branch: `Dev/shared-device-sessions`, based on merged
+  `main` at `160e109` (owner merged PR #23).
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -28,10 +28,15 @@
   the owner. Local bounded spreadsheet parsing/dependency corrections are
   merged by the owner in
   [PR #21](https://github.com/tanmar-org/AssetTrackerProDTV/pull/21). Public-request
-  security and QR metadata removal are implemented on `Dev/public-request-security`
-  in [PR #23](https://github.com/tanmar-org/AssetTrackerProDTV/pull/23) for owner review. Production deployment has not started.
-- Next task: staff shared-device cache/sign-out corrections (DATA-04), then the
-  remaining lint/dependency work and AUTH-01/DATA-01 access/conflict requirements.
+  security and QR metadata removal in
+  [PR #23](https://github.com/tanmar-org/AssetTrackerProDTV/pull/23) are also merged
+  by the owner. Shared-device session/cache corrections (DATA-04) are implemented
+  on `Dev/shared-device-sessions` in
+  [PR #24](https://github.com/tanmar-org/AssetTrackerProDTV/pull/24) for owner review.
+  Production deployment has not started.
+- Next task: DEP-01-SOURCE-MAP, the newly surfaced QR dependency alert, then DATA-01
+  explicit conflict reconciliation/draft handling, with the
+  remaining lint/dependency work and AUTH-01 company access requirements tracked.
   QR-01 still needs old-label/domain continuity and mobile GPS acceptance; MAIL-01
   still needs approved delivery settings. Production domains/services/backups/data
   cutover remain under HOST-03/HOST-04/MIG-01. SEC-01-OWNER still needs owner confirmation.
@@ -839,10 +844,125 @@ claims; no caller identity or physical-presence guarantee is made.
 Next useful implementation: shared-device cache/sign-out handling (DATA-04).
 Remaining dependency/lint work, approved email delivery settings, mobile/printing
 acceptance, backups/services/domains, and live exports remain separately tracked.
-SEC-01-OWNER credential-rotation confirmation is still outstanding.
+  SEC-01-OWNER credential-rotation confirmation is still outstanding.
 
 Publication: implementation commit `f3f46f5` pushed to
 `Dev/public-request-security`; opened and attached
 [PR #23](https://github.com/tanmar-org/AssetTrackerProDTV/pull/23) for owner review.
 The PR is open and no merge/deployment was performed. Test cleanup confirmed zero
 disposable databases/runtime roles before stopping the private cluster.
+
+## 2026-10-05 — Shared-device sessions, memory-only data, and confirmed sign-out
+
+### Scope and decisions
+
+The owner confirmed merging PR #23 and authorized continuing. GitHub reported its
+merge commit as `160e10902cac24f084a5d02cc9ed1080814360b8`; branched
+`Dev/shared-device-sessions` from that fetched main. This task implements DATA-04
+and records DATA-04-ROLLOUT separately. No production access/deployment, dependency
+upgrade, SQL migration, or changes in the original checkout were performed.
+
+The staff UI now starts empty/inert, opens only after authenticated server inventory
+loads, and never seeds sample data or uploads device-wide records automatically.
+New operational state, audit, stock, Undo, imports and email preferences live only
+in tab memory. Denied browser storage does not prevent a server save attempt.
+Historical `atp.*`/email-preference keys remain quarantined until explicit admin
+export/removal or confirmed discard on sign-out. Raw legacy exports preserve old
+formats for reconciliation; they do not directly restore current inventory.
+
+Sign-out immediately locks/scrubs private tables, hidden dialogs/forms/mail drafts,
+Undo and print frames; cancels workers, requests, save/poll timers; and checks every
+awaited staff response/import against its session generation. Failed server logout
+stays locked across reload with retry and a non-bearer marker (window.name fallback
+if storage is denied). Success requires an actual acknowledgement; cleanup failures
+remain visible. Already-submitted saves may have committed before sign-out.
+
+Other tabs receive login/logout events and the UI verifies sessions on focus/every
+12 seconds even while a draft is paused. A restored frozen page verifies access
+again. Expiry/switch/verification failure can quarantine unsaved work in memory
+for only the same stable user ID after reauthentication, with sync paused for
+snapshot export. Another user must confirm discard or cancel. This does not make
+unsaved work durable across reload/tab closure or protect against someone who
+controls browser developer tools; DATA-01 durable recovery/conflict UI remains open.
+
+GET/POST auth returns a domain-separated, non-bearer session context. Staff mutations
+require its header alongside the actual valid cookie and current role; supplied
+read contexts are checked too. Old tabs cannot write under newer shared cookies,
+including same-user re-login. Stale-context logout acknowledges the old UI's lock
+without deleting/clearing a different newer cookie. Matching logout takes account
+advisory lock `728303`, preserving write/revocation ordering. Ship server/UI together,
+reload old tabs and update integrations; older mutations without context receive
+401 (logout without context and a cookie receives 400).
+
+Updated AGENTS, TODO, README, development/self-hosting/inventory policy and added
+`docs/SHARED-DEVICE-SESSIONS.md`. Staff assets now use version 62. Existing test
+fixtures use synthetic contexts and server snapshots instead of implicit device
+cache bootstrap. No credentials, live exports or database contents enter Git.
+
+### Verification
+
+Root native webpack production build and TypeScript check passed. The default
+tracker suite passed **39** checks. The full real PostgreSQL suite passed **68**
+checks (63 scenarios plus five parents), including new context/non-bearer checks,
+shared-cookie switches, stale logout, failed deletion rollback, and logout locking.
+The optional real Chromium suite passed **22** checks (19 scenarios plus three
+parents), including nine shared-device scenarios alongside rendering/import tests.
+After the final gate/cleanup adjustment, the gate/queue subset passed **7** checks
+and the complete Chromium suite again passed **22**. Changes afterwards are comments
+and documentation only.
+
+Browser coverage exercises older-data export/removal, no sample/old-cache upload,
+private DOM cleanup, failed logout/reload/retry, denied storage and save attempts,
+actual cross-tab events, original-owner paused-draft export, late read/import/save
+results, failed initial inventory reads, frozen-page events and paused-session
+expiry. Recovery verifies the actual shared cookie before rendering a retained
+draft, including a newer login overtaking its auth response. APIs/GPS/data are
+synthetic and all outside browser traffic is blocked.
+Frozen-page events are simulated; actual iPad/mobile acceptance remains QA-01.
+QR source/dependencies were unchanged; its existing build served the rendering and
+PostgreSQL suites. No claim of a new QR build/audit is made for this task.
+
+Focused changed-source/test lint passed with **0 errors / 4 inherited staff
+warnings**. Full root lint still reports **2 inherited vendor errors / 147 warnings**
+under QA-02, with no suppression. `git diff --check` passed. An initial Chromium
+case failed because its selector checked the error field instead of the loading
+status description; corrected the test and reran the complete suite successfully.
+The integration runs printed generic idle-connection notices during fixture teardown;
+all assertions passed. Cleanup counts and private-cluster shutdown are recorded
+with publication below. Verification used child-process/socket permissions and
+executed actual named subtests, not sandbox file-only successes.
+
+### Remaining work
+
+Review the memory-only/acknowledged-sign-out policy before merge. Before deployment,
+export/reconcile/remove older device caches and reload old clients/integrations under
+DATA-04-ROLLOUT. Pending drafts need snapshot export before reload/tab closure;
+DATA-01 explicit reconciliation/durable recovery is the next useful implementation.
+Company access/login traffic policy, operator backups/services/domains, live-data
+migration, old labels, delivery settings and mobile/printing acceptance remain open.
+The owner alone reviews/merges; no production service or live database was changed.
+
+Publication: implementation commit `ba5a8a7` pushed to
+`Dev/shared-device-sessions`; opened and attached
+[PR #24](https://github.com/tanmar-org/AssetTrackerProDTV/pull/24) for owner review.
+The PR remains open; no merge/deployment was performed. Cleanup confirmed zero
+disposable databases and runtime roles; the private PostgreSQL test cluster was
+stopped. Publication references are bundled into this same PR.
+
+Publication follow-up: GitHub surfaced open high runtime alert 162 for the QR
+lockfile's `source-map-js@1.2.1` (GHSA-68fv-2mgg-jv7q; patched 1.2.2).
+Fresh production npm queries still return zero for both apps; that does not cover
+GitHub's reviewed finding. The tracker lock already pins 1.2.2, but its local
+installed copy was older; restored the root install from the unchanged lockfile
+with `npm run install:ci`. QR's lock/installed 1.2.1 requires the next focused
+DEP-01-SOURCE-MAP correction. HTTP exploitability is not established. Updated
+current dependency/setup/TODO statements rather than treating the alert as fixed
+or repeating an unqualified clean-runtime claim. See the linked advisory and
+`docs/DEPENDENCY-REMEDIATION.md`; package upgrades remain outside this PR.
+
+After restoring the tracker install from its lockfile, `npm test` again passed the
+production build and all **39** regressions; type checking passed. Complete
+PostgreSQL and Chromium reruns again passed **68** and **22** checks, respectively;
+focused changed-file lint remained **0 errors / 4 inherited warnings**. Final
+cleanup again confirmed zero disposable databases/runtime roles and stopped the
+private test cluster. No lockfile/package changes were made by the reinstall.

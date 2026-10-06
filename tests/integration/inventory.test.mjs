@@ -1,3 +1,4 @@
+import { sessionHeaders } from "../helpers/session-context.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
@@ -35,7 +36,7 @@ test("inventory permissions, validation, and recovery", async (t) => {
     SERVICE_REQUEST_API_URL: `http://127.0.0.1:${upstream.address().port}/api/requests`,
   });
   const api = (path, method = "GET", body, cookie) => fetch(`${server.url}${path}`, {
-    method, headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+    method, headers: { "content-type": "application/json", ...(cookie ? { cookie, ...sessionHeaders(cookie) } : {}) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const signin = async (name, pin) => {

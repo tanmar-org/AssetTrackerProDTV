@@ -103,6 +103,13 @@ still require QA-01 acceptance. Six fast redirect/rendering/stable-identity/URL
 regressions and three public-input tests run without Playwright in the default
 tracker suite.
 
+Shared-device Chromium scenarios also exercise legacy cache quarantine/export/
+removal, empty-server startup, private DOM cleanup, failed sign-out/reload/retry,
+denied storage without blocking a save, BroadcastChannel user switches, original-
+owner draft export, late reads/imports/saves, restored-page events and paused-session
+expiry. Frozen-page events are simulated; target-device acceptance is still QA-01.
+See [the session/cache policy](SHARED-DEVICE-SESSIONS.md).
+
 The browser suite also uploads synthetic XLSX/XLS/CSV through the actual Master,
 West Texas, account, and audit inputs, and exercises the real local parser worker.
 The default suite verifies vendor digest/SRI/version, leading-zero mappings, parser
@@ -151,8 +158,11 @@ races, all-session revocation, concurrent last-admin demotions, authorization af
 waiting on a transaction lock, and account/audit/session rollback. Existing-row
 upgrades test migration failure/retry without credential rewrites. Unit checks
 cover chunked UTF-8 body limits and malformed cookies before database work.
-The existing PIN policy/outer company authentication and shared-device cache
-behavior still need owner decisions/further implementation; see AUTH-01/DATA-04.
+The existing PIN policy/outer company authentication still needs an owner decision
+under AUTH-01. Shared-device HTTP tests cover non-bearer contexts, missing/mismatched
+headers, shared-cookie changes, stale logout acknowledgement, failed deletion,
+revocation and logout account locking. Older tabs/integrations must reload/update
+context headers, and legacy device caches need DATA-04-ROLLOUT cleanup.
 
 Inventory coverage uses the same real PostgreSQL/runtime-role/server fixture.
 It checks role/method versus forged labels, ordinary assignments/services/stock,

@@ -13,13 +13,15 @@ async function browser(fetch) {
   let state = inventory();
   const status = [], timers = [];
   const context = vm.createContext({
-    currentUser: { role: "user" }, currentCloudAction: "Data change", cloudReady: true,
+    sessionEpoch: 0, sessionContext: "1".repeat(64), currentUser: { id: "synthetic-user", role: "user" }, currentCloudAction: "Data change", cloudReady: true,
     cloudQueued: false, cloudSaving: false, cloudWriteBlocked: false, cloudCaptureQueued: false,
     cloudPendingStates: [], cloudRevision: 1, cloudSaveTimer: null,
     CLOUD_STATE_API: "/api/app-state", navigator: { onLine: true }, structuredClone, queueMicrotask,
     setTimeout: (callback, delay) => { timers.push({ callback, delay }); return timers.length; }, clearTimeout() {},
     setCloudStatus: (state, detail) => status.push({ state, detail }), showAuthGate() {},
     cloudState: () => state, fetch,
+    sessionActive: (epoch) => epoch === context.sessionEpoch && Boolean(context.currentUser),
+    staffRequest: async (url, options) => { const response = await fetch(url, options); return { response, result: await response.json() }; },
     readCloudState() { throw new Error("A rejected draft must never be replaced by an automatic shared read."); },
   });
   vm.runInContext(functions.join("\n"), context);

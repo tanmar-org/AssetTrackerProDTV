@@ -913,3 +913,9 @@ tr.search-return>td:last-child{box-shadow:inset -1px 0 0 rgba(244,189,75,.45)}
 .service-link-panel{margin-top:18px;padding:18px;display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,.85fr);gap:22px;align-items:center}
 .service-link-panel h3{margin:5px 0 7px}
 .service-link-panel p:last-child{margin:0;color:var(--muted);font-size:.78rem;line-height:1.5}
+
+/* Lock private overlays as well as the shell, including print media. The gate
+   remains usable for reauthentication/retry while old data is scrubbed. */
+body.auth-locked .modal-backdrop,body.auth-locked .profile-menu,body.auth-locked .undo-history-panel{display:none!important}
+#accessActions[hidden]{display:none}
+@media print{body.auth-locked .app-shell{display:none!important}}

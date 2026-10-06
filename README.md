@@ -21,7 +21,7 @@ as their implementation.
   see [public request security](docs/PUBLIC-REQUEST-SECURITY.md).
 
 Production records, database credentials, users, and inventory exports are not
-included. Browser sample records remain. A code migration is not a production
+included. Browser sample initialization was removed. A code migration is not a production
 cutover: review the unresolved security, dependency, backup, and acceptance items
 in TODO.md before deployment.
 
@@ -78,6 +78,12 @@ Ports default to 5173 (staff) and 5174 (QR), bound to loopback. Open
 `http://localhost:5173/` and `http://localhost:5174/` with synthetic data. Sessions use
 Secure cookies; phone GPS and real staff access require correctly configured HTTPS.
 
+Staff inventory loads from the authenticated server; unsaved edits stay only in
+the current tab. Download a snapshot before reloading/closing/signing out. Older
+browser records require administrator export/reconciliation/cleanup. See the
+[shared-device policy](docs/SHARED-DEVICE-SESSIONS.md), including the context header
+required for staff API mutations and failed-sign-out retry behavior.
+
 ## Build and verify
 
 Run in each app directory:
@@ -100,6 +106,7 @@ historical evidence, not current setup instructions.
 
 Spreadsheet reading is served locally from the pinned SheetJS asset. Imports use a
 bounded browser parser worker; no runtime spreadsheet CDN is required. See the
-[dependency review and import limits](docs/DEPENDENCY-REMEDIATION.md). Both current
-production npm audits are clean; an unpatched lint-only dependency remains tracked
-under DEP-01. This is a dependency check, not production acceptance.
+[dependency review and import limits](docs/DEPENDENCY-REMEDIATION.md). npm currently
+reports zero production findings, but GitHub separately flags the QR lockfile's
+source-map-js version; this and an unpatched lint-only dependency remain DEP-01.
+Scanner results are not production acceptance.

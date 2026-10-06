@@ -4,6 +4,17 @@ Checked on 2026-10-05 against merged main `e0a137f`. Evidence is in
 [the refreshed advisory report](reviews/2026-10-05-dependency-remediation.json).
 The original review remains historical evidence of the Worker/D1 dependency set.
 
+Publication follow-up on 2026-10-05 (America/Chicago): GitHub reported open high
+runtime alert 162 for QR `source-map-js@1.2.1`. The reviewed
+[advisory](https://github.com/advisories/GHSA-68fv-2mgg-jv7q) describes indexed
+source-map offset values blocking the event loop; versions below 1.2.2 are affected
+and 1.2.2 is patched. The tracker lockfile already pins 1.2.2; QR still pins 1.2.1.
+Fresh production npm queries for both lockfiles still reported zero findings, so
+those scanner results do not cover this GitHub finding. Application HTTP
+reachability has not been established; do not equate a package match with a proven
+application exploit. DEP-01-SOURCE-MAP is the next focused dependency task, ahead
+of DATA-01 reconciliation. No package/lockfile upgrade is bundled with DATA-04.
+
 ## npm application dependencies
 
 Both `npm audit --omit=dev --json` checks reported **zero known findings** after the

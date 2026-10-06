@@ -134,7 +134,7 @@ test("UI rejects oversized files before reading and terminates its parser on suc
     postMessage() {}
     terminate() { this.stopped = true; }
   }
-  const context = vm.createContext({ XLSX, Worker: Parser, URL, document: { baseURI: "https://staff.example.invalid/asset-tracker/" },
+  const context = vm.createContext({ sessionEpoch: 0, sessionActive: () => true, importCancellations: new Set(), XLSX, Worker: Parser, URL, document: { baseURI: "https://staff.example.invalid/asset-tracker/" },
     setTimeout: (callback) => { timeout = callback; return 1; }, clearTimeout() {} });
   vm.runInContext(functions(["checkImportFile", "readExcelBook"]), context);
   const file = { name: "synthetic.xlsx", size: 10, arrayBuffer: async () => { reads++; return new ArrayBuffer(10); } };

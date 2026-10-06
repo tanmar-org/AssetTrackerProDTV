@@ -26,6 +26,9 @@ provide authority. Company authentication decisions remain under AUTH-01.
 
 `/api/app-state` GET returns validated state and its revision. PUT and PATCH accept
 `{ state, baseRevision, action? }`; revisions must be nonnegative safe integers.
+Staff mutations also require the current `x-tracker-session-context` alongside the
+actual session cookie; supplied read contexts are checked too. See
+[shared-device policy](SHARED-DEVICE-SESSIONS.md). Context never grants a role.
 PUT is administrator-only, including the initial inventory insert. PATCH requires
 an existing document and allows one logical everyday operation. Multiple receiver
 changes, account-plus-unrelated-receiver edits, changing an assignment's receiver
@@ -91,15 +94,18 @@ The staff UI sends admin replacements through PUT. Regular edits capture one
 snapshot after each browser event and send PATCH requests in order using the last
 acknowledged revision. The in-memory queue is bounded at 32 operations; an overflow
 pauses syncing while retaining the current local draft. Transient service failures
-retry. Validation, permission, and revision failures pause retry/polling and retain
-local data instead of automatically replacing it with the shared copy.
+retry. Validation, permission, and revision failures pause saves/inventory polling
+and retain the draft instead of automatically replacing it with the shared copy.
+Session verification continues while inventory sync is paused.
 
 When syncing is paused, use **Settings → Download Snapshot** before reloading,
 then have an administrator reconcile the snapshot with current shared data. On
-session expiry, sign in again to access the retained draft; sync remains paused.
-Queue order is memory-only and is not restored after reload. Durable offline edits,
-conflict-resolution UI, storage-quota failures, and shared-device cache policy
-remain DATA-01/DATA-04 tasks; this is not an automatic merge or a complete backup.
+session expiry, the same employee can sign in again to access the quarantined draft;
+sync remains paused. A different employee must discard it or cancel. Inventory,
+Undo and queue order are memory-only and are not restored after reload. Legacy
+unowned browser caches are excluded from inventory and require explicit admin
+export/removal. Durable recovery and conflict-resolution UI remain DATA-01; this
+is not an automatic merge or a complete backup.
 
 Exports and new Undo entries include audit and rental stock. Admin clear resets
 stock with the other inventory collections, avoiding dangling links. An older
@@ -110,5 +116,6 @@ server logs/history, and the separate QR database still require operator backups
 and isolated restore verification under DATA-03.
 
 Ship the staff UI and server together and reload older clients: a regular client
-that still sends PUT will receive 403. Production deployment remains a separate,
+that still sends PUT will receive 403; staff writes lacking the current context
+receive 401. Production deployment remains a separate,
 owner-authorized task.

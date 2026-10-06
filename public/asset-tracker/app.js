@@ -1,5 +1,17 @@
-// Browser caches bootstrap the UI before the authenticated shared-state read.
-// They are device-wide and currently survive sign-out (DATA-04), not full backups.
+// Operational data is session-only memory. Historical unscoped localStorage is
+// quarantined for explicit administrator export/cleanup, never loaded or uploaded.
+const cacheEntries=new Map();
+const browserCache={getItem:key=>cacheEntries.get(key)??null,setItem:(key,value)=>cacheEntries.set(key,value),removeItem:key=>cacheEntries.delete(key)};
+let sessionEpoch=0;
+let sessionContext="";
+let lockedDraft=null;
+const sessionRequests=new Set();
+const importCancellations=new Set();
+const SIGNOUT_KEY="tanmar.signout.v1";
+const SESSION_EVENT_KEY="tanmar.session-event.v1";
+let sessionChannel=null;
+let signOutRunning=false;
+let legacyStorageUnavailable=false;
 const KEYS={
   master:"atp.master.v5",
   accounts:"atp.accounts.v5",
@@ -20,37 +32,13 @@ const DEACTIVATION_BATCH_SIZE=10;
 let selectedOverdueIds=new Set();
 let deactivationBatches=[];
 
-// Demonstration records only; source checkout does not contain production data.
-// Live migration must use separately authorized exports (MIG-01).
-const seedMaster=[
-{id:makeId(),assetNumber:"43MTX5033HD",model:"HR54-700",accessCard:"001234567890",rid:"0349583945",serial:"A1B2C3D4",type:"Genie",rentState:"On Rent"},
-{id:makeId(),assetNumber:"43MTX1168HD",model:"H25-500",accessCard:"001234567893",rid:"0391172840",serial:"MTX11680",type:"HD",rentState:"Off Rent"},
-{id:makeId(),assetNumber:"43HOB2147HD",model:"H24-700",accessCard:"001234567891",rid:"0384412098",serial:"HOB77211",type:"HD",rentState:"On Rent"},
-{id:makeId(),assetNumber:"43CAR8812HD",model:"HR24-500",accessCard:"001234567892",rid:"0357718204",serial:"CAR88291",type:"DVR",rentState:"Off Rent"}
-];
-const seedAccounts=[
-{id:makeId(),number:"10024587",name:"Tanmar Rentals - Midland",location:"Midland",office:"Midland Yard"},
-{id:makeId(),number:"10039812",name:"Tanmar Rentals - Hobbs",location:"Hobbs",office:"Hobbs Office"},
-{id:makeId(),number:"10077421",name:"Carlsbad Operations",location:"Carlsbad",office:"Carlsbad Yard"}
-];
-
-let master=load(KEYS.master,seedMaster);
-let accounts=load(KEYS.accounts,seedAccounts);
-
-const seedAssignments=(master.length>=4 && accounts.length>=3) ? [
-{id:makeId(),assetId:master[0].id,accountId:accounts[0].id,assignedAt:new Date().toISOString()},
-{id:makeId(),assetId:master[1].id,accountId:accounts[0].id,assignedAt:new Date().toISOString()},
-{id:makeId(),assetId:master[2].id,accountId:accounts[1].id,assignedAt:new Date().toISOString()},
-{id:makeId(),assetId:master[3].id,accountId:accounts[2].id,assignedAt:new Date().toISOString()}
-] : [];
-
-let assignments=load(KEYS.assignments,seedAssignments);
-let activations=load(KEYS.activations,[]);
-let receiverEvents=load(KEYS.receiverHistory,[]);
-let rentalStock=load(KEYS.rentalStock,{batches:[]});
+// A fresh login starts empty and loads one authenticated server snapshot. Never
+// seed or resurrect another employee's browser records when the server is empty.
+let master=[],accounts=[],assignments=[],activations=[],receiverEvents=[];
+let rentalStock={batches:[]};
 let remoteActivations=[];
 let remoteActivationLoading=false;
-let undoHistory=load(KEYS.undo,[]);
+let undoHistory=[];
 let currentAccountId=null;
 let currentReceiverInfoId=null;
 let receiverHistoryExpanded=false;
@@ -75,7 +63,7 @@ const selectedLabelIds=new Set();
 
 function load(key,fallback){
   try{
-    const stored=localStorage.getItem(key);
+    const stored=browserCache.getItem(key);
     return stored===null ? fallback : JSON.parse(stored);
   }catch{
     return fallback;
@@ -99,9 +87,9 @@ function liveState(){return {master,accounts,assignments,activations,receiverEve
 
 function persistUndoHistory(){
   while(undoHistory.length){
-    try{localStorage.setItem(KEYS.undo,JSON.stringify(undoHistory));return true}catch{undoHistory.pop()}
+    try{browserCache.setItem(KEYS.undo,JSON.stringify(undoHistory));return true}catch{undoHistory.pop()}
   }
-  try{localStorage.removeItem(KEYS.undo)}catch{}
+  try{browserCache.removeItem(KEYS.undo)}catch{}
   return false;
 }
 
@@ -115,16 +103,17 @@ function recordUndo(label="Data change",force=false){
   persistUndoHistory();
 }
 
-// Cache first, then enqueue the shared save. Storage quota errors currently stop
-// execution before scheduling persistence; preserve edits when fixing DATA-01.
+// Undo baselines and drafts live only in this verified session's memory. They
+// survive a temporary connection failure, but must be exported before tab closure.
 function save(label="Data change",{skipUndo=false}={}){
+  if(!currentUser||!cloudReady)return;
   if(!skipUndo)recordUndo(label);
-  localStorage.setItem(KEYS.master,JSON.stringify(master));
-  localStorage.setItem(KEYS.accounts,JSON.stringify(accounts));
-  localStorage.setItem(KEYS.assignments,JSON.stringify(assignments));
-  localStorage.setItem(KEYS.activations,JSON.stringify(activations));
-  localStorage.setItem(KEYS.receiverHistory,JSON.stringify(receiverEvents));
-  localStorage.setItem(KEYS.rentalStock,JSON.stringify(rentalStock));
+  browserCache.setItem(KEYS.master,JSON.stringify(master));
+  browserCache.setItem(KEYS.accounts,JSON.stringify(accounts));
+  browserCache.setItem(KEYS.assignments,JSON.stringify(assignments));
+  browserCache.setItem(KEYS.activations,JSON.stringify(activations));
+  browserCache.setItem(KEYS.receiverHistory,JSON.stringify(receiverEvents));
+  browserCache.setItem(KEYS.rentalStock,JSON.stringify(rentalStock));
   updateUndoControls();
   scheduleCloudSave(label);
 }
@@ -140,19 +129,6 @@ function cloudState(){
     receiverEvents,
     auditState,rentalStock
   };
-}
-
-function isUntouchedStarterData(){
-  const starterAssets=["43CAR8812HD","43HOB2147HD","43MTX1168HD","43MTX5033HD"];
-  const currentAssets=master.map(item=>item.assetNumber).sort();
-  return (
-    JSON.stringify(currentAssets)===JSON.stringify(starterAssets) &&
-    accounts.length===3 &&
-    assignments.length===4 &&
-    activations.length===0 &&
-    receiverEvents.length===0 &&
-    !load("atp.audit.v8",null)
-  );
 }
 
 function setCloudStatus(state,detail=""){
@@ -174,7 +150,7 @@ function setCloudStatus(state,detail=""){
     connecting:"Checking shared data…",
     saving:"Uploading latest changes…",
     synced:"Shared records are current",
-    error:"Changes remain on this browser"
+    error:"Unsaved edits remain only in this open tab"
   }[state]);
   if(badge)badge.textContent=state==="synced"?"Connected":state==="saving"?"Saving":state==="error"?"Offline":"Connecting";
   if($("cloudStorageDescription")&&detail)$("cloudStorageDescription").textContent=detail;
@@ -187,14 +163,13 @@ function persistCloudState(state){
   activations=Array.isArray(state.activations)?state.activations:[];
   receiverEvents=Array.isArray(state.receiverEvents)?state.receiverEvents:[];
   rentalStock=state.rentalStock&&Array.isArray(state.rentalStock.batches)?state.rentalStock:{batches:[]};
-  rentalStock=state.rentalStock&&Array.isArray(state.rentalStock.batches)?state.rentalStock:{batches:[]};
   if(Object.prototype.hasOwnProperty.call(state,"auditState"))auditState=state.auditState&&typeof state.auditState==="object"?state.auditState:null;
-  localStorage.setItem(KEYS.master,JSON.stringify(master));
-  localStorage.setItem(KEYS.accounts,JSON.stringify(accounts));
-  localStorage.setItem(KEYS.assignments,JSON.stringify(assignments));
-  localStorage.setItem(KEYS.activations,JSON.stringify(activations));
-  localStorage.setItem(KEYS.receiverHistory,JSON.stringify(receiverEvents));
-  localStorage.setItem(KEYS.rentalStock,JSON.stringify(rentalStock));
+  browserCache.setItem(KEYS.master,JSON.stringify(master));
+  browserCache.setItem(KEYS.accounts,JSON.stringify(accounts));
+  browserCache.setItem(KEYS.assignments,JSON.stringify(assignments));
+  browserCache.setItem(KEYS.activations,JSON.stringify(activations));
+  browserCache.setItem(KEYS.receiverHistory,JSON.stringify(receiverEvents));
+  browserCache.setItem(KEYS.rentalStock,JSON.stringify(rentalStock));
   persistAuditCache(auditState);
 }
 
@@ -209,27 +184,27 @@ function renderCloudState(){
   renderLabels();
   renderReports();
   renderRentalStock();
-  renderRentalStock();
   if(currentAccountId)renderAccountDetail();
 }
 
 async function readCloudState({quiet=false}={}){
-  const response=await fetch(CLOUD_STATE_API,{cache:"no-store"});
-  if(response.status===401){showAuthGate(false,"Your session expired. Sign in again.");throw new Error("Sign in required.")}
-  if(!response.ok)throw new Error("Cloud storage could not be reached.");
-  const result=await response.json();
+  if(cloudQueued||cloudSaving||cloudWriteBlocked)return null;
+  const {response,result}=await staffRequest(CLOUD_STATE_API);
+  if(!response.ok)throw new Error("Shared inventory could not be reached.");
+  // An edit may have started while this read was in flight. Never replace it.
+  if(cloudQueued||cloudSaving||cloudWriteBlocked)return null;
   if(result.state&&Number(result.revision)>cloudRevision){
     persistCloudState(result.state);
     cloudRevision=Number(result.revision)||0;
     renderCloudState();
-    if(!quiet)toast("Shared cloud data loaded.");
-  }else if(!result.state){
-    cloudRevision=0;
-  }
+    if(!quiet)toast("Shared inventory loaded.");
+  }else if(!result.state){cloudRevision=0;}
   return result;
 }
 
 function scheduleCloudSave(action="Data change"){
+  if(!currentUser||!cloudReady)return;
+  const epoch=sessionEpoch;
   currentCloudAction=action||currentCloudAction;
   cloudQueued=true;
   if(cloudWriteBlocked)return;
@@ -238,6 +213,7 @@ function scheduleCloudSave(action="Data change"){
     // Capture after this event's synchronous mutations/reconciliation finish.
     // Audit correction may schedule twice in one event; those form one operation.
     queueMicrotask(()=>{
+      if(!sessionActive(epoch))return;
       cloudCaptureQueued=false;
       if(cloudPendingStates.length>=32){
         cloudWriteBlocked=true;
@@ -249,29 +225,28 @@ function scheduleCloudSave(action="Data change"){
   }
   if(!cloudReady)return;
   clearTimeout(cloudSaveTimer);
-  cloudSaveTimer=setTimeout(()=>flushCloudSave(),450);
+  cloudSaveTimer=setTimeout(()=>{if(sessionActive(epoch))flushCloudSave();},450);
 }
 
 // Regular operations are sent in order against acknowledged revisions. A policy,
 // validation, or revision rejection pauses retries and retains the local draft;
 // loading a conflicting server copy here would silently discard those edits.
 async function flushCloudSave(){
-  if(!cloudReady||cloudSaving||!cloudQueued||cloudWriteBlocked||cloudCaptureQueued)return;
+  if(!currentUser||!cloudReady||cloudSaving||!cloudQueued||cloudWriteBlocked||cloudCaptureQueued)return;
+  const epoch=sessionEpoch;
   cloudQueued=false;
   cloudSaving=true;
   let succeeded=false;
   const pending=currentUser?.role!=="admin"?cloudPendingStates[0]:null;
   setCloudStatus("saving");
   try{
-    const response=await fetch(CLOUD_STATE_API,{
+    const {response,result}=await staffRequest(CLOUD_STATE_API,{
       method:currentUser?.role==="admin"?"PUT":"PATCH",
       headers:{"content-type":"application/json"},
       body:JSON.stringify({state:pending?.state||cloudState(),baseRevision:cloudRevision,action:pending?.action||currentCloudAction})
     });
-    const result=await response.json();
     if(response.status>=400&&response.status<500){
       cloudWriteBlocked=true;
-      if(response.status===401)showAuthGate(false,"Your session expired. Sign in again; your unsaved edits will stay paused so you can download an inventory snapshot.");
       throw new Error(`${result.error||"Save rejected."} Sync paused; download an inventory snapshot before reloading or ask an administrator to reconcile it.`);
     }
     if(!response.ok)throw new Error("Cloud is unavailable. This browser is holding the latest changes and will retry.");
@@ -281,50 +256,53 @@ async function flushCloudSave(){
     succeeded=true;
     setCloudStatus("synced",`Shared records saved ${new Date(result.updatedAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}.`);
   }catch(error){
+    if(!sessionActive(epoch))return;
     cloudQueued=true;
     setCloudStatus("error",error.message||"Cloud is unavailable. This browser is holding the latest changes and will retry.");
   }finally{
-    cloudSaving=false;
-    if(cloudQueued&&!cloudWriteBlocked&&navigator.onLine)setTimeout(()=>flushCloudSave(),succeeded?0:2500);
+    if(sessionActive(epoch)){
+      cloudSaving=false;
+      if(cloudQueued&&!cloudWriteBlocked&&navigator.onLine)cloudSaveTimer=setTimeout(()=>{if(sessionActive(epoch))flushCloudSave();},succeeded?0:2500);
+    }
   }
 }
 
 async function initializeCloudSync(){
-  if(cloudWriteBlocked){setCloudStatus("error","Sync remains paused. Download your inventory snapshot before reloading or asking an administrator to reconcile it.");return;}
+  const epoch=sessionEpoch;
+  if(cloudWriteBlocked){
+    // A recovered draft must not open under an auth response overtaken by another
+    // tab's login. Recheck the actual shared cookie before revealing private data.
+    try{await verifyActiveSession();}
+    catch{if(sessionActive(epoch))lockSession(true,"Unable to verify this session. Sign in again when connected.");}
+    if(!sessionActive(epoch))return;
+    cloudReady=true;
+    renderCloudState();
+    revealWorkspace();
+    startSessionPolling();
+    setCloudStatus("error","Your unsaved draft is paused. Download a snapshot and ask an administrator to reconcile it before reloading.");
+    return;
+  }
   setCloudStatus("connecting");
   try{
-    const result=await readCloudState({quiet:true});
+    await readCloudState({quiet:true});
+    if(!sessionActive(epoch))return;
     cloudReady=true;
-    if(result.state){
-      setCloudStatus("synced","This browser is using the shared TanMar receiver records.");
-    }else if(currentUser?.role!=="admin"){
-      setCloudStatus("error","An administrator must initialize the shared inventory. Existing browser records have been retained.");
-      return;
-    }else if(isUntouchedStarterData()){
-      cloudReady=true;
-      setCloudStatus("error","Cloud is empty. Open the app first on the browser that holds your real TanMar data.");
-      return;
-    }else{
-      cloudQueued=true;
-      await flushCloudSave();
-      if(!cloudQueued)toast("Existing receiver data moved to TanMar Cloud Sync.");
-    }
+    revealWorkspace();
+    setCloudStatus("synced",cloudRevision?"Shared records are current.":"Inventory is empty. An administrator can import or add records.");
   }catch{
-    cloudReady=true;
-    setCloudStatus("error","Cloud is unavailable. Existing browser data is safe and sync will retry.");
+    if(!sessionActive(epoch))return;
+    // A login alone does not make offline/unscoped browser data trustworthy.
+    // Keep the workspace closed until the first server snapshot succeeds.
+    showInventoryWait("Unable to load shared inventory. Retry the connection or sign out.");
+    return;
   }
-  clearInterval(cloudPollTimer);
-  cloudPollTimer=setInterval(async()=>{
-    if(cloudSaving||cloudQueued)return;
-    try{
-      await readCloudState({quiet:true});
-      setCloudStatus("synced","Shared records are current across connected devices.");
-    }catch{
-      setCloudStatus("error","Cloud is unavailable. Existing browser data is safe and sync will retry.");
-    }
-  },CLOUD_POLL_MS);
+  startSessionPolling();
 }
 const $=id=>document.getElementById(id);
+const privateDomDefaults=[...document.querySelectorAll(".app-shell [id],.modal-backdrop [id],.profile-menu [id],.undo-history-panel [id]")]
+  .filter(node=>!node.querySelector("[id]")&&!node.matches("form,section,main,aside"))
+  .map(node=>[node,node.innerHTML,node.getAttribute("title")]);
+
 const views={dashboard:$("dashboardView"),accounts:$("accountsView"),accountDetail:$("accountDetailView"),master:$("masterView"),activations:$("activationsView"),rentalStock:$("rentalStockView"),audit:$("auditView"),labels:$("labelsView"),reports:$("reportsView"),settings:$("settingsView"),placeholder:$("placeholderView")};
 const titles={dashboard:"Dashboard",accounts:"Accounts",master:"Master Registry",activations:"Activations",rentalStock:"Rental Manager Stock",audit:"Audit Center",labels:"Labels",reports:"Reports",settings:"Settings"};
 
@@ -651,7 +629,7 @@ function openDeactivationList(){
   }
   $("deactivationBatchPicker").innerHTML=deactivationBatches.map((batch,index)=>`<option value="${index}">Batch ${index+1} · ${batch.length} receiver${batch.length===1?"":"s"}</option>`).join("");
   $("deactivationBatchPickerWrap").hidden=deactivationBatches.length===1;
-  $("directvRecipientEmail").value=localStorage.getItem(DIRECTV_RECIPIENT_KEY)||"";
+  $("directvRecipientEmail").value=browserCache.getItem(DIRECTV_RECIPIENT_KEY)||"";
   renderDeactivationBatch(0);
   openModal("deactivationListModal");
 }
@@ -884,42 +862,39 @@ function allActivationRows(){
 }
 
 async function loadRemoteActivations(showSuccess=false){
-  if(remoteActivationLoading)return;
+  if(!currentUser||!cloudReady||remoteActivationLoading)return;
+  const epoch=sessionEpoch;
   remoteActivationLoading=true;
   if($("refreshActivationsButton"))$("refreshActivationsButton").disabled=true;
   try{
-    const response=await fetch(SERVICE_REQUEST_API,{cache:"no-store",headers:serviceRequestHeaders()});
-    const data=await response.json().catch(()=>({}));
+    const {response,result:data}=await staffRequest(SERVICE_REQUEST_API,{cache:"no-store",headers:serviceRequestHeaders()});
     if(!response.ok)throw new Error(data.error||"Unable to load requests.");
     remoteActivations=Array.isArray(data.requests)?data.requests:[];
     renderActivations();
     if(showSuccess)toast("Service requests refreshed.");
-  }catch(error){
-    console.error(error);
-    toast("Unable to sync QR service requests.");
+  }catch{
+    if(sessionActive(epoch))toast("Unable to sync QR service requests.");
   }finally{
-    remoteActivationLoading=false;
+    if(sessionActive(epoch))remoteActivationLoading=false;
     if($("refreshActivationsButton"))$("refreshActivationsButton").disabled=false;
   }
 }
 
 async function updateRemoteActivation(request,status){
-  const response=await fetch(SERVICE_REQUEST_API,{
+  const {response,result:data}=await staffRequest(SERVICE_REQUEST_API,{
     method:"PATCH",
     headers:{...serviceRequestHeaders(),"content-type":"application/json"},
     body:JSON.stringify({id:request.id,status,notes:request.notes||""})
   });
-  const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data.error||"Unable to update request.");
   await loadRemoteActivations();
 }
 
 async function deleteRemoteActivation(request){
-  const response=await fetch(`${SERVICE_REQUEST_API}?id=${encodeURIComponent(request.id)}`,{
+  const {response,result:data}=await staffRequest(`${SERVICE_REQUEST_API}?id=${encodeURIComponent(request.id)}`,{
     method:"DELETE",
     headers:serviceRequestHeaders()
   });
-  const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data.error||"Unable to delete request.");
   await loadRemoteActivations();
 }
@@ -1539,6 +1514,7 @@ $("selectVisibleLabels").onchange=event=>{
 };
 $("clearLabelSelection").onclick=()=>{selectedLabelIds.clear();renderLabels()};
 function printDkLabels(kind){
+  const epoch=sessionEpoch;
   if(!selectedLabelIds.size)return;
   // Refresh from current receiver records before cloning, including changes from cloud sync.
   renderLabels();
@@ -1580,6 +1556,7 @@ function printDkLabels(kind){
   }).join("");
   const frame=document.createElement("iframe");
   frame.title=`${roll} label print`;
+  frame.dataset.sessionPrint="true";
   // A measurable offscreen frame lets text fitting run without showing the print sheet.
   frame.style.cssText=`position:fixed;width:${pageWidth}mm;height:${pageHeight}mm;border:0;left:-10000px;top:0`;
   document.body.appendChild(frame);
@@ -1594,6 +1571,7 @@ function printDkLabels(kind){
         const image=new Image();image.onload=resolve;image.onerror=reject;image.src=source;
       })));
       await printDocument.fonts.ready;
+      if(!sessionActive(epoch))throw new Error("Session changed.");
       if(!printDocument.querySelector("link").sheet)throw new Error("Label stylesheet unavailable");
       fitLabelText(printDocument);
       frame.contentWindow.addEventListener("afterprint",()=>frame.remove(),{once:true});
@@ -1601,7 +1579,7 @@ function printDkLabels(kind){
       frame.contentWindow.print();
     }catch{
       frame.remove();
-      toast("The label artwork did not finish loading. Please try printing again.");
+      if(sessionActive(epoch))toast("The label artwork did not finish loading. Please try printing again.");
     }
   };
   frame.onload=printFrame;
@@ -1767,8 +1745,10 @@ function openAccountImportModal(){
 }
 
 async function prepareAccountImport(file){
+  const epoch=sessionEpoch;
   try{
     const rawRows=await readAccountImportRows(file);
+    if(!sessionActive(epoch))return;
     const records=rawRows.map(accountImportRecord);
     const currentCount=assignedFor(currentAccountId).length;
     const availableSlots=Math.max(0,20-currentCount);
@@ -1873,6 +1853,7 @@ async function prepareAccountImport(file){
       </tr>`;
     }).join("");
   }catch(error){
+    if(!sessionActive(epoch))return;
     toast(error.message||"Unable to read that CSV.");
   }
 }
@@ -1954,19 +1935,9 @@ let auditState=load(AUDIT_KEY,null);
 let pendingAuditImport=null;
 
 function persistAuditCache(value=auditState){
-  try{
-    // Remove the previous audit first so replacement data does not temporarily
-    // count twice against the browser's small local-storage quota.
-    localStorage.removeItem(AUDIT_KEY);
-    if(value)localStorage.setItem(AUDIT_KEY,JSON.stringify(value));
-    return true;
-  }catch(error){
-    // Audit results remain in memory and are saved by cloud sync. A full browser
-    // cache must never stop the audit from running or displaying its results.
-    try{localStorage.removeItem(AUDIT_KEY)}catch{}
-    console.warn("Audit result could not be cached in this browser",error);
-    return false;
-  }
+  browserCache.removeItem(AUDIT_KEY);
+  if(value)browserCache.setItem(AUDIT_KEY,JSON.stringify(value));
+  return true;
 }
 
 function auditRecordFromRow(row){
@@ -2279,8 +2250,10 @@ async function readAuditImportRows(file){
 function normalizeAuditAccount(value){return String(value||"").trim().replace(/\.0+$/g,"").replace(/\s+/g,"")}
 
 async function prepareAuditImport(file){
+  const epoch=sessionEpoch;
   try{
     const rawRows=await readAuditImportRows(file);
+    if(!sessionActive(epoch))return;
     const parsed=rawRows.map(auditRecordFromRow);
     const preview=[];
     const valid=[];
@@ -2340,16 +2313,19 @@ async function prepareAuditImport(file){
         <td><span class="${item.valid?"import-ok":item.ignored?"import-ignore":"import-blocked"}">${esc(item.result)}</span></td>
       </tr>`).join("");
   }catch(error){
+    if(!sessionActive(epoch))return;
     toast(error.message||"Unable to read that audit file.");
   }
 }
 
 async function runPendingAudit(){
+  const epoch=sessionEpoch;
   if(!pendingAuditImport?.validRows?.length){toast("No valid local-account audit rows are ready to compare.");return}
   const button=$("runAuditButton");const originalText=button.textContent;
   button.disabled=true;button.textContent="Running Audit…";
   $("auditImportMessage").textContent=`Comparing ${pendingAuditImport.validRows.length} DirecTV receiver rows with the app. Please wait…`;
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  if(!sessionActive(epoch))return;
   try{
     // Audit imports can be large. Do not create a full-app Undo snapshot here;
     // that can exceed browser storage and abort the click before results render.
@@ -2389,7 +2365,7 @@ $("runAuditButton").addEventListener("click",runPendingAudit);
 $("clearAuditButton").addEventListener("click",()=>{
   recordUndo("Clear audit results",true);
   auditState=null;
-  localStorage.removeItem(AUDIT_KEY);
+  browserCache.removeItem(AUDIT_KEY);
   scheduleCloudSave();
   updateUndoControls();
   renderAuditResults();
@@ -2475,7 +2451,7 @@ function completeAuditIssue(issueId,receiverId,detail){
   found.issue.notes=[found.issue.notes,detail].filter(Boolean).join(found.issue.notes?" · ":"");
   if(receiverId){
     logReceiverEvent(receiverId,"Audit discrepancy corrected",`Account ${found.result.accountNumber} · ${detail}`,"audit");
-    localStorage.setItem(KEYS.receiverHistory,JSON.stringify(receiverEvents));
+    browserCache.setItem(KEYS.receiverHistory,JSON.stringify(receiverEvents));
   }
   persistAuditCache();
   scheduleCloudSave();
@@ -2670,8 +2646,10 @@ function validBackupArray(value){
 
 async function restoreBackup(file){
   if(currentUser?.role!=="admin"){toast("Administrator access is required to restore inventory.");return;}
+  const epoch=sessionEpoch;
   try{
     const backup=JSON.parse(await file.text());
+    if(!sessionActive(epoch))return;
     const data=backup?.data;
     if(!["TanMar Receiver Control","Asset Tracker Pro"].includes(backup?.app)||backup?.schemaVersion!==1||!data){
       throw new Error("This is not a supported TanMar Receiver Control backup.");
@@ -2681,7 +2659,7 @@ async function restoreBackup(file){
     }
 
     const confirmed=confirm(
-      `Restore ${data.accounts.length} account${data.accounts.length===1?"":"s"} and ${data.master.length} Master receiver${data.master.length===1?"":"s"}?\n\nThis will replace the inventory currently stored in this browser.${!data.rentalStock?" This older snapshot omits rental stock; restoring it clears current stock batches.":""}`
+      `Restore ${data.accounts.length} account${data.accounts.length===1?"":"s"} and ${data.master.length} Master receiver${data.master.length===1?"":"s"}?\n\nThis will replace the current shared inventory after saving.${!data.rentalStock?" This older snapshot omits rental stock; restoring it clears current stock batches.":""}`
     );
     if(!confirmed)return;
 
@@ -2705,9 +2683,10 @@ async function restoreBackup(file){
     showView("dashboard");
     toast("Backup restored successfully.");
   }catch(error){
+    if(!sessionActive(epoch))return;
     toast(error.message||"Unable to restore that backup.");
   }finally{
-    $("backupFileInput").value="";
+    if(sessionActive(epoch))$("backupFileInput").value="";
   }
 }
 
@@ -2748,18 +2727,29 @@ function checkImportFile(file){
 }
 async function readImportText(file){
   checkImportFile(file);
-  return file.text();
+  const epoch=sessionEpoch;
+  const result=await file.text();
+  if(!sessionActive(epoch))throw new Error("Session changed.");
+  return result;
 }
 async function readExcelBook(file){
+  const epoch=sessionEpoch;
   checkImportFile(file);
   if(typeof XLSX==="undefined")throw new Error("The local spreadsheet reader did not load. Reload the page or contact your administrator.");
   const extension=String(file.name||"").split(".").pop().toLowerCase();
   if(!["xlsx","xls","csv"].includes(extension))throw new Error("Choose an XLSX, XLS, or CSV file.");
   const buffer=await file.arrayBuffer();
+  if(!sessionActive(epoch))throw new Error("Session changed.");
   return new Promise((resolve,reject)=>{
     const worker=new Worker(new URL("spreadsheet-worker.js?v=60",document.baseURI));
-    let timer;
-    const finish=(error,book)=>{clearTimeout(timer);worker.terminate();if(error)reject(error);else resolve(book);};
+    let timer,finished=false;
+    const cancel=()=>finish(new Error("Session changed."));
+    const finish=(error,book)=>{
+      if(finished)return;finished=true;
+      clearTimeout(timer);worker.terminate();importCancellations.delete(cancel);
+      if(error)reject(error);else if(!sessionActive(epoch))reject(new Error("Session changed."));else resolve(book);
+    };
+    importCancellations.add(cancel);
     timer=setTimeout(()=>finish(new Error("Spreadsheet processing exceeded 15 seconds. Split the file into smaller workbooks.")),15000);
     worker.onmessage=event=>event.data?.error?finish(new Error(event.data.error)):finish(null,event.data.book);
     worker.onerror=()=>finish(new Error("The local spreadsheet reader could not process this file. Reload the page or contact your administrator."));
@@ -2828,8 +2818,10 @@ function masterImportRecord(row){
 }
 
 async function prepareMasterImport(file){
+  const epoch=sessionEpoch;
   try{
     const rows=readNamedSheet(await readExcelBook(file),"Master");
+    if(!sessionActive(epoch))return;
     const preview=[],data=[];
     let newCount=0,updateCount=0,warningCount=0;
 
@@ -2862,6 +2854,7 @@ async function prepareMasterImport(file){
       preview,data
     });
   }catch(error){
+    if(!sessionActive(epoch))return;
     toast(error.message||"Unable to read the Master workbook.");
   }
 }
@@ -2887,8 +2880,10 @@ function readWestTexasRows(book){
 }
 function cleanExcelValue(v){return String(v??"").trim();}
 async function prepareWtxImport(file){
+  const epoch=sessionEpoch;
   try{
     const rows=readWestTexasRows(await readExcelBook(file)),preview=[],data=[],seen=new Set();
+    if(!sessionActive(epoch))return;
     let currentNumber="",currentName="",newCount=0,updateCount=0,warningCount=0;
     rows.forEach((c,i)=>{
       const asset=cleanExcelValue(c[1]).toUpperCase(),acct=cleanExcelValue(c[7]),name=cleanExcelValue(c[8]);
@@ -2946,8 +2941,10 @@ function parseCsvMatrix(text){
 }
 
 async function prepareTqImport(file){
+  const epoch=sessionEpoch;
   try{
     const matrix=parseCsvMatrix(await readImportText(file));
+    if(!sessionActive(epoch))return;
     const preview=[],data=[];
     let updateCount=0,warningCount=0,ignoredCount=0,rowsRead=0;
     let columnMap=null;
@@ -3031,6 +3028,7 @@ async function prepareTqImport(file){
       data
     });
   }catch(error){
+    if(!sessionActive(epoch))return;
     toast(error.message||"Unable to read the TQ CSV.");
   }
 }
@@ -3187,7 +3185,7 @@ $("clearAllAppData").addEventListener("click",()=>{
   rentalStock={batches:[]};
 
   save("Clear all app data");
-  localStorage.removeItem(AUDIT_KEY);
+  browserCache.removeItem(AUDIT_KEY);
   resetDataImport();
   closeModal("dataImportModal");
   renderDashboard();
@@ -3201,13 +3199,7 @@ $("clearAllAppData").addEventListener("click",()=>{
   toast("All app data cleared. You can now import clean data.");
 });
 
-// Establish a persisted starting point so the first user edit can always be
-// undone without accidentally discarding initial or restored records.
-if(localStorage.getItem(KEYS.master)===null)localStorage.setItem(KEYS.master,JSON.stringify(master));
-if(localStorage.getItem(KEYS.accounts)===null)localStorage.setItem(KEYS.accounts,JSON.stringify(accounts));
-if(localStorage.getItem(KEYS.assignments)===null)localStorage.setItem(KEYS.assignments,JSON.stringify(assignments));
-if(localStorage.getItem(KEYS.activations)===null)localStorage.setItem(KEYS.activations,JSON.stringify(activations));
-if(localStorage.getItem(KEYS.receiverHistory)===null)localStorage.setItem(KEYS.receiverHistory,JSON.stringify(receiverEvents));
+// The first authenticated snapshot establishes the session-only Undo baseline.
 updateUndoControls();
 $("overdueOffRentRows").addEventListener("change",event=>{
   const checkbox=event.target.closest("[data-overdue-select]");
@@ -3225,8 +3217,8 @@ $("generateDeactivationList").addEventListener("click",openDeactivationList);
 $("deactivationBatchPicker").addEventListener("change",event=>renderDeactivationBatch(Number(event.target.value)||0));
 $("directvRecipientEmail").addEventListener("change",event=>{
   const value=event.target.value.trim();
-  if(value)localStorage.setItem(DIRECTV_RECIPIENT_KEY,value);
-  else localStorage.removeItem(DIRECTV_RECIPIENT_KEY);
+  if(value)browserCache.setItem(DIRECTV_RECIPIENT_KEY,value);
+  else browserCache.removeItem(DIRECTV_RECIPIENT_KEY);
 });
 $("copyDeactivationList").addEventListener("click",async()=>{
   const text=$("deactivationEmailText").value;
@@ -3246,7 +3238,7 @@ $("openDeactivationEmail").addEventListener("click",()=>{
     toast("Enter the DirecTV service email address first.");
     return;
   }
-  localStorage.setItem(DIRECTV_RECIPIENT_KEY,recipient);
+  browserCache.setItem(DIRECTV_RECIPIENT_KEY,recipient);
   const batchIndex=Number($("deactivationBatchPicker").value)||0;
   const subject=`Receiver Deactivation Request · Batch ${batchIndex+1} of ${deactivationBatches.length}`;
   location.href=`mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent($("deactivationEmailText").value)}`;
@@ -3258,99 +3250,236 @@ $("cloudSyncButton").addEventListener("click",async()=>{
     if(cloudQueued)await flushCloudSave();
     else setCloudStatus("synced","Shared records are current across connected devices.");
   }catch{
-    setCloudStatus("error","Cloud is unavailable. Existing browser data is safe and sync will retry.");
+    setCloudStatus("error","Connection unavailable. Keep this tab open and download unsaved edits before leaving.");
   }
 });
-window.addEventListener("online",()=>{if(cloudQueued)flushCloudSave();else readCloudState({quiet:true}).catch(()=>{})});
-window.addEventListener("offline",()=>setCloudStatus("error","Internet connection lost. Changes remain on this browser until cloud sync returns."));
+window.addEventListener("online",()=>{if(!currentUser)return;if(cloudQueued)flushCloudSave();else if(!cloudReady)initializeCloudSync();else readCloudState({quiet:true}).catch(()=>{})});
+window.addEventListener("offline",()=>setCloudStatus("error","Connection lost. Unsaved edits remain only in this open tab; download a snapshot before leaving."));
 
-function userInitials(name){
-  return String(name||"").trim().slice(0,2).toUpperCase()||"--";
+// Responses and queued work belong to one local session generation. Aborting is
+// best effort; the generation check also discards already-arriving old responses.
+function sessionActive(epoch){return epoch===sessionEpoch&&Boolean(currentUser&&sessionContext);}
+async function verifyActiveSession(){
+  const epoch=sessionEpoch;
+  const {response,result}=await staffRequest("/api/auth");
+  if(sessionActive(epoch)&&(!response.ok||result.sessionContext!==sessionContext||result.user?.id!==currentUser.id))
+    lockSession(true,"The session changed or expired. Sign in again.");
+}
+function startSessionPolling(){
+  clearInterval(cloudPollTimer);
+  const epoch=sessionEpoch;
+  cloudPollTimer=setInterval(async()=>{
+    if(!sessionActive(epoch))return;
+    try{
+      // Check identity even while a rejected/offline draft blocks inventory reads.
+      await verifyActiveSession();
+      if(!sessionActive(epoch)||cloudQueued||cloudSaving||cloudWriteBlocked)return;
+      await readCloudState({quiet:true});
+      if(sessionActive(epoch)&&!cloudQueued&&!cloudSaving)setCloudStatus("synced","Shared records are current across connected devices.");
+    }catch{if(sessionActive(epoch))lockSession(true,"Unable to verify this session. Sign in again when connected; unsaved edits remain reserved for the same employee.");}
+  },CLOUD_POLL_MS);
+}
+async function staffRequest(url,options={}){
+  const epoch=sessionEpoch;
+  if(!sessionActive(epoch))throw new Error("Sign in required.");
+  const controller=new AbortController();sessionRequests.add(controller);
+  try{
+    const response=await fetch(url,{...options,cache:"no-store",headers:{...options.headers,"x-tracker-session-context":sessionContext},
+      signal:AbortSignal.any([controller.signal,AbortSignal.timeout(15000)])});
+    const result=await response.json();
+    if(!sessionActive(epoch))throw new Error("Session changed.");
+    if(response.status===401){lockSession(true,"Your session ended or changed. Sign in again. Unsaved edits can be recovered only by the same employee.");throw new Error("Sign in required.");}
+    return {response,result};
+  }finally{sessionRequests.delete(controller);}
 }
 
-// Hiding controls is a UI convenience. API authorization must independently
-// enforce permissions and must never trust these client restrictions (SEC-03).
-function applyUserAccess(user){
-  currentUser=user;
-  $("profileButton").textContent=userInitials(user.name);
-  $("profileButton").title=`${user.name} · ${user.role==="admin"?"Administrator":"Regular User"}`;
-  $("profileMenuName").textContent=user.name;
-  $("profileMenuRole").textContent=user.role==="admin"?"Administrator":"Regular User";
-  document.querySelectorAll("[data-admin-only]").forEach(element=>element.hidden=user.role!=="admin");
-  document.body.classList.remove("auth-locked");
-  $("authGate").hidden=true;
+function legacyBrowserKeys(){
+  try{const keys=Object.keys(window.localStorage).filter(key=>key.startsWith("atp.")||key===DIRECTV_RECIPIENT_KEY);legacyStorageUnavailable=false;return keys;}
+  catch{legacyStorageUnavailable=true;return [];}
+}
+function purgeLegacyBrowserData(){
+  try{const keys=legacyBrowserKeys();if(legacyStorageUnavailable)return false;keys.forEach(key=>window.localStorage.removeItem(key));return legacyBrowserKeys().length===0&&!legacyStorageUnavailable;}
+  catch{return false;}
+}
+function refreshLegacyNotice(){
+  $("legacyBrowserData").hidden=currentUser?.role!=="admin"||legacyBrowserKeys().length===0;
+}
+function exportLegacyBrowserData(){
+  if(currentUser?.role!=="admin")return;
+  // Preserve raw values/unknown old versions for human reconciliation. Never
+  // import this unowned cache into an active session or send it to a server.
+  try{
+    const entries=Object.fromEntries(legacyBrowserKeys().map(key=>[key,window.localStorage.getItem(key)]));
+    downloadFile("tanmar-legacy-browser-data.json",JSON.stringify({app:"TanMar legacy browser export",exportedAt:new Date().toISOString(),entries},null,2),"application/json");
+    toast("Older browser data exported for administrator review.");
+  }catch{toast("Unable to export older browser data. Keep this tab open and contact your administrator.");}
 }
 
-// Empty databases require an operator-created admin; the public UI never offers
-// account creation. Existing staff accounts keep the normal sign-in flow.
-function showAuthGate(needsProvisioning=false,message=""){
-  authNeedsProvisioning=needsProvisioning;
-  document.body.classList.add("auth-locked");
-  $("authGate").hidden=false;
-  $("authForm").hidden=needsProvisioning;
-  $("authTitle").textContent=needsProvisioning?"Administrator Setup Required":"Employee Sign In";
-  $("authDescription").textContent=needsProvisioning
-    ?"Contact your administrator to finish setup before signing in."
-    :"Enter your username and PIN to continue.";
-  $("authSubmit").textContent="Sign In";
-  $("authError").hidden=!message;
-  $("authError").textContent=message;
+function readSignOutMarker(){
+  try{
+    const raw=window.name?.startsWith("tanmar-signout:")?window.name.slice(15):window.localStorage.getItem(SIGNOUT_KEY);
+    const value=JSON.parse(raw||"null");
+    return value&&["pending","signed-out"].includes(value.state)&&/^[a-f0-9]{64}$/.test(value.context)?value:null;
+  }catch{return null;}
+}
+function writeSignOutMarker(value){
+  // Non-bearer context only. window.name keeps this tab locked across reload if
+  // storage is unavailable; neither channel stores inventory, a PIN or a token.
+  window.name=value?`tanmar-signout:${JSON.stringify(value)}`:"";
+  try{if(value)window.localStorage.setItem(SIGNOUT_KEY,JSON.stringify(value));else window.localStorage.removeItem(SIGNOUT_KEY);}catch{}
+}
+function signalSession(action,context){
+  const event={action,context,nonce:makeId()};
+  sessionChannel?.postMessage(event);
+  try{window.localStorage.setItem(SESSION_EVENT_KEY,JSON.stringify(event));}catch{}
+}
+
+function scrubPrivateDom(){
+  document.querySelectorAll(".modal-backdrop,.profile-menu,.undo-history-panel").forEach(node=>node.hidden=true);
+  document.querySelectorAll("iframe[data-session-print]").forEach(node=>node.remove());
+  // Restore dynamic leaves/controls without replacing static parents or their
+  // event listeners. This clears hidden dialogs, tables, labels and mail drafts.
+  for(const [node,html,title] of privateDomDefaults){node.innerHTML=html;if(title===null)node.removeAttribute("title");else node.setAttribute("title",title);}
+  document.querySelectorAll(".app-shell input,.app-shell textarea,.modal-backdrop input,.modal-backdrop textarea").forEach(node=>{node.value=node.type==="file"?"":node.defaultValue;node.checked=node.defaultChecked;});
+  $("toast").hidden=true;$("toast").textContent="";
+  $("profileButton").textContent="--";$("profileButton").title="Employee sign in";
+}
+
+// A lock clears active state immediately. Only unsaved work may survive in a
+// separate, memory-only quarantine; reauthentication checks its original owner.
+function lockSession(retainDraft=false,message=""){
+  if(retainDraft&&currentUser&&(cloudQueued||cloudSaving||cloudWriteBlocked)){
+    lockedDraft={ownerId:currentUser.id,state:structuredClone(cloudState()),revision:cloudRevision,
+      undo:structuredClone(undoHistory),pending:structuredClone(cloudPendingStates),cache:new Map(cacheEntries)};
+  }else if(!retainDraft){lockedDraft=null;}
+  sessionEpoch++;sessionContext="";currentUser=null;
+  clearTimeout(cloudSaveTimer);clearInterval(cloudPollTimer);
+  sessionRequests.forEach(controller=>controller.abort());sessionRequests.clear();
+  importCancellations.forEach(cancel=>cancel());importCancellations.clear();
+  master=[];accounts=[];assignments=[];activations=[];receiverEvents=[];rentalStock={batches:[]};auditState=null;
+  remoteActivations=[];remoteActivationLoading=false;undoHistory=[];activityRecords=[];cacheEntries.clear();
+  cloudReady=false;cloudQueued=false;cloudSaving=false;cloudCaptureQueued=false;cloudPendingStates=[];cloudWriteBlocked=false;cloudRevision=0;
+  currentAccountId=null;currentReceiverInfoId=null;receiverHistoryExpanded=false;pendingAuditIssueId=null;
+  pendingAccountImport=null;pendingAuditImport=null;pendingDataImport=null;deactivationBatches=[];
+  expandedAccountIds.clear();selectedLabelIds.clear();selectedOverdueIds.clear();
+  scrubPrivateDom();document.querySelector(".app-shell").inert=true;showAuthGate(false,message);
+}
+function revealWorkspace(){
+  if(!currentUser||!cloudReady)return;
+  document.body.classList.remove("auth-locked");$("authGate").hidden=true;
+  document.querySelector(".app-shell").inert=false;
+  refreshLegacyNotice();updateUndoControls();
+}
+function showInventoryWait(message){
+  document.body.classList.add("auth-locked");$("authGate").hidden=false;
+  document.querySelector(".app-shell").inert=true;
+  $("authForm").hidden=true;$("accessActions").hidden=false;
+  $("authTitle").textContent="Loading Shared Inventory";$("authDescription").textContent=message;
+  $("retryAccessButton").hidden=false;$("gateSignOutButton").hidden=false;
   $("authPin").value="";
 }
+function userInitials(name){return String(name||"").trim().slice(0,2).toUpperCase()||"--";}
 
-async function initializeAccess(){
-  try{
-    const response=await fetch("/api/auth",{cache:"no-store"});
-    const result=await response.json();
-    if(!response.ok)throw new Error(result.error||"Access service unavailable.");
-    if(result.user){
-      applyUserAccess(result.user);
-      await initializeCloudSync();
-    }else{
-      showAuthGate(Boolean(result.needsProvisioning));
+// UI roles are conveniences, never authority. A same-employee retained draft
+// may be exported after reauthentication; it cannot resume writes automatically.
+function applyUserAccess(user,context){
+  if(!user||!/^[a-f0-9]{64}$/.test(context||""))throw new Error("Reload the page to update sign-in.");
+  signalSession("login",context);
+  if(lockedDraft&&lockedDraft.ownerId!==user.id){
+    if(!confirm("Unsaved edits belong to another employee. Discard them and continue? Cancel so that employee can sign in and download a snapshot.")){
+      showAuthGate(false,"Sign in as the employee who owns the unsaved edits, or confirm discarding them to switch users.");return false;
     }
-  }catch(error){
-    showAuthGate(false,error.message||"Access service unavailable.");
+    lockedDraft=null;
   }
+  sessionEpoch++;currentUser=user;sessionContext=context;
+  $("profileButton").textContent=userInitials(user.name);$("profileButton").title=`${user.name} · ${user.role==="admin"?"Administrator":"Regular User"}`;
+  $("profileMenuName").textContent=user.name;$("profileMenuRole").textContent=user.role==="admin"?"Administrator":"Regular User";
+  document.querySelectorAll("[data-admin-only]").forEach(node=>node.hidden=user.role!=="admin");
+  showInventoryWait("Loading your current shared inventory…");
+  if(lockedDraft){
+    const draft=lockedDraft;lockedDraft=null;
+    persistCloudState(draft.state);cloudRevision=draft.revision;undoHistory=draft.undo;cloudPendingStates=draft.pending;
+    cacheEntries.clear();draft.cache.forEach((value,key)=>cacheEntries.set(key,value));
+    cloudQueued=true;cloudWriteBlocked=true;
+  }
+  return true;
 }
 
-$("authForm").addEventListener("submit",async event=>{
-  event.preventDefault();
-  if(authNeedsProvisioning)return;
-  $("authSubmit").disabled=true;
-  $("authError").hidden=true;
+// Empty databases require an operator-created admin. The locked gate contains no
+// inventory; a failed sign-out cannot silently restore a still-valid cookie.
+function showAuthGate(needsProvisioning=false,message=""){
+  authNeedsProvisioning=needsProvisioning;
+  document.body.classList.add("auth-locked");$("authGate").hidden=false;
+  const marker=readSignOutMarker(),pending=marker?.state==="pending";
+  if(!message&&marker?.state==="signed-out"&&marker.cleanupFailed)
+    message="Signed out. Older browser data could not be erased. Clear this site's data before handing over the device.";
+  $("authForm").hidden=needsProvisioning||pending;
+  $("accessActions").hidden=!pending;$("retryAccessButton").hidden=!pending;$("gateSignOutButton").hidden=true;
+  $("authTitle").textContent=needsProvisioning?"Administrator Setup Required":pending?"Sign Out Not Confirmed":"Employee Sign In";
+  $("authDescription").textContent=needsProvisioning?"Contact your administrator to finish setup before signing in.":pending?"This device is locked. Retry sign-out when the connection returns.":"Enter your username and PIN to continue.";
+  $("authSubmit").textContent="Sign In";$("authError").hidden=!message;$("authError").textContent=message;$("authPin").value="";
+}
+async function confirmSignOut(){
+  const marker=readSignOutMarker();
+  if(!marker||marker.state!=="pending"||signOutRunning)return;
+  signOutRunning=true;
   try{
-    const response=await fetch("/api/auth",{
-      method:"POST",
-      headers:{"content-type":"application/json"},
-      body:JSON.stringify({
-        action:"login",
-        name:$("authName").value.trim(),
-        pin:$("authPin").value
-      })
-    });
+    const response=await fetch("/api/auth",{method:"DELETE",headers:{"x-tracker-session-context":marker.context},signal:AbortSignal.timeout(15000)});
     const result=await response.json();
+    if(!response.ok||result.ok!==true)throw new Error("Sign-out failed.");
+    writeSignOutMarker({...marker,state:"signed-out"});
+    showAuthGate(false,marker.cleanupFailed?"Signed out. Older browser data could not be erased. Clear this site's data before handing over the device.":"Signed out. Sign in to continue.");
+  }catch{showAuthGate(false,"Unable to confirm server sign-out. This device stays locked; retry when connected.");}
+  finally{signOutRunning=false;}
+}
+async function signOut(){
+  const context=sessionContext||readSignOutMarker()?.context;
+  if(!context)return;
+  if((cloudQueued||cloudSaving||lockedDraft||legacyBrowserKeys().length)&&!confirm("Sign out and discard unsaved edits and older browser data on this device? Cancel to download a snapshot or have an administrator export older data first. Already submitted saves may have completed."))return;
+  const erased=purgeLegacyBrowserData();
+  writeSignOutMarker({state:"pending",context,cleanupFailed:!erased});signalSession("logout",context);
+  lockSession(false,erased?"":"Older browser data could not be erased. Clear this site's data before handing over the device.");
+  await confirmSignOut();
+}
+async function initializeAccess(){
+  if(readSignOutMarker()?.state==="pending"){showAuthGate();await confirmSignOut();return;}
+  const epoch=sessionEpoch;
+  try{
+    const response=await fetch("/api/auth",{cache:"no-store",signal:AbortSignal.timeout(15000)});
+    const result=await response.json();if(epoch!==sessionEpoch)return;
+    if(!response.ok)throw new Error("Access service unavailable.");
+    if(result.user&&!readSignOutMarker()){
+      if(applyUserAccess(result.user,result.sessionContext))await initializeCloudSync();
+    }else{showAuthGate(Boolean(result.needsProvisioning));}
+  }catch(error){if(epoch===sessionEpoch)showAuthGate(false,error.message||"Access service unavailable.");}
+}
+$("authForm").addEventListener("submit",async event=>{
+  event.preventDefault();if(authNeedsProvisioning||readSignOutMarker()?.state==="pending")return;
+  const epoch=sessionEpoch;$("authSubmit").disabled=true;$("authError").hidden=true;
+  try{
+    const response=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},signal:AbortSignal.timeout(15000),
+      body:JSON.stringify({action:"login",name:$("authName").value.trim(),pin:$("authPin").value})});
+    const result=await response.json();if(epoch!==sessionEpoch)return;
     if(!response.ok)throw new Error(result.error||"Unable to sign in.");
-    applyUserAccess(result.user);
-    await initializeCloudSync();
-  }catch(error){
-    showAuthGate(authNeedsProvisioning,error.message||"Unable to sign in.");
-  }finally{
-    $("authSubmit").disabled=false;
-  }
+    if(applyUserAccess(result.user,result.sessionContext)){writeSignOutMarker(null);await initializeCloudSync();}
+  }catch(error){if(epoch===sessionEpoch)showAuthGate(authNeedsProvisioning,error.message||"Unable to sign in.");}
+  finally{$("authSubmit").disabled=false;$("authPin").value="";}
 });
-
 $("profileButton").addEventListener("click",()=>{$("profileMenu").hidden=!$("profileMenu").hidden});
-$("signOutButton").addEventListener("click",async()=>{
-  await fetch("/api/auth",{method:"DELETE"});
-  location.reload();
+$("signOutButton").addEventListener("click",signOut);
+$("gateSignOutButton").addEventListener("click",signOut);
+$("retryAccessButton").addEventListener("click",()=>readSignOutMarker()?.state==="pending"?confirmSignOut():initializeCloudSync());
+$("exportLegacyBrowserButton").addEventListener("click",exportLegacyBrowserData);
+$("clearLegacyBrowserButton").addEventListener("click",()=>{
+  if(currentUser?.role!=="admin"||!confirm("Remove older browser data from this device? Export it first if it contains unsaved records."))return;
+  toast(purgeLegacyBrowserData()?"Older browser data removed.":"Unable to remove older data. Clear this site's browser data before handoff.");refreshLegacyNotice();
 });
 
 async function loadUsers(){
   if(currentUser?.role!=="admin")return;
+  const epoch=sessionEpoch;
   try{
-    const response=await fetch("/api/users",{cache:"no-store"});
-    const result=await response.json();
+    const {response,result}=await staffRequest("/api/users",{cache:"no-store"});
     if(!response.ok)throw new Error(result.error||"Unable to load users.");
     $("userList").innerHTML=result.users.map(user=>`
       <div class="user-row ${user.active?"":"inactive"}" data-user-id="${esc(user.id)}">
@@ -3367,18 +3496,20 @@ async function loadUsers(){
           <button class="small-button ${user.active?"danger":""}" data-toggle-user="${user.active?"off":"on"}" type="button">${user.active?"Deactivate":"Reactivate"}</button>
         </div>
       </div>`).join("");
-  }catch(error){toast(error.message||"Unable to load users.")}
+  }catch(error){
+    if(!sessionActive(epoch))return;toast(error.message||"Unable to load users.")}
 }
 
 async function loadActivity(){
   if(currentUser?.role!=="admin")return;
+  const epoch=sessionEpoch;
   try{
-    const response=await fetch("/api/activity",{cache:"no-store"});
-    const result=await response.json();
+    const {response,result}=await staffRequest("/api/activity",{cache:"no-store"});
     if(!response.ok)throw new Error(result.error||"Unable to load activity.");
     activityRecords=result.activity||[];
     renderActivity();
   }catch(error){
+    if(!sessionActive(epoch))return;
     $("activityList").innerHTML=`<div class="empty-state"><strong>Activity unavailable</strong><span>${esc(error.message||"Unable to load activity.")}</span></div>`;
     $("activitySummary").textContent="Unable to load activity.";
   }
@@ -3386,9 +3517,9 @@ async function loadActivity(){
 
 async function loadRecovery(){
   if(currentUser?.role!=="admin")return;
+  const epoch=sessionEpoch;
   try{
-    const response=await fetch("/api/recovery",{cache:"no-store"});
-    const result=await response.json();
+    const {response,result}=await staffRequest("/api/recovery",{cache:"no-store"});
     if(!response.ok)throw new Error(result.error||"Unable to load recovery points.");
     $("recoveryList").innerHTML=result.snapshots.length?result.snapshots.map(item=>`
       <div class="recovery-row" data-recovery-id="${esc(item.id)}">
@@ -3398,6 +3529,7 @@ async function loadRecovery(){
         <button class="small-button" data-restore-recovery type="button">Restore</button>
       </div>`).join(""):`<div class="empty-state"><strong>No recovery points yet</strong><span>A recovery point is created before each new shared-data save.</span></div>`;
   }catch(error){
+    if(!sessionActive(epoch))return;
     $("recoveryList").innerHTML=`<div class="empty-state"><strong>Recovery unavailable</strong><span>${esc(error.message||"Unable to load recovery points.")}</span></div>`;
   }
 }
@@ -3410,10 +3542,9 @@ $("recoveryList").addEventListener("click",async event=>{
   if(!confirm("Restore this cloud recovery point? The current shared data will be preserved as a new recovery point first."))return;
   button.disabled=true;
   try{
-    const response=await fetch("/api/recovery",{
+    const {response,result}=await staffRequest("/api/recovery",{
       method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:row.dataset.recoveryId,baseRevision:cloudRevision})
     });
-    const result=await response.json();
     if(!response.ok)throw new Error(result.error||"Unable to restore recovery point.");
     cloudQueued=false;
     cloudRevision=0;
@@ -3473,12 +3604,11 @@ $("exportActivityButton").addEventListener("click",()=>{
 $("userCreateForm").addEventListener("submit",async event=>{
   event.preventDefault();
   try{
-    const response=await fetch("/api/users",{
+    const {response,result}=await staffRequest("/api/users",{
       method:"POST",
       headers:{"content-type":"application/json"},
       body:JSON.stringify({name:$("newUserName").value.trim(),pin:$("newUserPin").value,role:$("newUserRole").value})
     });
-    const result=await response.json();
     if(!response.ok)throw new Error(result.error||"Unable to add user.");
     event.target.reset();
     await loadUsers();
@@ -3495,7 +3625,7 @@ $("userList").addEventListener("click",async event=>{
   const unlockButton=event.target.closest("[data-unlock-user]");
   if(!saveButton&&!toggleButton&&!unlockButton)return;
   try{
-    const response=await fetch("/api/users",{
+    const {response,result}=await staffRequest("/api/users",{
       method:"PATCH",
       headers:{"content-type":"application/json"},
       body:JSON.stringify({
@@ -3507,15 +3637,58 @@ $("userList").addEventListener("click",async event=>{
         active:toggleButton?toggleButton.dataset.toggleUser==="on":!row.classList.contains("inactive")
       })
     });
-    const result=await response.json();
     if(!response.ok)throw new Error(result.error||"Unable to update user.");
     // A self PIN reset or role change revokes this session on the server.
     // Reload into the sign-in gate before issuing more administrator requests.
-    if(result.reauthenticate){location.reload();return;}
+    if(result.reauthenticate){lockSession(true,"Your access changed. Sign in again.");return;}
     await loadUsers();
     await loadActivity();
     toast(unlockButton?"User account unlocked.":toggleButton?"User access updated.":"User record saved.");
   }catch(error){toast(error.message||"Unable to update user.")}
 });
 
+function receiveSessionEvent(event){
+  if(!event||!/^[a-f0-9]{64}$/.test(event.context||""))return;
+  if(!currentUser){
+    // Invalidate an in-flight login/profile read too, before it can apply an old
+    // identity. The sign-out marker still keeps a pending logout gate locked.
+    if(["login","logout"].includes(event.action)){sessionEpoch++;showAuthGate(false,"Another tab changed the session. Sign in again.");}
+    return;
+  }
+  if((event.action==="login"&&event.context!==sessionContext)||(event.action==="logout"&&event.context===sessionContext))
+    lockSession(true,"Another tab changed the session. Sign in again; only the same employee can recover unsaved edits.");
+}
+try{sessionChannel=new BroadcastChannel("tanmar-tracker-session");sessionChannel.onmessage=event=>receiveSessionEvent(event.data);}catch{}
+window.addEventListener("storage",event=>{
+  if(event.key===SESSION_EVENT_KEY){try{receiveSessionEvent(JSON.parse(event.newValue));}catch{}}
+  if(event.key===SIGNOUT_KEY&&!currentUser){
+    const marker=readSignOutMarker();
+    try{
+      const value=JSON.parse(event.newValue||"null");
+      if(value?.state==="signed-out"&&value.context===marker?.context)window.name=`tanmar-signout:${event.newValue}`;
+    }catch{}
+    showAuthGate();
+  }
+});
+for(const type of ["click","submit","change","input"]){
+  document.addEventListener(type,event=>{
+    if((!currentUser||!cloudReady)&&event.target.closest?.(".app-shell,.modal-backdrop,.profile-menu,.undo-history-panel")){
+      event.preventDefault();event.stopImmediatePropagation();
+    }
+  },true);
+}
+window.addEventListener("beforeunload",event=>{
+  if(cloudQueued||cloudSaving||lockedDraft){event.preventDefault();event.returnValue="";}
+});
+// BFCache restores frozen JS/DOM too. Clear private display before freezing and
+// verify the real session before making a restored document usable again.
+window.addEventListener("pagehide",()=>lockSession(true));
+window.addEventListener("pageshow",event=>{if(event.persisted)initializeAccess();});
+window.addEventListener("focus",async()=>{
+  if(!currentUser)return;
+  const epoch=sessionEpoch;
+  try{
+    await verifyActiveSession();
+  }catch{if(sessionActive(epoch))lockSession(true,"Unable to verify this session. Sign in again when connected.");}
+});
 initializeAccess();

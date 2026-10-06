@@ -26,14 +26,15 @@ test("public and staff pages safely render malicious label/cache/API values in C
   let remoteRequest = { id: attack, assetNumber: attack, action: "Reactivate / Refresh", status: "Pending",
     requestedAt: "2026-10-05T18:00:00Z", requesterName: attack, notes: attack, mapUrl: "javascript:window.injected=true" };
   let savedRequest;
+  let currentState = inventory();
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (!origins.includes(url.origin)) return route.abort();
     if (url.pathname === "/asset-tracker/config.js") return route.fulfill({ contentType: "application/javascript",
       body: `window.TANMAR_CONFIG = { serviceRequestUrl: ${JSON.stringify(qr.url)} };` });
     if (url.pathname === "/api/asset") return route.fulfill({ json: { id: "receiver-01", assetNumber: attack } });
-    if (url.pathname === "/api/auth") return route.fulfill({ json: { user: { id: "test-admin", name: "testadmin", role: "admin" } } });
-    if (url.pathname === "/api/app-state") return route.fulfill({ status: 503, json: { error: "Synthetic offline state retains the cache." } });
+    if (url.pathname === "/api/auth") return route.fulfill({ json: { user: { id: "test-admin", name: "testadmin", role: "admin" }, sessionContext: "1".repeat(64) } });
+    if (url.pathname === "/api/app-state") return route.fulfill({ json: { state: currentState, revision: 1 } });
     if (url.pathname === "/api/service-requests") return route.fulfill({ json: { requests: [remoteRequest] } });
     if (url.pathname === "/api/requests") {
       if (route.request().method() !== "POST") return route.fulfill({ status: 401, json: {} });
@@ -104,7 +105,7 @@ test("public and staff pages safely render malicious label/cache/API values in C
     } finally { await page.close(); }
   });
 
-  await t.test("staff cached IDs, history, and audit counts cannot create markup", async () => {
+  await t.test("staff API IDs, history, and audit counts cannot create markup", async () => {
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -117,11 +118,7 @@ test("public and staff pages safely render malicious label/cache/API values in C
     state.auditState = { fileName: "synthetic.csv", importedAt: "2026-10-05T18:00:00Z", results: [{ accountNumber: "000001",
       accountName: attack, appCount: attack, auditCount: attack, matchedCount: attack, perfect: false, countMatch: false,
       missingFromAudit: [], missingFromApp: [] }] };
-    await page.addInitScript((state) => {
-      const keys = { master: "atp.master.v5", accounts: "atp.accounts.v5", assignments: "atp.assignments.v5",
-        activations: "atp.activations.v1", receiverEvents: "atp.receiver-history.v1", auditState: "atp.audit.v8", rentalStock: "atp.rental-stock.v1" };
-      for (const [name, key] of Object.entries(keys)) localStorage.setItem(key, JSON.stringify(state[name]));
-    }, state);
+    currentState = state;
     try {
       await page.goto(`${tracker.url}/asset-tracker/index.html`);
       await page.waitForFunction(() => document.getElementById("authGate").hidden);
@@ -137,7 +134,7 @@ test("public and staff pages safely render malicious label/cache/API values in C
       assert.equal(await page.locator("#receiverEventBody a").count(), 0);
       await assertSafe(page);
       assert.deepEqual(errors, []);
-    } finally { await page.close(); }
+    } finally { currentState = inventory(); await page.close(); }
   });
 
   await t.test("staff service links reject unsafe destinations and retain valid Maps links", async () => {

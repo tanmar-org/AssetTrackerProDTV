@@ -27,6 +27,15 @@ async function sha256(value: string) {
   return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value))));
 }
 
+// A domain-separated digest identifies this browser session without revealing
+// its bearer token or the database token hash. It is never authentication itself.
+export async function sessionContext(request: Request) {
+  const token = cookieValue(request, SESSION_COOKIE);
+  return token ? sha256(`tanmar-browser-session:${token}`) : null;
+}
+
+export function tokenContext(token: string) { return sha256(`tanmar-browser-session:${token}`); }
+
 // Salted PBKDF2 protects stored PINs; the small PIN space still requires effective
 // login throttling. Never log the supplied PIN or derived hash.
 export async function hashPin(pin: string, salt: string) {
@@ -95,6 +104,13 @@ export async function getSessionUser(request: Request, connection?: Database): P
 export async function requireUser(request: Request, role?: "admin", connection?: Database) {
   const user = await getSessionUser(request, connection);
   if (!user) return { user: null, response: Response.json({ error: "Sign in required." }, { status: 401 }) };
+  // Cookies are shared across tabs. Bind every mutation to the session that
+  // loaded its UI, including same-user re-logins. Reads check a supplied context
+  // too; missing context on writes requires older tabs/integrations to reload.
+  const expected = request.headers.get("x-tracker-session-context");
+  if ((!['GET', 'HEAD', 'OPTIONS'].includes(request.method) || expected !== null) &&
+      (!expected || expected !== await sessionContext(request)))
+    return { user: null, response: Response.json({ error: "Session changed. Sign in again." }, { status: 401 }) };
   if (role === "admin" && user.role !== "admin") {
     await (connection ?? db()).prepare(
       "INSERT INTO app_change_log (id, user_id, user_name, action, created_at) VALUES ($1, $2, $3, $4, $5)",
@@ -129,7 +145,12 @@ export async function createSession(userId: string, connection: Database = db())
 
 export async function deleteSession(request: Request) {
   const token = cookieValue(request, SESSION_COOKIE);
-  if (token) await db().prepare("DELETE FROM app_sessions WHERE token_hash = $1").bind(await sha256(token)).run();
+  if (token) await db().transaction(async (tx) => {
+    // Serialize with authorized staff writes. A save either commits before the
+    // sign-out or rechecks the revoked session afterwards; preserve lock order.
+    await tx.prepare("SELECT pg_advisory_xact_lock(728303)").run();
+    await tx.prepare("DELETE FROM app_sessions WHERE token_hash = $1").bind(await sha256(token)).run();
+  });
 }
 
 export const clearSessionCookie = `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`;
