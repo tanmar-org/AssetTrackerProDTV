@@ -38,7 +38,8 @@
   account-owned server recovery copies are implemented in
   [PR #26](https://github.com/tanmar-org/AssetTrackerProDTV/pull/26), merged by
   the owner. Complete operator backups and isolated verified restoration are
-  implemented on the current branch for owner review. Production deployment has
+  implemented in [PR #27](https://github.com/tanmar-org/AssetTrackerProDTV/pull/27)
+  for owner review. Production deployment has
   not started; scheduled/off-server backups are not configured.
 - Next task after backup review: DATA-05 correct capacity-blocked import counts
   and neutralize spreadsheet export formulas while preserving leading-zero IDs.
@@ -1261,3 +1262,9 @@ text cannot execute as a spreadsheet formula. These affect the reliability of
 inventory and reports before real records are imported. DATA-03-ROLLOUT and other
 company access/mail/HTTPS/service/label/mobile/migration decisions remain required
 before deployment. Owner reviews and merges this implementation PR.
+
+Publication: implementation commit `2e65ea2` pushed to
+`Dev/postgresql-backup-restore`; opened and attached
+[PR #27](https://github.com/tanmar-org/AssetTrackerProDTV/pull/27). Publication
+references are bundled into this same PR. Owner review/merge and production
+operational rollout remain pending; no merge or deployment was performed.

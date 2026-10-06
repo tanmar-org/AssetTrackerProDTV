@@ -205,7 +205,9 @@ approval; unresolved owner/operational items remain listed below.
   evidence. Restore only into new empty owner-selected `assettracker_restore_*`
   databases, check both schemas/records, revoke old sessions and grant restricted
   runtime access. Source databases are not modified; no web endpoint runs backups.
-  Implemented on `Dev/postgresql-backup-restore`; owner review/merge pending.
+  Implemented on `Dev/postgresql-backup-restore` in
+  [PR #27](https://github.com/tanmar-org/AssetTrackerProDTV/pull/27);
+  owner review/merge pending.
 - [x] DATA-03-RESTORE-DRILL — Restore synthetic inventory/stock/audit, users, history,
   drafts, requests/GPS and rate counters; verify actual app health/login/read paths
   under restricted runtime roles. Damaged archives, nonempty/live targets, unsafe
