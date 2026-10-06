@@ -79,6 +79,15 @@ The journal records current evidence; older handoff statements may be stale.
 - Apply PostgreSQL migrations from `migrations/` with an operator connection;
   web requests never run DDL. `drizzle/` directories are historical D1 records,
   not the current migration source. Follow [self-hosting setup](docs/SELF-HOSTING.md).
+- Complete database backups/restores use root operator commands and protected
+  libpq service/passfiles outside the repository/web roots, not application URLs
+  or web endpoints. Restore only to new empty `assettracker_restore_*` databases
+  and fresh restricted roles. Preserve source snapshot verification, per-target
+  restore lock `728304`, both-target preflight, old-session revocation and failure
+  access guards. Read [the recovery runbook](docs/DATABASE-BACKUPS.md). Update the
+  explicit supported-table catalog and isolated restore drill with schema changes;
+  never silently omit tables or overwrite live databases. Tooling is not evidence
+  of scheduled/off-server backups, encryption or point-in-time recovery.
 - Initial administrator creation is operator-only: migrate the tracker database,
   then run `npm run admin:provision` in a terminal. Never reintroduce public HTTP
   bootstrap or pass PINs as command arguments. PostgreSQL bootstrap takes a table

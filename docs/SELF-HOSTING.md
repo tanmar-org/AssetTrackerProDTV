@@ -235,3 +235,19 @@ seven-day visibility, five-active/20-retained-ID account quotas, and are include
 in complete tracker database backups. Successful owner recovery requests remove
 expired rows; scheduled expiry cleanup and backup retention remain operator work.
 See [draft recovery](DRAFT-RECOVERY.md) for privacy, permissions, and offline limits.
+
+## Complete backup and recovery rollout
+
+Root `npm run db:backup` and `npm run db:restore` are operator-only commands with
+explicit protected libpq service/passfiles. They do not load application URLs or
+private application environment files automatically. Backups include both complete
+application databases; restoration verifies new empty recovery databases, revokes
+old sessions and grants restricted runtime access. See
+[the recovery runbook](DATABASE-BACKUPS.md) for preparation, execution and failure
+handling. Schema changes must update the supported-table catalog and recovery drill.
+
+This development implementation does not provision production database services,
+schedule backups, transfer archives off this VM, encrypt them or enforce retention.
+Complete DATA-03-ROLLOUT, including private environment/role recovery and an operator
+drill, before real data cutover. There is no global transaction between the two
+restored databases; retain the originals and review both apps before approved cutover.

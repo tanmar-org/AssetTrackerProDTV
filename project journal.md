@@ -4,8 +4,8 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/inventory-conflict-recovery`, based on merged
-  `main` at `9710f13` (owner merged PR #25).
+- Development branch: `Dev/postgresql-backup-restore`, based on merged
+  `main` at `0f7ab73` (owner merged PR #26).
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -36,13 +36,16 @@
   [PR #25](https://github.com/tanmar-org/AssetTrackerProDTV/pull/25) is merged by
   the owner. GitHub reports alert 162 fixed. DATA-01 explicit conflict review and
   account-owned server recovery copies are implemented in
-  [PR #26](https://github.com/tanmar-org/AssetTrackerProDTV/pull/26) for owner
-  review/merge. Production deployment has not started.
-- Next task: DATA-03 complete operator backups and verified restoration. Inventory
-  downloads omit users, QR requests, logs, history and draft copies; back up both
-  PostgreSQL databases and prove recovery using isolated synthetic copies before
-  importing real records. Follow with DATA-05: correct capacity-blocked import
-  counts and neutralize spreadsheet export formulas so staff can trust reports.
+  [PR #26](https://github.com/tanmar-org/AssetTrackerProDTV/pull/26), merged by
+  the owner. Complete operator backups and isolated verified restoration are
+  implemented on the current branch for owner review. Production deployment has
+  not started; scheduled/off-server backups are not configured.
+- Next task after backup review: DATA-05 correct capacity-blocked import counts
+  and neutralize spreadsheet export formulas while preserving leading-zero IDs.
+  An assignment rejected by a full account must not be reported as accepted, and
+  staff-entered text must remain text when opened in a spreadsheet. DATA-03-ROLLOUT
+  still requires approved encrypted off-server storage, schedule, retention,
+  private configuration recovery, alerts and a real operator recovery drill.
   Fully offline drafts still require exports; server recovery copies expire after
   seven days. Lint/dependency work, AUTH-01 company access decisions, QR-01 real
   label/mobile acceptance, MAIL-01 approved delivery, HOST-03/HOST-04/MIG-01
@@ -1168,3 +1171,93 @@ Publication: implementation commit `8417f24` pushed to
 [PR #26](https://github.com/tanmar-org/AssetTrackerProDTV/pull/26). Publication
 references are bundled into the same PR. Owner review/merge and any later approved
 production rollout remain pending; this branch has not been merged or deployed.
+
+## 2026-10-05, 21:15 CDT — Complete PostgreSQL backup and restore tooling
+
+### Owner merge and scope
+
+The owner reported PR #26 merged. GitHub confirmed merge at `0f7ab73` on
+2026-10-06 01:49:37 UTC; fetched main and created `Dev/postgresql-backup-restore`
+from that revision. Implemented DATA-03-TOOLS and DATA-03-RESTORE-DRILL. The parent
+DATA-03 remains open for production operational rollout. No production database,
+configuration, domain or service was changed.
+
+### Resulting behavior
+
+Root `db:backup` creates private custom-format archives for both databases,
+including users/sessions, inventory/stock/audit, logs/history/drafts, QR requests,
+rate counters and migration history. Protected libpq service/passfiles select
+read-only source connections; inherited application URLs/password overrides do
+not select them. Each archive and its schema/count/content evidence use one
+exported source snapshot. Both checked/fsynced archives and the manifest publish
+as one private directory; failed jobs do not intentionally publish incomplete pairs.
+
+Root `db:restore` requires separately provisioned new empty
+`assettracker_restore_*` databases, actual owner connections and fresh restricted
+runtime roles. Both archives and targets are checked before restore writes. It
+preserves source database contents, serializes cooperating restores with advisory
+lock 728304 and restores each target transactionally without dropping/overwriting
+existing databases. Exact migration, schema, row-count and content verification
+precedes runtime access. Restored tracker sessions are removed and an operator
+restore entry is added to the audit log. Both apps need fresh sign-in.
+
+Private ownership/permissions, archive SHA-256, matching PostgreSQL major versions,
+source encoding/locale/collation, restricted roles, empty targets and absence of
+default grants are required. Unsupported extra tables/schemas/functions/extensions
+fail explicitly. Cancellation/timeouts terminate subprocesses; SQL/connection/row
+errors are redacted. A late failure attempts to revoke known runtime CONNECT grants;
+there is no globally atomic operation across both databases. Keep destinations
+and apps offline on failure, verify access privately and provision fresh targets.
+
+Added three operator scripts, private configuration examples, package commands,
+archive ignore rules, six default tests and eight integration scenarios plus their
+parent. Extended the isolated fixture helper with unmigrated restore targets.
+AGENTS, TODO, development/self-hosting guides and
+[the complete operator runbook](docs/DATABASE-BACKUPS.md) describe the workflow and
+remaining rollout. No npm dependencies or application/UI/API source changed;
+existing user-local PostgreSQL tools were sufficient.
+
+### Validation and practical limits
+
+Final default suite: **54 passed / 0 failed**. Full HTTP/PostgreSQL suite:
+**87 passed / 0 failed**, including **9** backup/recovery checks. The focused
+backup suite also passed 9/9. The drill uses SELECT-only backup access, restores
+all current tables, preserves leading-zero inventory/request IDs and PIN hashes,
+starts both existing app builds under restored restricted runtime roles, verifies
+health/login/inventory/drafts/requests and rejects old session cookies. Corrupted
+archives, unsafe permissions/roles, wrong migrations, live/nonempty targets,
+failed restore verification and continuing source writes are exercised.
+
+Development testing caught and corrected repository-path normalization and a
+PostgreSQL CHECK-definition comparison: redundant nested AND parentheses changed
+on dump reparse, so comparison now uses the minimally parenthesized definition
+that preserves precedence. No failing assertion was suppressed or limit relaxed.
+A deliberate invalid test URL was refused by the local fixture guard before any
+connection/cleanup SQL; that negative invocation correctly exited nonzero.
+Final review tightened drill cleanup to run only after validated fixture creation
+and only for its actually created backup role. Focused lint and operator syntax
+checks passed. No rebuild or browser rerun was
+needed for operator-only changes; unchanged matching builds were exercised through
+actual restored-app HTTP checks. Previous full lint retains inherited vendor
+findings under QA-02; dependencies were unchanged and no new advisory query ran.
+Some fixture teardown emitted the previously seen generic idle-connection notice;
+all checks passed. Cleanup found **0** remaining fixture databases and **0** fixture
+runtime/backup roles. The synthetic cluster is stopped after verification.
+
+Archives are private plaintext, not encrypted/signed. Fingerprints compare content,
+not authenticity. A logical backup omits cluster roles/passwords, server/private
+environment files, binaries and external configuration, and is not point-in-time
+recovery. Each app has a separate snapshot; coordinated final cutover needs quiet
+writers and relationship review. Restored account policy/credentials may predate
+later changes and need operator review even though sessions are revoked. No live
+backup job, retention, off-server copy, encryption or alerts were installed.
+
+### Next useful implementation
+
+DATA-05: when an account is full, West Texas import can count a blocked assignment
+as accepted; reconcile accepted/skipped reporting with records actually added.
+Preserve formatted/leading-zero identifiers and ensure CSV-exported staff-entered
+text cannot execute as a spreadsheet formula. These affect the reliability of
+inventory and reports before real records are imported. DATA-03-ROLLOUT and other
+company access/mail/HTTPS/service/label/mobile/migration decisions remain required
+before deployment. Owner reviews and merges this implementation PR.

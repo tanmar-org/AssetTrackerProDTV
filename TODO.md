@@ -7,18 +7,20 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 
 ## Implementation order and why
 
-1. **Review conflict recovery (DATA-01-REVIEW).** Paused drafts now have account-owned
-   server copies and original/draft/shared comparisons with explicit choices.
-   Owner review/merge follows this PR. Offline edits still require an export;
-   copies protect only acknowledged edits and expire after seven days.
-2. **Add complete backups and prove restoration (DATA-03).** Inventory downloads
-   omit users, request records, logs and server history. Back up both PostgreSQL
-   databases (including recovery copies) and test restoring synthetic copies before
-   importing real records. An outage should not strand staff with incomplete data.
-3. **Verify imports and spreadsheet exports (DATA-05).** A full account can block
-   imported assignments, and exported text may be interpreted as a spreadsheet
-   formula. Show accurate accepted/skipped counts and keep exported values inert
-   so staff can trust the records and reports they use to make decisions.
+1. **Review complete backups and restoration (DATA-03-TOOLS/RESTORE-DRILL).**
+   Both PostgreSQL databases now have operator backups and a tested restore into
+   new empty databases, covering users, QR requests, logs, history and draft copies.
+   Owner review/merge follows this PR. Scheduled encrypted off-server backups,
+   retention and a real operator recovery drill remain DATA-03-ROLLOUT.
+2. **Verify imports and spreadsheet exports (DATA-05).** A full account can block
+   imported assignments while the UI still reports them as accepted, and exported
+   text may be interpreted as a spreadsheet formula. Show accurate accepted/skipped
+   counts, preserve leading-zero identifiers and keep exported values inert so
+   staff can trust the records and reports they use to make decisions.
+3. **Prepare deployment decisions and acceptance.** Set company access policy,
+   approved email delivery, HTTPS/domains, service supervision and recovery
+   operations; reconcile real records and old labels, then test actual devices.
+   Development proofs do not replace the production operator setup.
 
 Lint cleanup, company access decisions, approved email delivery, HTTPS/domains,
 service supervision, old-label continuity and actual device acceptance remain
@@ -177,8 +179,8 @@ approval; unresolved owner/operational items remain listed below.
   existing ordinary permissions, and commit state/history/audit/copy closure
   atomically. Export full comparisons; reject partial reviews above 200 choices.
   Implemented on `Dev/inventory-conflict-recovery` in
-  [PR #26](https://github.com/tanmar-org/AssetTrackerProDTV/pull/26); owner
-  review/merge pending.
+  [PR #26](https://github.com/tanmar-org/AssetTrackerProDTV/pull/26),
+  merged by the owner at `0f7ab73`.
 - [x] DATA-01-COPIES — Paused edits attempt owner-only PostgreSQL copies (five
   active, 20 retained IDs, seven-day expiry). Copy CAS, closed-ID tombstones,
   lost-acknowledgement handling, reload listing, discard and session cleanup are
@@ -195,10 +197,25 @@ approval; unresolved owner/operational items remain listed below.
   recovery uses expected revisions and the same lock. Concurrent save/restore,
   zero-row update, and audit-failure rollback tests pass. Coordination with the
   separate QR database remains open under DATA-02.
-- [ ] DATA-03 — Implement complete, restorable database backups for both apps,
-  including rental stock, users, requests, logs, and history. Verify operator
-  database backups/restoration in an isolated environment; inventory exports are
-  not complete database backups.
+- [ ] DATA-03 — Complete backups and operational recovery for both apps. Operator
+  tooling and isolated restoration are implemented below; production scheduling,
+  off-server storage and operator acceptance remain open. Inventory exports are
+  not complete database backups. See [the recovery runbook](docs/DATABASE-BACKUPS.md).
+- [x] DATA-03-TOOLS — Create private paired PostgreSQL archives and matching snapshot
+  evidence. Restore only into new empty owner-selected `assettracker_restore_*`
+  databases, check both schemas/records, revoke old sessions and grant restricted
+  runtime access. Source databases are not modified; no web endpoint runs backups.
+  Implemented on `Dev/postgresql-backup-restore`; owner review/merge pending.
+- [x] DATA-03-RESTORE-DRILL — Restore synthetic inventory/stock/audit, users, history,
+  drafts, requests/GPS and rate counters; verify actual app health/login/read paths
+  under restricted runtime roles. Damaged archives, nonempty/live targets, unsafe
+  roles/permissions, wrong migrations and failed verification are rejected.
+  Continuing source writes retain consistent per-database snapshot evidence.
+- [ ] DATA-03-ROLLOUT **Operator + owner** — Approve and configure encrypted off-server
+  storage, schedule, retention, private credentials/configuration recovery and
+  failure alerts. Perform and time an operator recovery drill before real cutover;
+  review restored account changes and separate-database consistency. No production
+  job or destination is configured by the implementation PR.
 - [x] DATA-03-SNAPSHOT — Browser inventory snapshots and new Undo entries include
   rental stock/audit, and clear resets stock with inventory. Restore/Undo are admin
   actions; older missing collections receive a clearing warning. Export labels

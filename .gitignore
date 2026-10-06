@@ -55,3 +55,12 @@ next-env.d.ts
 
 # Environment examples are safe templates; actual secrets stay ignored.
 !.env.example
+!.env.backup.example
+!.env.restore.example
+
+# Native database archives contain private user/contact/GPS/inventory records.
+/backups/
+*.dump
+*.backup
+pg_service.conf
+pgpass
