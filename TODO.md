@@ -105,7 +105,8 @@ decision is recorded explicitly. The owner reviews and merges all changes from
   streamed 8-KiB JSON, text/GPS/time bounds, authenticated current-asset lookup,
   database-shared global/receiver/client rate budgets, and atomic pending uniqueness
   including status reopens/renames. Direct staff mutations are bounded too.
-  Implemented on `Dev/public-request-security`; see
+  Implemented on `Dev/public-request-security` in
+  [PR #23](https://github.com/tanmar-org/AssetTrackerProDTV/pull/23); see
   [policy/migration/ingress requirements](docs/PUBLIC-REQUEST-SECURITY.md).
   Configure trusted production ingress and reconcile any historical duplicates/bad
   GPS before migration; these controls do not prove identity/ownership/location.

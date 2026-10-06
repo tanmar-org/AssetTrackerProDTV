@@ -29,7 +29,7 @@
   merged by the owner in
   [PR #21](https://github.com/tanmar-org/AssetTrackerProDTV/pull/21). Public-request
   security and QR metadata removal are implemented on `Dev/public-request-security`
-  for owner review. Production deployment has not started.
+  in [PR #23](https://github.com/tanmar-org/AssetTrackerProDTV/pull/23) for owner review. Production deployment has not started.
 - Next task: staff shared-device cache/sign-out corrections (DATA-04), then the
   remaining lint/dependency work and AUTH-01/DATA-01 access/conflict requirements.
   QR-01 still needs old-label/domain continuity and mobile GPS acceptance; MAIL-01
@@ -840,3 +840,9 @@ Next useful implementation: shared-device cache/sign-out handling (DATA-04).
 Remaining dependency/lint work, approved email delivery settings, mobile/printing
 acceptance, backups/services/domains, and live exports remain separately tracked.
 SEC-01-OWNER credential-rotation confirmation is still outstanding.
+
+Publication: implementation commit `f3f46f5` pushed to
+`Dev/public-request-security`; opened and attached
+[PR #23](https://github.com/tanmar-org/AssetTrackerProDTV/pull/23) for owner review.
+The PR is open and no merge/deployment was performed. Test cleanup confirmed zero
+disposable databases/runtime roles before stopping the private cluster.
