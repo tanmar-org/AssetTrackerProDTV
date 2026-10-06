@@ -19,7 +19,7 @@
       <p id="authDescription">Enter your username and PIN to continue.</p>
       <form id="authForm">
         <label><span>Username</span><input id="authName" autocomplete="username" maxlength="40" pattern="[A-Za-z][A-Za-z0-9]{1,39}" placeholder="jdoe" autocapitalize="none" spellcheck="false" required></label>
-        <label><span>PIN</span><input id="authPin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="current-password" required></label>
+        <label><span id="authCredentialLabel">PIN</span><input id="authPin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="current-password" required></label>
         <div class="auth-error" id="authError" hidden></div>
         <button class="primary-button" type="submit" id="authSubmit">Sign In</button>
       </form>
@@ -563,6 +563,7 @@
             <div><p class="eyebrow">Access control</p><h3>Authorized TanMar Users</h3></div>
             <span class="storage-status-badge cloud">Administrator</span>
           </div>
+          <p id="userDirectoryNotice" hidden>Your administrator must link new users to their AD account before they can sign in. Manage passwords and account unlocks in AD.</p>
           <form class="user-create-form" id="userCreateForm">
             <label><span>Username</span><input id="newUserName" maxlength="40" pattern="[A-Za-z][A-Za-z0-9]{1,39}" placeholder="jdoe" autocapitalize="none" spellcheck="false" required></label>
             <label><span>PIN</span><input id="newUserPin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" required></label>
@@ -980,6 +981,6 @@
   <script src="vendor/qrcode.js" integrity="sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k" crossorigin="anonymous"></script>
   <script src="vendor/jsbarcode.min.js" integrity="sha384-Kk5SjBOKprEnGfyBWfD2zROFd1Cu8kwOXxG2GIhYPcoDL2rBJS9P8Ud1ZMy4412a" crossorigin="anonymous"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=67"></script>
+  <script src="app.js?v=68"></script>
 </body>
 </html>

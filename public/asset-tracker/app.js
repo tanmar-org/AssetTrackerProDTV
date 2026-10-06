@@ -47,6 +47,8 @@ let receiverHistoryExpanded=false;
 let pendingAuditIssueId=null;
 let currentUser=null;
 let authNeedsProvisioning=false;
+// The same-origin access profile selects AD mode; unconfigured local fixtures use PINs.
+let authMode="pin";
 let currentCloudAction="Data change";
 let activityRecords=[];
 // Baseline is the last acknowledged server copy, never the latest unsaved UI.
@@ -3717,6 +3719,21 @@ function applyUserAccess(user,context){
   return true;
 }
 
+// Server-selected mode changes credential fields only; never persist passwords
+// or alter shared-device session generations/recovery ownership.
+function configureAuthMode(mode){
+  const next=mode==="ad"?"ad":"pin",changed=next!==authMode;
+  authMode=next;
+  const credential=$("authPin"),name=$("authName"),ad=authMode==="ad";
+  $("authCredentialLabel").textContent=ad?"AD Password":"PIN";
+  credential.inputMode=ad?"text":"numeric";credential.minLength=ad?1:4;credential.maxLength=ad?256:8;
+  if(ad)credential.removeAttribute("pattern");else credential.setAttribute("pattern","[0-9]{4,8}");
+  name.maxLength=ad?64:40;name.pattern=ad?"[A-Za-z0-9][A-Za-z0-9._-]{0,63}":"[A-Za-z][A-Za-z0-9]{1,39}";
+  const newPin=$("newUserPin");newPin.closest("label").hidden=ad;newPin.required=!ad;newPin.disabled=ad;
+  $("userDirectoryNotice").hidden=!ad;
+  if(changed){credential.value="";newPin.value="";}
+}
+
 // Empty databases require an operator-created admin. The locked gate contains no
 // inventory; a failed sign-out cannot silently restore a still-valid cookie.
 function showAuthGate(needsProvisioning=false,message=""){
@@ -3728,7 +3745,7 @@ function showAuthGate(needsProvisioning=false,message=""){
   $("authForm").hidden=needsProvisioning||pending;
   $("accessActions").hidden=!pending;$("retryAccessButton").hidden=!pending;$("gateSignOutButton").hidden=true;
   $("authTitle").textContent=needsProvisioning?"Administrator Setup Required":pending?"Sign Out Not Confirmed":"Employee Sign In";
-  $("authDescription").textContent=needsProvisioning?"Contact your administrator to finish setup before signing in.":pending?"This device is locked. Retry sign-out when the connection returns.":"Enter your username and PIN to continue.";
+  $("authDescription").textContent=needsProvisioning?"Contact your administrator to finish setup before signing in.":pending?"This device is locked. Retry sign-out when the connection returns.":authMode==="ad"?"Enter your AD username and password to continue.":"Enter your username and PIN to continue.";
   $("authSubmit").textContent="Sign In";$("authError").hidden=!message;$("authError").textContent=message;$("authPin").value="";
 }
 async function confirmSignOut(){
@@ -3760,6 +3777,7 @@ async function initializeAccess(){
     const response=await fetch("/api/auth",{cache:"no-store",signal:AbortSignal.timeout(15000)});
     const result=await response.json();if(epoch!==sessionEpoch)return;
     if(!response.ok)throw new Error("Access service unavailable.");
+    configureAuthMode(result.authMode);
     if(result.user&&!readSignOutMarker()){
       if(applyUserAccess(result.user,result.sessionContext))await initializeCloudSync();
     }else{showAuthGate(Boolean(result.needsProvisioning));}
@@ -3770,9 +3788,10 @@ $("authForm").addEventListener("submit",async event=>{
   const epoch=sessionEpoch;$("authSubmit").disabled=true;$("authError").hidden=true;
   try{
     const response=await fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},signal:AbortSignal.timeout(15000),
-      body:JSON.stringify({action:"login",name:$("authName").value.trim(),pin:$("authPin").value})});
+      body:JSON.stringify({action:"login",name:$("authName").value.trim(),...(authMode==="ad"?{password:$("authPin").value}:{pin:$("authPin").value})})});
     const result=await response.json();if(epoch!==sessionEpoch)return;
     if(!response.ok)throw new Error(result.error||"Unable to sign in.");
+    configureAuthMode(result.authMode);
     if(applyUserAccess(result.user,result.sessionContext)){writeSignOutMarker(null);await initializeCloudSync();}
   }catch(error){if(epoch===sessionEpoch)showAuthGate(authNeedsProvisioning,error.message||"Unable to sign in.");}
   finally{$("authSubmit").disabled=false;$("authPin").value="";}
@@ -3796,15 +3815,15 @@ async function loadUsers(){
     $("userList").innerHTML=result.users.map(user=>`
       <div class="user-row ${user.active?"":"inactive"}" data-user-id="${esc(user.id)}">
         <label><span>Username</span><input data-user-name maxlength="40" pattern="[A-Za-z][A-Za-z0-9]{1,39}" autocapitalize="none" spellcheck="false" value="${esc(user.name)}">
-          ${user.locked_until&&new Date(user.locked_until).getTime()>Date.now()
+          ${authMode!=="ad"&&user.locked_until&&new Date(user.locked_until).getTime()>Date.now()
             ?`<small class="user-status locked">Locked until ${esc(formatHistoryDate(user.locked_until))}</small>`
             :`<small class="user-status ${user.active?"active":""}">${user.active?"Active":"Inactive"} · Last sign-in ${esc(user.last_login_at?formatHistoryDate(user.last_login_at):"Never")}</small>`}
         </label>
         <label><span>Permission</span><select data-user-role><option value="user" ${user.role==="user"?"selected":""}>Regular User</option><option value="admin" ${user.role==="admin"?"selected":""}>Administrator</option></select></label>
-        <label><span>New PIN (optional)</span><input data-user-pin type="password" inputmode="numeric" maxlength="8" placeholder="Leave unchanged"></label>
+        ${authMode==="ad"?`<small class="user-status">${user.ad_linked?"AD account linked":"AD account linking required"}</small>`:`<label><span>New PIN (optional)</span><input data-user-pin type="password" inputmode="numeric" maxlength="8" placeholder="Leave unchanged"></label>`}
         <div class="user-row-actions">
           <button class="small-button" data-save-user type="button">Save</button>
-          ${user.locked_until&&new Date(user.locked_until).getTime()>Date.now()?`<button class="small-button" data-unlock-user type="button">Unlock</button>`:""}
+          ${authMode!=="ad"&&user.locked_until&&new Date(user.locked_until).getTime()>Date.now()?`<button class="small-button" data-unlock-user type="button">Unlock</button>`:""}
           <button class="small-button ${user.active?"danger":""}" data-toggle-user="${user.active?"off":"on"}" type="button">${user.active?"Deactivate":"Reactivate"}</button>
         </div>
       </div>`).join("");
@@ -3924,7 +3943,7 @@ $("userCreateForm").addEventListener("submit",async event=>{
     const {response,result}=await staffRequest("/api/users",{
       method:"POST",
       headers:{"content-type":"application/json"},
-      body:JSON.stringify({name:$("newUserName").value.trim(),pin:$("newUserPin").value,role:$("newUserRole").value})
+      body:JSON.stringify({name:$("newUserName").value.trim(),...(authMode==="ad"?{}:{pin:$("newUserPin").value}),role:$("newUserRole").value})
     });
     if(!response.ok)throw new Error(result.error||"Unable to add user.");
     event.target.reset();
@@ -3949,7 +3968,7 @@ $("userList").addEventListener("click",async event=>{
         id:row.dataset.userId,
         name:row.querySelector("[data-user-name]").value.trim(),
         role:row.querySelector("[data-user-role]").value,
-        pin:row.querySelector("[data-user-pin]").value,
+        ...(authMode==="ad"?{}:{pin:row.querySelector("[data-user-pin]").value}),
         unlock:Boolean(unlockButton),
         active:toggleButton?toggleButton.dataset.toggleUser==="on":!row.classList.contains("inactive")
       })

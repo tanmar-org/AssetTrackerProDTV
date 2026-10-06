@@ -156,3 +156,20 @@ tracker 2 vendor errors/147 warnings; QR 2 effect-state errors/3 image warnings.
 The new unchanged vendor bundle is explicitly excluded from application coding
 rules and verified by digest/import regressions instead. QA-02 and physical iPad/
 mobile/label acceptance remain separate work. No production deployment occurred.
+
+## 2026-10-06 — AD adapter dependency
+
+AUTH-01-INTEGRATION adds exactly pinned `ldapts@9.2.0` to the tracker runtime,
+with transitive `strict-event-emitter-types@2.0.0`. Both require only the existing
+Node toolchain; OpenSSL is used by synthetic certificate tests. The QR dependency
+tree/lockfile and browser vendor bytes are unchanged. A fresh tracker
+`npm audit --omit=dev` returned **zero** findings at every severity using the
+owner-approved advisory service. This is package/version metadata screening,
+not proof of application security or real directory acceptance. The existing
+development-only advisory tracked above remains unresolved.
+
+The adapter uses public TLS/bind/search APIs, explicit verified CA/hostname,
+structured binary GUID filters, separate reader/user connections and bounded
+socket cancellation. Synthetic tests independently check real LDAP/TLS wire
+behavior. See [staff authentication](STAFF-AUTHENTICATION.md) for operational scope
+and [ldapts's primary documentation](https://github.com/ldapts/ldapts) for the API.

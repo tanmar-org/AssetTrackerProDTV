@@ -18,7 +18,7 @@ test("the public auth gate hides input until provisioning and restores ordinary 
   const parsed = ts.createSourceFile("app.js", source, ts.ScriptTarget.Latest, true);
   const declaration = parsed.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === "showAuthGate");
   const elements = new Map();
-  const state = { readSignOutMarker: () => null, authNeedsProvisioning: false, $: (id) => {
+  const state = { readSignOutMarker: () => null, authNeedsProvisioning: false, authMode: "pin", $: (id) => {
     if (!elements.has(id)) elements.set(id, {});
     return elements.get(id);
   }, document: { body: { classList: { add() {} } } } };

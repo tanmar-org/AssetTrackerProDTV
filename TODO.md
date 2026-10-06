@@ -9,8 +9,12 @@ decision is recorded explicitly. The owner reviews and merges all changes from
 
 1. **Prepare internet staff authentication (AUTH-01).** Owner confirmed AD-only
    infrastructure, private VM-to-AD connectivity and password-only sign-in with
-   no MFA. Shared login traffic protection is implemented in PR #33. Next implement
-   private, certificate-validated LDAPS authentication and explicit stable identity linking.
+   no MFA. Owner merged shared login traffic protection in PR #33 at `1650417`.
+   Private, certificate-validated LDAPS authentication and explicit stable identity
+   linking are implemented in [PR #34](https://github.com/tanmar-org/AssetTrackerProDTV/pull/34)
+   on `Dev/ad-password-signin` for owner review. Next verify
+   the real endpoint/CA/restricted reader and reviewed administrator/user mappings
+   before enabling it: synthetic tests cannot establish company AD policy behavior.
    Preserve existing app roles, recovery ownership and shared-device sign-out.
    AD sign-in is not active yet; public customer QR access remains separate.
 2. **Retain automated validation (QA-01-CI).** Owner merged PR #32 at `396be11`.
@@ -156,23 +160,35 @@ approval; unresolved owner/operational items remain listed below.
   VM-to-AD connectivity, no MFA and explicitly requested no MFA. Use AD
   username/password for the planned integration. Earlier broker/MFA suggestions
   are superseded; do not add a broker or MFA requirement without an owner change.
-- [ ] AUTH-01-INTEGRATION — Implement private LDAPS credential verification and
-  staff password UI. Escape directory filters, validate TLS/hostname, bound
-  connections/timeouts, check disabled/locked accounts and use immutable AD
-  objectGUID links with explicit operator mapping to existing application users.
-  Preserve their IDs, roles, drafts, revocation and shared-device sessions; no
-  automatic linking by username/email or public PIN fallback in AD mode. Define
-  directory rechecks/session invalidation and operator recovery. Real AD settings,
-  certificates, service accounts and production cutover remain operational work.
+- [x] AUTH-01-INTEGRATION — Implement opt-in private LDAPS credential verification,
+  password UI and explicit operator directory/objectGUID links to existing users.
+  Mandatory CA/hostname validation, structured binary filters, five-second I/O,
+  disabled/locked/expired/must-change checks, shared 60-second approval cache and
+  credential/configuration-specific revocation preserve app IDs/roles/drafts.
+  Browser roles/activation remain app-managed; AD credentials/unlocks/linking do
+  not pass through user management. AD mode has no PIN fallback or automatic
+  username/email linking. Migration 0007/readiness, complete backup metadata and
+  recovery runbooks included on `Dev/ad-password-signin` in
+  [PR #34](https://github.com/tanmar-org/AssetTrackerProDTV/pull/34). Implementation is tested
+  against synthetic TLS/LDAP/SQL/Chromium only; owner review/merge still required.
+- [ ] AUTH-01-ROLLOUT — Operator approves/configures actual private LDAPS endpoint,
+  scope, trusted CA, restricted reader and required attribute permissions. Migrate,
+  map reviewed GUIDs to existing app IDs, verify working linked recovery admins,
+  validate real lockout/expiry/reset/disablement/outage/replication behavior and
+  preserved roles/draft ownership. Configure trusted HTTPS ingress and block direct
+  backend access before internet cutover. Do not paste reader/user passwords into
+  chat or commit them. No live AD connection, configuration or deployment performed.
+  Follow [the AD setup and acceptance runbook](docs/STAFF-AUTHENTICATION.md).
 - [x] AUTH-01-TRAFFIC — PostgreSQL counters limit eligible sign-ins before account
-  lookup/PIN hashing: 300 global, 60 authenticated client, 30 canonical username
+  lookup/PIN hashing/directory work: 300 global, 60 authenticated client, 30 canonical username
   per fixed 60-second window across processes. Return noncacheable 429/Retry-After;
   missing counter schema or configured ingress fails closed. Unknown accounts,
   success, incorrect credentials and account-read failures consume reservations.
   Tracker migration 0006, runtime/backup grants and production trusted ingress
   are required before rollout. Implemented on `Dev/ad-authentication` in
-  [PR #33](https://github.com/tanmar-org/AssetTrackerProDTV/pull/33); 269 local and
-  hosted checks pass. See [staff login policy](docs/STAFF-AUTHENTICATION.md). This does not enable AD or
+  [PR #33](https://github.com/tanmar-org/AssetTrackerProDTV/pull/33), merged by the
+  owner at `1650417`; 269 local and hosted checks pass, including final hosted run
+  37522346339. See [staff login policy](docs/STAFF-AUTHENTICATION.md). This does not enable AD or
   establish internet deployment readiness.
 - [x] AUTH-01-ACCOUNTS — Account updates, session revocation, and audit writes commit
   together. PIN resets, role changes, and activation changes revoke all target

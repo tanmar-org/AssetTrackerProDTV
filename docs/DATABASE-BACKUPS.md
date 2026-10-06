@@ -159,8 +159,14 @@ The two source snapshots can straddle a QR transition; keep the reconciler pause
 for restored work until an administrator inspects and approves each intent. The
 versioned QR receipt prevents blind reapplication. See [QR operations](QR-OPERATIONS.md).
 
-Account/PIN data otherwise survives: review restored accounts, roles, lockouts and subsequent credential
+Account/PIN data and explicit AD directory/GUID links otherwise survive. Tracker
+0007 also backs up AD session metadata; **all** PIN/AD sessions are revoked after
+restore. Review restored accounts, roles, links, lockouts and subsequent credential
 changes before cutover, because a historical backup can revive older account data.
+Restore tools require the current checksummed migration history, including 0007;
+older archives need a reviewed upgrade plan, never altered history or omitted
+columns. CA files, reader secrets and private AD environment settings are separate
+protected configuration recovery, not database contents. See [AD recovery](STAFF-AUTHENTICATION.md).
 
 There is **no transaction spanning both databases**. A late failure can leave a
 partially restored pair. The command attempts to revoke the selected runtime

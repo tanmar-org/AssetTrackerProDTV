@@ -55,7 +55,7 @@ test("Node/PostgreSQL integration", async (t) => {
 
   await t.test("migrations are repeatable, checksummed, and cannot mix applications", async () => {
     await migrate(tracker.database, "tracker");
-    assert.equal(Number((await tracker.database.prepare("SELECT COUNT(*) AS total FROM schema_migrations").first()).total), 6);
+    assert.equal(Number((await tracker.database.prepare("SELECT COUNT(*) AS total FROM schema_migrations").first()).total), 7);
     await assert.rejects(migrate(tracker.database, "requests"), /other application/);
     await tracker.database.prepare("UPDATE schema_migrations SET checksum = 'synthetic-changed-checksum' WHERE name = 'tracker/0001_initial.sql'").run();
     await assert.rejects(migrate(tracker.database, "tracker"), /has changed/);
@@ -82,7 +82,7 @@ test("Node/PostgreSQL integration", async (t) => {
     assert.equal(await count("app_sessions"), 0);
     const status = await api("/api/auth");
     assert.equal(status.headers.get("cache-control"), "no-store");
-    assert.deepEqual(await status.json(), { needsProvisioning: true, user: null, sessionContext: null });
+    assert.deepEqual(await status.json(), { needsProvisioning: true, user: null, sessionContext: null, authMode: "pin" });
   });
 
   await t.test("concurrent provisioning on independent PostgreSQL pools creates exactly one admin", async () => {
@@ -113,6 +113,7 @@ test("Node/PostgreSQL integration", async (t) => {
     assert.deepEqual(await (await api("/api/auth", "GET", undefined, cookie.split(";")[0])).json(), {
       needsProvisioning: false, user: { id: provision.id, name: "jdoe", role: "admin" },
       sessionContext: sessionHeaders(cookie.split(";")[0])["x-tracker-session-context"],
+      authMode: "pin",
     });
   });
 

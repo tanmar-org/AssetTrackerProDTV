@@ -4,11 +4,13 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/ad-authentication`, based on merged
-  `main` at `396be11` (owner merged PR #32). Current task implements shared login
-  traffic protection ahead of AD integration in
-  [PR #33](https://github.com/tanmar-org/AssetTrackerProDTV/pull/33); documentation
-  is bundled. Initial hosted validation passes 269 checks; owner review is pending.
+- Development branch: `Dev/ad-password-signin`, based on `origin/main` at
+  `1650417` (owner merged PR #33). Current task implements opt-in private LDAPS
+  password sign-in, explicit immutable identity linking and bounded session
+  rechecks. Documentation is bundled; company AD configuration/acceptance and
+  deployment remain separate operator work. Published
+  [PR #34](https://github.com/tanmar-org/AssetTrackerProDTV/pull/34) for owner review;
+  see the latest dated entry and final PR check/description for evidence.
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -60,16 +62,17 @@
   infrastructure, private VM-to-AD connectivity and explicitly no MFA. Plan direct
   private, certificate-validated LDAPS username/password verification; existing
   app permissions and stable identity ownership must survive the transition.
-  Shared login traffic counters are implemented first; AD sign-in is not active.
+  Shared login traffic counters are merged in PR #33; opt-in AD sign-in is now
+  implemented for review, with synthetic fixtures only. It is not configured/live.
   Earlier broker/MFA recommendations are superseded by these confirmed choices.
   Public customer QR access remains separate.
-  Prepare browser identity integration and ingress/login traffic controls,
+  Prepare actual directory acceptance and trusted HTTPS ingress,
   without exposing either app before deployment approval. GitHub check results
   do not configure branch protection or replace owner review/actual-device checks.
   DATA-03-ROLLOUT still requires approved encrypted off-server storage, schedule,
   retention, private configuration recovery, alerts and a real operator recovery drill.
   Fully offline drafts still require exports; server recovery copies expire after
-  seven days. Development-only dependency work, AUTH-01 company access decisions, QR-01 real
+  seven days. Development-only dependency work, AUTH-01-ROLLOUT real AD setup, QR-01 real
   label/mobile acceptance, MAIL-01 approved delivery, HOST-03/HOST-04/MIG-01
   production services/data cutover and SEC-01-OWNER rotation remain open.
 
@@ -1963,3 +1966,114 @@ This is fresh hosted evidence, separate from the VM totals. The bundled final
 documentation commit triggers a new full run; review its latest check result in
 PR #33. The PR description records that final result after verification. Owner
 retains final review/merge; production and AD remain untouched.
+
+## 2026-10-06 — Private AD password sign-in (America/Chicago)
+
+### Baseline and owner direction
+
+Owner merged PR #33 at `16504178104b00d934a0af9c8569a2f58ed9edeb` on
+2026-10-06 15:05 CDT. Its final implementation/documentation head `7f4382d`
+passed [hosted run 37522346339](https://github.com/tanmar-org/AssetTrackerProDTV/actions/runs/37522346339):
+269 checks, both builds/types/zero-warning lint and zero leftover fixtures.
+Created `Dev/ad-password-signin` from current `origin/main`, retaining the original
+checkout's unrelated auth-route comment edit. Owner's internet access, private
+on-premises AD and explicit no-MFA decisions remain authoritative; no broker/MFA
+was introduced. This task completes AUTH-01-INTEGRATION, with rollout still open.
+
+### Implemented behavior and review boundaries
+
+- Added `lib/ad-auth.ts`/`lib/ad-login.ts`: opt-in AD mode, mandatory private LDAPS
+  CA/hostname verification, restricted reader search and separate user credential
+  bind, structured equality filters with binary GUID bytes and a single five-second
+  operation budget. Require computed lockout/password-expiry flags, valid account
+  status/expiry and `pwdLastSet`; recheck metadata after user bind. Partial/unsafe
+  settings and missing attributes/TLS/reader failures produce generic 503; failed
+  credentials/missing/unlinked accounts share generic 401. No passwords persist.
+- Tracker migration `0007_ad_identities.sql` adds constrained unique namespace/GUID
+  mappings and provider-specific session metadata to existing tables. Existing
+  users/IDs/roles/draft ownership are preserved; no new table grants, QR migration
+  or automatic username/email mapping. Readiness checks columns and local config
+  without contacting AD. Historical migration files remain unchanged.
+- Added operator `auth:link-ad`, using `.env.migrate` owner connection and reviewed
+  directory namespace/GUID. Exact expected old binding is required for replacements;
+  change/revocation/audit commit atomically, duplicate/raced links roll back, identical
+  links are no-ops. AD-mode first-admin provisioning creates only an unlinked app
+  record without a chosen PIN. Public setup remains closed.
+- AD-mode login commits the existing shared traffic gate before directory I/O,
+  then rechecks app identity/active state under account and user-row locks before
+  session issuance. AD sessions reject old PIN cookies, and PIN mode rejects AD
+  cookies. App role/deactivation/relink/logout revocation remains enforced. AD
+  password/unlock/link writes are rejected by browser user management.
+- Session directory approval is cached in PostgreSQL for at most 60 seconds
+  across processes. Required rechecks deny expired approval during outages without
+  extending it; status/password changes revoke only matching credential/config
+  epochs. Late successful replies cannot resurrect deleted sessions. Endpoint,
+  scope, namespace, reader DN or CA changes invalidate existing AD cookies. AD
+  replication and the cache interval remain real limits; LDAP/SQL have no global
+  transaction and no instantaneous directory-change guarantee.
+- Updated real staff UI to AD username/password entry, preserving dotted SAM
+  names and password whitespace, clearing transient credentials and retaining
+  shared-device/draft ownership behavior. Settings shows link status and app role/
+  activation controls, without directory password/PIN/unlock controls. Reload tabs
+  after shipping `app.js?v=68` with the API. Public QR behavior is unchanged.
+- Complete backup drills now include AD mappings/session metadata; restoration
+  revokes both providers' sessions. Updated agent instructions, TODO, README and
+  authentication/setup/development/dependency/recovery runbooks together.
+
+### Dependencies and validation on this VM
+
+Pinned root `ldapts@9.2.0`, adding it and `strict-event-emitter-types@2.0.0` from
+the lockfile. Fresh owner-approved production npm advisory screening returned
+**zero findings**. QR dependencies/lockfile/vendor assets are unchanged; existing
+development-only advisory remains DEP-01-DEVELOPMENT. No system package/service
+or production database/configuration was installed.
+
+Both final production builds, standalone TypeScript checks and zero-warning lint
+gates pass; vendor bytes/licenses/SRI and operator help commands pass. Actual named
+tests executed with child-process/local-socket permissions:
+
+- Staff default: **102/102**, including real synthetic TLS/LDAP status, trust,
+  exact binary GUID encoding and individual/aggregate time budgets.
+- QR default: **4/4**.
+- Full PostgreSQL/HTTP/backup: **142/142**, including 17 new AD checks with
+  restricted runtime roles, independent Node processes, stable ownership, traffic
+  gate, provider separation, status/password revocation/outage recovery, mapping
+  CAS/uniqueness/audit rollback, app permissions and migration/readiness failures.
+- Chromium: **55/55**, including four AD UI checks for submitted payloads,
+  whitespace/non-numeric passwords, clearing/storage, outage locking and role UI.
+- Total **303**, no failures, canceled or skipped checks; targeted subsets are
+  included in these totals and never counted twice.
+
+Initial synthetic LDAP response encoding and browser Settings navigation needed
+fixture corrections before passing; binary GUID filters deliberately use Buffer
+values to avoid UTF-8 conversion. Existing exact auth-status assertions gained the
+new `authMode` field. No failing scenarios were removed or weakened.
+Final review anchored initial session approval to directory verification before
+SQL-lock waits; the added held-lock regression proves waits cannot extend it.
+Rebuilt and repeated the staff/default and complete SQL gates after this correction.
+All tests use fresh synthetic directory certificates/accounts and private socket-only
+PostgreSQL 18.6. Cleanup query returned **0** fixture databases/roles; the cluster
+was stopped. No real AD connection, network scan, credential request, directory
+write, production service or live migration/deployment was performed.
+
+### Next priority and limits
+
+Push this implementation for owner review and independently verify its hosted
+checks. After merge, prepare AUTH-01-ROLLOUT with the actual private LDAPS DNS
+endpoint, approved CA/search scope/restricted reader and explicit reviewed account
+GUID links. Validate actual policies/attribute access, disabled/locked/expired/reset
+behavior, recovery admins, preserved app ownership and directory outages before
+internet cutover. Synthetic tests cannot prove the company's AD behavior. HTTPS,
+trusted ingress, service supervision, backups/alerts, real data/device acceptance
+and approved mail delivery remain release work. AD mode is implemented but not
+configured or live; no automatic PIN fallback is available during an AD outage.
+
+### Publication and hosted validation
+
+Committed implementation `d61dca6`, pushed `Dev/ad-password-signin` and opened
+[PR #34](https://github.com/tanmar-org/AssetTrackerProDTV/pull/34) targeting main.
+Attached it to this task; no main push, merge, auto-merge or deployment occurred.
+This bundled documentation follow-up records the PR reference. The final-head
+full hosted check and its exact results are recorded in the PR description after
+verification; consult the latest `Validate applications` result, not an earlier
+head or the VM-only totals. Owner retains final review and merging.

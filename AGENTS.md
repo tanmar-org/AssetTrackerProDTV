@@ -41,7 +41,8 @@ The journal records current evidence; older handoff statements may be stale.
 ## Application map and constraints
 
 - Root application: static staff UI in `public/asset-tracker/`, server APIs in
-  `app/api/`, PIN/session helpers in `lib/pin-auth.ts`.
+  `app/api/`, shared sessions in `lib/pin-auth.ts`, AD adapter/login in
+  `lib/ad-auth.ts` and `lib/ad-login.ts`.
 - Public QR application: `service-request/`, especially `app/page.tsx` and
   `app/api/requests/route.ts`.
 - Both applications build/run with native Next.js on Node and PostgreSQL, using
@@ -103,18 +104,28 @@ The journal records current evidence; older handoff statements may be stale.
   then run `npm run admin:provision` in a terminal. Never reintroduce public HTTP
   bootstrap or pass PINs as command arguments. PostgreSQL bootstrap takes a table
   lock before checking for any existing user; a conditional INSERT alone can race.
+  AD mode creates an unlinked app record without a chosen PIN; explicitly map its
+  reviewed directory/GUID with operator `auth:link-ad` before first sign-in.
 - Account mutations use transaction advisory lock `728303`, recheck the actor's
   session in that transaction, retain an active administrator, and commit account,
-  session revocation, and audit changes together. Login locks the target user row
-  through PIN verification/session issuance. Preserve those lock boundaries;
+  session revocation, and audit changes together. PIN login locks the target user row
+  through verification/session issuance; AD verifies first outside SQL locks, then
+  takes account lock and linked-user row lock through issuance. Preserve those boundaries;
   a PIN reset must invalidate sessions even when a login races it.
 - Staff sign-in reserves shared PostgreSQL traffic budgets before account lookup
   or credential verification, in a separate committed transaction. Preserve global,
   trusted-client and canonical-username ceilings, bounded bucket cardinality and
   fail-closed ingress/schema errors. Never trust plain forwarded IP headers. See
   [staff authentication](docs/STAFF-AUTHENTICATION.md). Owner chose internet access,
-  private on-premises AD and no MFA; AD integration is still pending. Preserve
-  existing application IDs/roles/draft ownership during explicit AD identity mapping.
+  private on-premises AD and no MFA. Opt-in AD mode requires verified private LDAPS,
+  mandatory CA/hostname validation, structured/binary equality filters, bounded
+  five-second I/O, computed AD account flags and explicit operator directory/GUID
+  links. Never auto-link by username/email, store/log passwords, mutate AD, add a
+  PIN fallback or reintroduce public bootstrap. Preserve existing IDs/roles/drafts.
+  AD status approval is cached at most 60 seconds in SQL across processes; outages
+  must not extend it, and late checks must not resurrect/revoke newer credential
+  epochs. Runtime config changes bind/invalidate sessions. Real AD setup/acceptance
+  and internet ingress remain rollout work, not evidence from synthetic tests.
 - Spreadsheet imports use pinned local SheetJS 0.20.3 and the same-origin
   `spreadsheet-worker.js` browser worker. Keep vendor bytes/license/SRI/digests
   consistent; never restore a runtime CDN fallback. Preserve file/time/ZIP/range/

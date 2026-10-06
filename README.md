@@ -30,7 +30,7 @@ in TODO.md before deployment.
 | Location | Purpose |
 | --- | --- |
 | `public/asset-tracker/` | Staff interface, labels, graphics, QR/barcode libraries |
-| `app/api/`, `lib/` | Staff APIs, PostgreSQL connection, PIN sessions |
+| `app/api/`, `lib/` | Staff APIs, PostgreSQL connection, AD/local PIN authentication and shared sessions |
 | `service-request/` | Public QR Next.js app and its separate request database |
 | `packages/database/` | Shared native PostgreSQL query/transaction facade |
 | `migrations/` | Current PostgreSQL tracker/request schema migrations |
@@ -74,14 +74,19 @@ npm run db:migrate
 npm run dev
 ```
 
-The provisioning command prompts for username and PIN in a terminal, hides PIN
-input, and refuses if any user already exists. The website only permits login.
+Unconfigured local development uses PIN sign-in. The provisioning command prompts
+for username and a hidden PIN and refuses if any user already exists. With
+`AUTH_MODE=ad`, it prompts only for an app username; explicitly link its reviewed
+AD GUID using the operator `auth:link-ad` command before login. The website only
+permits login and never links directory identities or bootstraps administrators.
 Ports default to 5173 (staff) and 5174 (QR), bound to loopback. Open
 `http://localhost:5173/` and `http://localhost:5174/` with synthetic data. Sessions use
 Secure cookies; phone GPS and real staff access require correctly configured HTTPS.
 Staff login traffic uses shared PostgreSQL counters (tracker migration 0006).
 Internet ingress needs `LOGIN_PROXY_SECRET` and overwritten trusted headers;
-AD username/password integration remains pending under the owner's no-MFA policy.
+Opt-in AD username/password sign-in uses verified private LDAPS, tracker migration
+0007 and explicit stable identity links, without MFA or a PIN fallback. Company
+AD setup and acceptance have not been performed.
 See [staff authentication and rollout](docs/STAFF-AUTHENTICATION.md).
 
 Staff inventory loads from the authenticated server; unsaved edits stay only in
