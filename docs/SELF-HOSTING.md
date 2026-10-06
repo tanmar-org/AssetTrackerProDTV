@@ -350,3 +350,10 @@ Use [the HTTPS ingress runbook](HTTPS-INGRESS.md) and `npm run ingress:prepare`
 to stage the existing proxy and private VM TLS gateway, independent staff/QR
 header credentials and the deployment-only public QR destination. Node ports
 stay on loopback; no DNS/service/certificate change is made by preparation.
+
+## Supervised services
+
+Use [production service preparation](PRODUCTION-SERVICES.md) for reviewed systemd
+units, role-isolated JSON credentials, least-privilege startup checks, restart/stop
+handling and private readiness monitoring. This is preparation only; production
+PostgreSQL, identities, data, certificates and actual activation remain operator work.

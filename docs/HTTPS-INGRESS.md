@@ -66,6 +66,9 @@ and a settings file inside it, mode 0600. This synthetic example contains no sec
 
 Replace values with approved deployment settings. Optional `proxySourceAddress`
 is one private IPv4 address. No public/all-interface bind or CIDR is accepted.
+Optional `vmQrInclude` selects the final absolute gateway include path, allowing
+staging outside system directories before copying files into their final location.
+Otherwise the VM snippet references the generated output directory as before.
 Ports must be distinct, 1024–65535. Paths must be absolute without whitespace,
 variables or directive syntax. Unknown fields fail to catch typos. This first
 preparer does not support IPv6; AAAA records need a separately validated path.

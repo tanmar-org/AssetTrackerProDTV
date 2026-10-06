@@ -32,7 +32,7 @@ function privateAddress(value) {
 export async function renderIngress(settings, outputDirectory) {
   if (!settings || typeof settings !== "object" || Array.isArray(settings)) invalid();
   const allowed = new Set(["staffHostname", "qrHostname", "vmAddress", "gatewayPort", "staffPort", "qrPort",
-    "vmCertificate", "vmCertificateKey", "npmTrustedCa", "npmQrInclude", "proxySourceAddress"]);
+    "vmCertificate", "vmCertificateKey", "npmTrustedCa", "npmQrInclude", "vmQrInclude", "proxySourceAddress"]);
   if (Object.keys(settings).some(key => !allowed.has(key))) invalid();
   if (Object.hasOwn(settings, "proxySourceAddress")) privateAddress(settings.proxySourceAddress);
   const staff = hostname(settings.staffHostname), qr = hostname(settings.qrHostname);
@@ -48,7 +48,8 @@ export async function renderIngress(settings, outputDirectory) {
     VM_CERT: filePath(settings.vmCertificate), VM_KEY: filePath(settings.vmCertificateKey),
     NPM_CA: filePath(settings.npmTrustedCa),
     NPM_QR_UPSTREAM: filePath(settings.npmQrInclude ?? "/data/nginx/custom/assettracker-qr-upstream.conf"),
-    VM_QR_UPSTREAM: filePath(path.join(outputDirectory, "vm-qr-upstream.conf")),
+    // Stage outside system directories while rendering the final gateway path.
+    VM_QR_UPSTREAM: filePath(settings.vmQrInclude ?? path.join(outputDirectory, "vm-qr-upstream.conf")),
     SOURCE_RESTRICTION: settings.proxySourceAddress ? `if ($realip_remote_addr != "${privateAddress(settings.proxySourceAddress)}") { return 403; }` :
       "# No source-IP allowlist supplied. Every route still requires the ingress secret over verified TLS.",
     LOGIN_SECRET: loginSecret, REQUEST_SECRET: requestSecret,

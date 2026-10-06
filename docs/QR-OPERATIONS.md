@@ -161,3 +161,8 @@ and [transaction/row locks](https://www.postgresql.org/docs/18/explicit-locking.
 when changing these boundaries. Do not remove version/receipt protection, make
 browser list reads drive mutations, blindly replay restored work, or purge proof
 without a reviewed retention policy.
+
+The [managed service runbook](PRODUCTION-SERVICES.md) supplies the reconciler
+systemd unit with a separate non-login UID and tracker-runtime-only credential
+file. The supervisor forwards shutdown signals and allows bounded work to finish;
+no AD reader, ingress or migration credential is supplied to that worker.

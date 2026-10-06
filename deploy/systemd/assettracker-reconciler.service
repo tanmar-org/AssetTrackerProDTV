@@ -1,0 +1,40 @@
+[Unit]
+Description=Asset Tracker durable QR operation recovery
+Wants=network-online.target assettracker-staff.service assettracker-qr.service
+After=network-online.target postgresql.service assettracker-staff.service assettracker-qr.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+User=assettracker-reconciler
+Group=assettracker-reconciler
+WorkingDirectory=/opt/assettracker/current
+# A separate credential file uses the tracker runtime role, not its migration
+# owner, login ingress secret or AD reader password. Only accepted work is retried.
+LoadCredential=runtime.json:/etc/assettracker/reconciler-runtime.json
+Environment=ASSETTRACKER_STAFF_PORT=5173 ASSETTRACKER_QR_PORT=5174
+ExecStart=/opt/assettracker/node/bin/node /opt/assettracker/current/scripts/run-managed-service.mjs reconciler
+Restart=on-failure
+RestartSec=5s
+KillMode=mixed
+# One bounded operation may hold a database lock; finish it before forced stop.
+TimeoutStopSec=45s
+UMask=0077
+UnsetEnvironment=NODE_OPTIONS NODE_PATH LD_PRELOAD LD_LIBRARY_PATH
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ProtectProc=invisible
+TasksMax=64
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

@@ -96,6 +96,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends nginx openssl
           npm run test:ingress
+          npm run test:services
       - name: Install matching PostgreSQL backup clients
         run: |
           # Only the ephemeral runner changes. PGDG's signed Ubuntu repository
