@@ -4,8 +4,8 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/import-export-correctness`, based on merged
-  `main` at `bafe966` (owner merged PR #27).
+- Development branch: `Dev/lint-baseline`, based on merged
+  `main` at `3123095` (owner merged PR #30).
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -41,16 +41,23 @@
   implemented in [PR #27](https://github.com/tanmar-org/AssetTrackerProDTV/pull/27),
   merged by the owner. DATA-05 import counts/capacity/metadata/history and protected
   spreadsheet reports are implemented in
-  [PR #28](https://github.com/tanmar-org/AssetTrackerProDTV/pull/28) for owner review.
+  [PR #28](https://github.com/tanmar-org/AssetTrackerProDTV/pull/28), merged by the owner.
+  Bounded request/activity browsing (DATA-06-LISTING) in
+  [PR #29](https://github.com/tanmar-org/AssetTrackerProDTV/pull/29) and recoverable
+  QR transitions/history (DATA-02) in
+  [PR #30](https://github.com/tanmar-org/AssetTrackerProDTV/pull/30) are merged by
+  the owner. QA-02's zero-warning lint/vendor baseline is implemented on this branch
+  for owner review; no third-party script bytes or dependency versions changed.
   Production deployment has not started; scheduled/off-server backups are not configured.
-- Next task after import/report review: DATA-06 bounded pagination and filters.
-  QR requests and administrator activity currently return only the newest 500 rows;
-  older pending requests can become invisible behind newer records. Give staff
-  controls to find pending work and older activity while retaining server permissions.
+- Next task after lint review: QA-01-CI automated PR checks. Current test evidence
+  depends on manual VM runs; run both apps' lint/types/builds and meaningful
+  synthetic regressions in GitHub so future changes show failures before owner
+  review/merge. Keep test services/credentials separate from production. No CI
+  workflow or required branch protection is installed by the lint task.
   DATA-03-ROLLOUT still requires approved encrypted off-server storage, schedule,
   retention, private configuration recovery, alerts and a real operator recovery drill.
   Fully offline drafts still require exports; server recovery copies expire after
-  seven days. Lint/dependency work, AUTH-01 company access decisions, QR-01 real
+  seven days. Development-only dependency work, AUTH-01 company access decisions, QR-01 real
   label/mobile acceptance, MAIL-01 approved delivery, HOST-03/HOST-04/MIG-01
   production services/data cutover and SEC-01-OWNER rotation remain open.
 
@@ -1619,3 +1626,91 @@ Publication: implementation commit `beaef0a` pushed to
 references and a trailing-blank-line cleanup are bundled into this same PR.
 Owner review/merge and production rollout remain pending. No merge or deployment
 was performed.
+
+## 2026-10-06 — QA-02 lint baseline (11:22 America/Chicago)
+
+### Merge, scope and resulting behavior
+
+Owner instructed “merged proceed.” GitHub confirmed PR #30 merged at
+2026-10-06 11:05:37 CDT, merge `312309569d35d4bdd793ebf41394c3c249fa8892`.
+Fetched `origin/main` and created `Dev/lint-baseline` from `3123095` with a clean
+active worktree. The original checkout's unrelated `app/api/auth/route.ts` edit
+was preserved. No merge, production deployment, database/provider/domain change,
+secret retrieval or new dependency advisory submission was performed.
+
+Inherited root lint reported **2 errors / 146 warnings**: the two errors and 143
+warnings came from local upstream QR/barcode scripts; three warnings were staff
+application code. QR lint reported three image warnings. Application rules remain
+enabled. Both actual npm lint commands now use `--max-warnings=0` so warning-only
+regressions fail, and root lint verifies vendor integrity before exact exclusions.
+Bare ESLint alone does not perform that integrity check.
+
+Reviewed existing `qrcode.js` against official qrcode-generator 1.4.4 tag `js1.4.4`
+(commit `9bd2163ddc1628d1ec8ff22ea288a747275ef442`) and `jsbarcode.min.js` against
+JsBarcode 3.11.6 tag `v3.11.6` (commit `5ed2a2b9da5f82da3c6159eb47a21d06f1cf797d`).
+Public upstream artifact downloads exactly matched existing bytes. Added unchanged
+MIT licenses from those same commits and page SRI for both label generators.
+SheetJS 0.20.3 script/license/SRI remain unchanged. No script versions/bytes,
+package dependencies or lockfiles changed. Vendor README records provenance/pins
+and reviewed update steps; digests are an allowlist, not an upstream signature
+or advisory assessment. New vendor-directory application files remain linted.
+
+Removed the unused Undo state read and resulting dead helper, removed the unused
+West Texas mapping helper (actual grouped A:N/shared planner retained), and made
+label checkbox selection explicit with a review comment. Staff asset version is 67.
+QR branding uses eager unoptimized Next Image with explicit dimensions and original
+local URLs/bytes. Responsive logo CSS retains automatic height. There is no outside
+image service or new runtime CDN. No application API/database/migration/auth
+protocol was changed.
+
+### Verification and corrections
+
+Final staff default **84 passed / 0 failed** (including seven new integrity/lint
+regressions); QR default **4 passed / 0 failed**; full Chromium **51 passed /
+0 failed**. Both webpack production builds and standalone TypeScript checks pass.
+Both full npm lint commands pass **0 errors / 0 warnings**, including final changed
+browser tests. Diff checks pass. Exact pinned vendor scripts and both lockfiles
+have no diff. PostgreSQL integration tests were not rerun: no server/database/SQL/
+permission code changed. The private development PostgreSQL cluster stayed stopped;
+PR #30's 111 passing integration checks remain historical evidence, not a fresh run.
+
+New default tests reject edited script bytes, missing/replaced licenses, symlinks,
+and missing/changed/duplicate script SRI. ESLint coverage tests retain first-party
+files and actual warning rules; subprocess tests invoke both actual npm lint gates
+with synthetic warning-producing code and require failure. Browser tests exercise
+real SRI-loaded QR/barcode generation through checkbox controls, clearing/disabling
+print controls, and all three original image URLs/intrinsic sizes on desktop and a
+280-pixel viewport. Existing spreadsheet/security/session/recovery suites pass.
+These prove browser rendering, not physical printing/scanning or mobile GPS.
+
+The first cleanup lint identified `liveState` becoming unused after its only caller
+was removed; the dead helper was removed, retaining the actual Undo comparison.
+Restricted builds hit the documented TypeScript child-process parsing failure;
+rerunning with appropriate local process permissions passed. QR build retains the
+known multiple-lockfile workspace warning, separate from ESLint findings.
+The staged diff check flagged the upstream barcode MIT license's CRLF endings.
+Exact `.gitattributes` entries preserve all six pinned files without line-ending
+conversion, accepting CR-at-EOL only for that original license. Upstream bytes
+remain intact; the final staged diff check passes without a global suppression.
+The initial full browser run had 49 passes / 2 failures (one new layout assertion and
+its parent): its narrow-screen fixture reused intentionally oversized malicious
+API text from security scenarios. Local layout inspection with ordinary synthetic
+IDs confirmed the responsive logo works. The layout fixture now uses `TEST-01`
+and restores the attack fixture afterwards; all existing malicious assertions
+remain intact. Focused rendering **8/8** and final full Chromium **51/51** pass.
+
+### Documentation, next work and publication
+
+Bundled AGENTS, README, TODO, development guide, dependency follow-up and vendor
+provenance with implementation and this journal. Current handoff now reflects
+owner merges through PR #30; earlier validation entries remain dated evidence.
+QA-02 is implemented for owner review/merge.
+
+Next QA-01-CI: test evidence currently depends on manual VM execution. Add GitHub
+PR checks for both apps' lint/types/builds and meaningful synthetic regressions so
+future changes show failures before owner review/merge. Use isolated services,
+never production credentials/data. No workflow or branch protection was installed
+by this PR; checks do not replace owner review or physical acceptance.
+Company access/email requirements, HTTPS/domains, VM web/reconciler supervision,
+monitored encrypted off-server backups, real-data/old-label continuity, owner
+credential rotation and actual device acceptance remain deployment work.

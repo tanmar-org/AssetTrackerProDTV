@@ -15,8 +15,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // Keep the exact upstream minified artifact; digest/import regressions verify
-    // it instead of applying our application coding rules to third-party bytes.
+    // Exact upstream artifacts have digest/SRI/license verification before lint.
+    // Keep this allowlist narrow: new vendor-directory application code is linted.
+    // See scripts/vendor-integrity.mjs and vendor/README.md; never ignore vendor/**.
+    "public/asset-tracker/vendor/qrcode.js",
+    "public/asset-tracker/vendor/jsbarcode.min.js",
     "public/asset-tracker/vendor/xlsx-0.20.3.full.min.js",
   ]),
 ]);

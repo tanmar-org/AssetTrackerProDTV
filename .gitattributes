@@ -1,0 +1,8 @@
+# Keep reviewed upstream bytes intact across platforms for the digest/SRI pins.
+public/asset-tracker/vendor/qrcode.js -text
+public/asset-tracker/vendor/jsbarcode.min.js -text
+public/asset-tracker/vendor/xlsx-0.20.3.full.min.js -text
+public/asset-tracker/vendor/qrcode-LICENSE.txt -text
+public/asset-tracker/vendor/sheetjs-LICENSE.txt -text
+# This exact upstream MIT license uses CRLF; retain it rather than rewriting it.
+public/asset-tracker/vendor/jsbarcode-LICENSE.txt -text whitespace=cr-at-eol

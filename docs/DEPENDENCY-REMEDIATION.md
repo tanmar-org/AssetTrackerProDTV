@@ -3,8 +3,25 @@
 Original dependency/import check on 2026-10-05 against merged main `e0a137f`. Evidence is in
 [the refreshed advisory report](reviews/2026-10-05-dependency-remediation.json).
 The original review remains historical evidence of the Worker/D1 dependency set.
-Current source-map remediation is on `Dev/qr-source-map-security`, based on
-`2719ba3` after owner merge of PR #24; see the current follow-up below.
+Source-map remediation was implemented on `Dev/qr-source-map-security`, based on
+`2719ba3` after owner merge of PR #24, and merged in PR #25. QA-02's lint/vendor
+follow-up is recorded below; earlier test/scanner totals are dated evidence.
+
+## 2026-10-06 — QA-02 lint and vendor follow-up
+
+Both apps now require zero lint warnings. Exact exclusions for the three local
+upstream scripts are preceded by offline SHA-256/license/page-SRI verification.
+qrcode-generator 1.4.4 and JsBarcode 3.11.6 bytes exactly match pinned official
+repository commits; their upstream MIT licenses are included, and both page tags
+now have SRI. SheetJS bytes/license/SRI are unchanged. See
+[the provenance and update policy](../public/asset-tracker/vendor/README.md).
+Staff dead helpers/unused state reads were removed and label selection made
+explicit. QR local images use unoptimized Next Image with original URLs/bytes.
+First-party lint rules remain enabled; new vendor-directory code is still checked.
+Integrity tampering/warning-gate and actual label/image rendering regressions cover
+the policy. No dependency versions/lockfiles changed, and no new advisory scan was
+submitted. This integrity check is not an advisory assessment or upstream signature;
+the open development-only braces finding and production acceptance remain separate.
 
 Earlier publication finding on 2026-10-05 (America/Chicago): GitHub reported open high
 runtime alert 162 for QR `source-map-js@1.2.1`. The reviewed
@@ -24,8 +41,8 @@ The QR lockfile now resolves `source-map-js` 1.2.1 → 1.2.2 within its existing
 dependency, override, framework upgrade or forced audit fix was introduced. Its
 integrity matches the verified registry release and the staff lockfile. Both
 installed copies resolve to 1.2.2 after lockfile installs; staff's lock is unchanged.
-GitHub alert 162 on main remains open until the owner merges/rescanning completes.
-Do not manually dismiss it instead of updating the affected package.
+The owner merged PR #25 at `9710f13`; GitHub reported alert 162 fixed on
+2026-10-06 at 01:19:36 UTC. No manual dismissal was used.
 
 `Next → postcss → source-map-js` makes this a runtime-classified transitive
 dependency; Tailwind uses it too. PostCSS consumes source maps during CSS
@@ -43,12 +60,14 @@ file must preserve its text without excessive work, checked in a child limited t
 positions. These exercise patched behavior and ordinary compatibility rather than
 only asserting a version string. Shared-device/persistence policy is unchanged.
 
-Both production builds and TypeScript checks pass. Staff's default suite passes
-42 checks, QR's passes 4, and optional Chromium passes 22. Changed regression code
-passes focused lint; QR full lint passes with three inherited image warnings. Root
-full lint's prior vendor errors/warnings remain QA-02; this task does not change
-vendor files. PostgreSQL tests were not rerun: database/routes/authentication are
-unchanged, and the patched CSS pipeline is exercised by builds/HTTP/browser checks.
+At the source-map task's validation, both production builds and TypeScript checks
+passed. Staff's default suite passed 42 checks, QR's passed 4, and optional
+Chromium passed 22. Changed regression code
+passed focused lint; QR full lint passed with three inherited image warnings. Root
+full lint's prior vendor errors/warnings were left for QA-02 (now resolved above);
+that task did not change vendor files. PostgreSQL tests were not rerun:
+database/routes/authentication were unchanged, and the patched CSS pipeline was
+exercised by builds/HTTP/browser checks.
 Both production npm scans report zero; both full scans retain the same five
 development-only chain findings for the single braces advisory. See
 [current dependency evidence](reviews/2026-10-05-source-map-remediation.json).

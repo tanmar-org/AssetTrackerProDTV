@@ -88,8 +88,6 @@ function persistedState(){
   };
 }
 
-function liveState(){return {master,accounts,assignments,activations,receiverEvents,auditState,rentalStock}}
-
 function persistUndoHistory(){
   while(undoHistory.length){
     try{browserCache.setItem(KEYS.undo,JSON.stringify(undoHistory));return true}catch{undoHistory.pop()}
@@ -100,7 +98,6 @@ function persistUndoHistory(){
 
 function recordUndo(label="Data change",force=false){
   const previous=persistedState();
-  const current=liveState();
   const comparableCurrent={master,accounts,assignments,activations,receiverEvents,auditState,rentalStock};
   if(!force&&JSON.stringify(previous)===JSON.stringify(comparableCurrent))return;
   undoHistory.unshift({id:makeId(),label,createdAt:new Date().toISOString(),changedBy:currentUser?.name||"Unknown",state:previous});
@@ -1821,7 +1818,9 @@ $("labelAccountFilter").onchange=renderLabels;
 $("labelReceiverList").addEventListener("change",event=>{
   const checkbox=event.target.closest("[data-label-id]");
   if(!checkbox)return;
-  checkbox.checked?selectedLabelIds.add(checkbox.dataset.labelId):selectedLabelIds.delete(checkbox.dataset.labelId);
+  // Selection is tab-local; reflect the checkbox explicitly before rerendering.
+  if(checkbox.checked)selectedLabelIds.add(checkbox.dataset.labelId);
+  else selectedLabelIds.delete(checkbox.dataset.labelId);
   renderLabels();
 });
 $("selectVisibleLabels").onchange=event=>{
@@ -3213,19 +3212,7 @@ async function prepareMasterImport(file){
   }
 }
 
-function wtxImportRecord(row){
-  return {
-    accountNumber:importValue(row,["Account Number","account_number","Account #","Acct Number"]),
-    accountName:importValue(row,["Account Name","account_name","Customer"]),
-    assetNumber:importValue(row,["Asset Number","Asset","asset","Asset #","Asset ID"]).toUpperCase(),
-    accessCard:importValue(row,["Access Card","access_card","Access Card Number","Card Number","Card"]),
-    serial:importValue(row,["Serial Number","serial_number","Serial","SN"]),
-    rid:importValue(row,["Receiver ID","receiver_id","RID"]),
-    type:importValue(row,["Type","Receiver Type"]),
-    model:importValue(row,["Model","Receiver Model"])
-  };
-}
-
+// West Texas imports use the grouped A:N reader and shared planReceiverImport.
 function readWestTexasRows(book){
   const n=book.SheetNames.find(x=>normalizeImportKey(x)===normalizeImportKey("West Texas"));
   if(!n)throw new Error('Workbook is missing the "West Texas" sheet.');

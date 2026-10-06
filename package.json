@@ -11,7 +11,7 @@
     "build": "NEXT_TELEMETRY_DISABLED=1 next build --webpack",
     "start": "NEXT_TELEMETRY_DISABLED=1 next start --hostname 127.0.0.1 --port 5173",
     "test": "npm run build && node --experimental-strip-types --test tests/*.test.mjs",
-    "lint": "eslint .",
+    "lint": "node scripts/verify-vendors.mjs && eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit --incremental false",
     "db:migrate": "node --env-file-if-exists=.env.migrate scripts/migrate-database.mjs tracker",
     "db:backup": "node scripts/backup-databases.mjs",
@@ -19,7 +19,8 @@
     "service:reconcile": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/reconcile-service-operations.mjs",
     "admin:provision": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/provision-admin.mjs",
     "test:integration": "node --experimental-strip-types --test tests/integration/*.test.mjs",
-    "test:browser": "node --test tests/browser/*.test.mjs"
+    "test:browser": "node --test tests/browser/*.test.mjs",
+    "vendor:verify": "node scripts/verify-vendors.mjs"
   },
   "dependencies": {
     "@tanmar/database": "file:packages/database",
