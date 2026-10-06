@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark">
   <title>TanMar Receiver Control</title>
-  <link rel="stylesheet" href="app.css?v=62">
+  <link rel="stylesheet" href="app.css?v=63">
   <link rel="stylesheet" href="reskin.css?v=51">
   <link rel="stylesheet" href="capacity.css?v=1">
   <link rel="stylesheet" href="labels.css?v=55">
@@ -463,7 +463,7 @@
           <div>
             <p class="eyebrow">Data safety</p>
             <h2>Settings</h2>
-            <p class="page-description">Inventory loads from shared storage after sign-in. Unsaved edits stay only in this tab; download a snapshot before closing, reloading, or signing out.</p>
+            <p class="page-description">Inventory loads after sign-in. Paused drafts can be saved privately for review; check the recovery status before leaving. Offline edits still need a downloaded snapshot.</p>
           </div>
         </div>
 
@@ -506,6 +506,24 @@
             <p id="cloudStorageDescription">Connecting this browser to shared TanMar receiver records. An administrator initializes inventory when shared storage is empty.</p>
           </div>
           <span class="storage-status-badge cloud" id="cloudStorageBadge">Connecting</span>
+        </section>
+
+        <section class="panel recovery-panel" id="draftPanel">
+          <div class="panel-header">
+            <div><p class="eyebrow">Your recovery copies</p><h3>Review Paused Edits</h3></div>
+            <button class="secondary-button" id="refreshDraftsButton" type="button">Refresh Saved Drafts</button>
+          </div>
+          <p>Copies belong to your account and expire seven days after creation. Saving a copy does not update shared inventory. Review compares your original copy, your edits, and current shared records.</p>
+          <p id="draftStatus" role="status">Unsaved work remains in this tab until a recovery copy is confirmed.</p>
+          <div class="form-actions">
+            <button class="primary-button" id="reviewDraftButton" type="button">Save and Review My Draft</button>
+            <button class="secondary-button" id="useSharedButton" type="button">Discard Draft and Load Shared</button>
+          </div>
+          <div id="savedDraftList" class="recovery-list"></div>
+          <p id="draftReviewNotice" role="status"></p>
+          <div id="draftReviewTable" class="table-wrap"></div>
+          <button class="secondary-button" id="downloadDraftReviewButton" type="button">Download Full Comparison</button>
+          <button class="primary-button" id="applyDraftButton" type="button" hidden>Apply Reviewed Choices</button>
         </section>
 
         <section class="panel recovery-panel" id="recoveryPanel" data-admin-only>
@@ -935,6 +953,6 @@
   <script src="vendor/qrcode.js"></script>
   <script src="vendor/jsbarcode.min.js"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=62"></script>
+  <script src="app.js?v=63"></script>
 </body>
 </html>

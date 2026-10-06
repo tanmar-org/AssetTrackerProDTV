@@ -4,8 +4,8 @@
 
 - Repository: https://github.com/tanmar-org/AssetTrackerProDTV
 - Baseline reviewed: `main` at `b3d86eb3eb05134e42c6f475e5a3dbe47df6a7e5`.
-- Development branch: `Dev/qr-source-map-security`, based on merged
-  `main` at `2719ba3` (owner merged PR #24).
+- Development branch: `Dev/inventory-conflict-recovery`, based on merged
+  `main` at `9710f13` (owner merged PR #25).
 - Publication status: foundation [PR #3](https://github.com/tanmar-org/AssetTrackerProDTV/pull/3)
   and Dependabot [PR #2](https://github.com/tanmar-org/AssetTrackerProDTV/pull/2)
   and credential-removal [PR #4](https://github.com/tanmar-org/AssetTrackerProDTV/pull/4)
@@ -32,20 +32,20 @@
   [PR #23](https://github.com/tanmar-org/AssetTrackerProDTV/pull/23) are also merged
   by the owner. Shared-device session/cache corrections (DATA-04) in
   [PR #24](https://github.com/tanmar-org/AssetTrackerProDTV/pull/24) are also merged.
-  QR source-map dependency correction (DEP-01-SOURCE-MAP) is implemented on
-  `Dev/qr-source-map-security` in
-  [PR #25](https://github.com/tanmar-org/AssetTrackerProDTV/pull/25) for owner review.
-  Production deployment has not started.
-- Next task: DATA-01 explicit conflict reconciliation/draft handling. The second
-  employee saving an older revision currently has to export/reconcile a paused
-  snapshot, and closing that tab can lose unsaved work. Add clear recovery choices
-  that preserve current server data and shared-device privacy. Follow with complete
-  operator backups/verified restore (DATA-03), then import/export correctness
-  (DATA-05), with the
-  remaining lint/dependency work and AUTH-01 company access requirements tracked.
-  QR-01 still needs old-label/domain continuity and mobile GPS acceptance; MAIL-01
-  still needs approved delivery settings. Production domains/services/backups/data
-  cutover remain under HOST-03/HOST-04/MIG-01. SEC-01-OWNER still needs owner confirmation.
+  QR source-map dependency correction (DEP-01-SOURCE-MAP) in
+  [PR #25](https://github.com/tanmar-org/AssetTrackerProDTV/pull/25) is merged by
+  the owner. GitHub reports alert 162 fixed. DATA-01 explicit conflict review and
+  account-owned server recovery copies are implemented on the current Dev branch
+  for owner review/merge. Production deployment has not started.
+- Next task: DATA-03 complete operator backups and verified restoration. Inventory
+  downloads omit users, QR requests, logs, history and draft copies; back up both
+  PostgreSQL databases and prove recovery using isolated synthetic copies before
+  importing real records. Follow with DATA-05: correct capacity-blocked import
+  counts and neutralize spreadsheet export formulas so staff can trust reports.
+  Fully offline drafts still require exports; server recovery copies expire after
+  seven days. Lint/dependency work, AUTH-01 company access decisions, QR-01 real
+  label/mobile acceptance, MAIL-01 approved delivery, HOST-03/HOST-04/MIG-01
+  production services/data cutover and SEC-01-OWNER rotation remain open.
 
 ## 2026-10-05 — Repository access and read-only review
 
@@ -1071,3 +1071,93 @@ Publication: implementation commit `c402e80` pushed to
 [PR #25](https://github.com/tanmar-org/AssetTrackerProDTV/pull/25). Publication
 references are bundled into this same PR. Owner review/merge and GitHub's main
 alert rescan remain pending; the branch is not merged or deployed.
+
+## 2026-10-05 20:45 CDT — Account-owned draft recovery and explicit conflict review
+
+### Baseline and result
+
+Confirmed the owner's merge of PR #25 at `9710f13628701bcecdf6abae5537ce3ee05bf01d`
+(2026-10-06 01:19:32 UTC). GitHub's API reports source-map alert 162 **fixed** at
+01:19:36 UTC. No manual dismissal or dependency change was needed. Created
+`Dev/inventory-conflict-recovery` from current origin/main; preserved unrelated
+comment-only work in the original checkout.
+
+Previously, a second employee's stale save paused with only tab memory and a
+snapshot export for manual reconciliation. DATA-01-REVIEW now adds Settings review
+of original/draft/current shared values and explicit choices. Unedited shared
+fields survive; conflicting fields require a choice; a changed server revision
+requires a new review. Saved copies are private to the current account, including
+administrator API access, and never automatically applied after sign-in/reload.
+
+DATA-01-COPIES adds tracker migration `0003_inventory_drafts.sql` and `/api/drafts`.
+Paused/overflowed edits attempt a server checkpoint; later paused edits update it
+using version CAS. Five active copies and 20 retained IDs per account, seven days
+from creation, streamed 16-MiB + 4-KiB checkpoint bound, 8-MiB individual states.
+Closed copies erase payloads and retain ID/version tombstones until expiry.
+Lost acknowledgements retain the UUID for discovery; explicit reopening warns
+before replacing tab work. Discard reads shared state before deleting the copy,
+checks versions, and does not write inventory. No browser operational persistence
+was introduced; unconfirmed/offline work explicitly requires an exported snapshot.
+
+Apply takes account lock 728303 then inventory lock 728302 and rechecks the cookie,
+context and role after waiting. `lib/inventory-merge.ts` recomputes choices on the
+server. `lib/inventory-store.ts` supplies one commit path for normal saves/recovery;
+state, history, audit and draft closure are atomic, including no-op behavior.
+Ordinary users still receive existing single-operation checks and server-stamped
+history attribution. Bulk/mixed changes are denied/audited and copies retained.
+New history is ordered ahead of existing shared entries; this preserves actual
+assignment/history workflows rather than creating apparent history rewrites.
+
+Browser copies/baselines/comparison lists are bound to session generations, scrubbed
+on lock and offered only after fresh authenticated inventory. Same-owner memory
+reauthentication retains the baseline/version with sync paused. Recovery list
+refreshes resume an ordinary pending save if their UI lock outlasts the save timer.
+Comparison cells wrap/truncate to 600 characters; full JSON comparison export is
+available. More than 200 choices disables UI apply and requires administrator
+reconciliation of exports. Static asset version is 63. Readiness checks the new
+table; runtime grants, self-hosting/setup/session docs and AGENTS are updated.
+
+### Validation and limits
+
+Final staff webpack build and standalone TypeScript passed. Staff default suite:
+**48 passed**. Real HTTP/PostgreSQL suite: **78 passed**, including nine new draft
+scenarios plus their parent check. Chromium: **30 passed**, including seven new
+recovery scenarios plus their parent check. New merge/order and pending-save-timer
+checks exercise actual implementation functions. Focused server/test lint passed
+with no findings; browser syntax passed. Full staff lint retains **2 inherited
+vendor errors / 147 warnings** (QA-02), with no suppression or vendor changes.
+
+An earlier run of database/browser/compiler checks concurrently encountered one
+HTTP ECONNRESET in a draft scenario (74 passed/2 failed including parent). No
+assertion established a permission/state failure. A separate full database rerun
+passed 76/76 before the final history/quota additions; final full run passed 78/78.
+Cause of the connection reset is not proven; do not hide it behind automatic test
+retries or loosen production limits. Some fixture teardown emitted the previously
+seen generic idle PostgreSQL notice. Cleanup queries confirmed **0** leftover
+fixture databases and **0** runtime roles; the private synthetic cluster is stopped.
+
+Inspected a Chromium screenshot of the synthetic comparison panel. Browser tests
+block outside traffic and use no live inventory. QR source/dependencies were not
+changed or rebuilt; its existing build was exercised through integration/browser
+checks, and prior QR default/build/type evidence remains historical. No new
+advisory query was needed; the dependency security update is confirmed on main.
+`git diff --check` passed.
+
+Copies protect only server-acknowledged edits, not disconnected changes or newer
+in-flight edits. Fully offline durability remains DATA-01-OFFLINE; exported snapshots
+are the fallback. Large/multiple-operation reconciliation can still require an
+administrator. Expiry enforces visibility; successful owner requests remove expired
+rows, but there is no scheduled purge for inactive accounts yet. Server copies,
+25 history versions and inventory snapshots are not complete disaster recovery.
+No production database, configuration, domain, service or deployment was modified.
+
+### Next useful implementation
+
+DATA-03: complete operator backups of both PostgreSQL databases, including users,
+requests, logs, history and owned copies. Restore synthetic backups into separate
+databases and verify records/permissions so an outage has a tested recovery path
+before real inventory cutover. Scheduling, destination, encryption/access and
+retention still need the deployment configuration; no live restore is authorized.
+Then DATA-05: fix capacity-blocked import counts and prevent spreadsheet formulas
+from exported text while retaining leading-zero identifiers. These directly affect
+whether staff can trust inventory/reporting after an import.
