@@ -54,7 +54,7 @@ test("Node/PostgreSQL integration", async (t) => {
 
   await t.test("migrations are repeatable, checksummed, and cannot mix applications", async () => {
     await migrate(tracker.database, "tracker");
-    assert.equal(Number((await tracker.database.prepare("SELECT COUNT(*) AS total FROM schema_migrations").first()).total), 3);
+    assert.equal(Number((await tracker.database.prepare("SELECT COUNT(*) AS total FROM schema_migrations").first()).total), 4);
     await assert.rejects(migrate(tracker.database, "requests"), /other application/);
     await tracker.database.prepare("UPDATE schema_migrations SET checksum = 'synthetic-changed-checksum' WHERE name = 'tracker/0001_initial.sql'").run();
     await assert.rejects(migrate(tracker.database, "tracker"), /has changed/);

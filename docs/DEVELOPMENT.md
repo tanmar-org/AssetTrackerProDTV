@@ -228,6 +228,23 @@ HTTP drill when application source/dependencies have not changed; record that
 choice instead of claiming a new build/browser run. Rebuild if runtime source or
 installed dependencies change. Do not rebuild while integration tests serve `.next/`.
 
+## Record browsing checks
+
+`tests/record-list.test.mjs` checks list bounds, duplicate/unknown filters, real UTC
+bounds, literal wildcard escaping and cursor binding. The real PostgreSQL suite's
+`record-list.test.mjs` seeds more than 600 synthetic records with equal timestamps,
+finds older pending work, visits every page without repeats, deletes an anchor and
+inserts a newer row, and exercises search/category/date boundaries, both apps'
+private validation and every-page authentication/revocation. Existing proxy tests
+also reject bad filters before upstream access, redirects and oversized bodies.
+
+The Chromium record-list suite uses actual Previous/Next/search/status controls,
+keeps manual work visible, checks renamed-receiver associations, delays responses
+to prove generation/session isolation, clears stale rows on outages, downloads a
+100-record page CSV and verifies local calendar bounds across a 25-hour DST day.
+The browser fixture supplies API responses; only PostgreSQL checks prove server
+permissions, SQL and migrations. See [listing policy](RECORD-LISTS.md).
+
 ## Finishing implementation
 
 Review diffs and `git diff --check`; run checks appropriate to the change. Update

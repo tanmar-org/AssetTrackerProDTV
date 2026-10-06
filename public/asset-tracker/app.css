@@ -931,3 +931,7 @@ body.auth-locked .modal-backdrop,body.auth-locked .profile-menu,body.auth-locked
 #draftReviewTable table{table-layout:fixed;min-width:1000px;width:100%}
 #draftReviewTable th,#draftReviewTable td{white-space:pre-wrap;overflow-wrap:anywhere;vertical-align:top}
 #draftReviewTable select{max-width:100%;padding:8px;color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:6px}
+
+/* Wrap page controls on phones without hiding the result/error description. */
+.record-pagination{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 0;}
+.record-pagination [role="status"]{flex:1;min-width:180px;color:var(--muted);font-size:13px;}

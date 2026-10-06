@@ -262,3 +262,26 @@ policy. CSV reports protect formula-like text/leading-zero or long numeric IDs
 using quoted fields with in-field tabs. See
 [the import/report policy](IMPORTS-AND-EXPORTS.md); verify actual target spreadsheet
 behavior before deployment and use JSON/database backups for exact recovery.
+
+## Retained request and activity browsing
+
+Apply tracker `0004_activity_pagination.sql` and requests
+`0003_request_pagination.sql` with their operator connections before shipping the
+matching applications/staff assets (version 65), then reload open staff tabs.
+They add ordered indexes only;
+no rows/tables/credentials change and existing runtime table grants still apply.
+Both applications import the shared listing contract from root `lib/record-list.ts`;
+retain the repository layout when installing/building the QR application.
+
+Staff request search/status and administrator activity search/type/date filters
+now run before pagination. GET defaults/maxes to 100 rows, with opaque next cursors;
+older API callers expecting every retained record in one response must follow
+pages. The staff UI does that on demand. Search may still scan retained records;
+measure production-like performance under DATA-06-SCALE. The proxy rejects redirects
+and responses above two MiB within its existing five-second authorization bound.
+Internal endpoints must be configured directly, not as redirecting URLs.
+
+No retention purge, archived-data service or production migration is executed by
+this development change. Snapshot/live-page limits and scoped UI counts/CSV are
+explained in [record browsing policy](RECORD-LISTS.md). Complete recovery remains
+[paired PostgreSQL backups](DATABASE-BACKUPS.md).

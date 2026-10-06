@@ -14,7 +14,7 @@ import { inventory, batch, history, when } from "../helpers/inventory-fixture.mj
 test("inventory permissions, validation, and recovery", async (t) => {
   let tracker, server, upstream;
   const calls = [];
-  let hang = false;
+  let hang = false, upstreamMode = "normal";
   const secret = randomUUID();
   t.after(async () => {
     await server?.close();
@@ -26,6 +26,8 @@ test("inventory permissions, validation, and recovery", async (t) => {
     let body = ""; for await (const chunk of request) body += chunk;
     calls.push({ method: request.method, authorization: request.headers.authorization, body, url: request.url });
     if (hang) return;
+    if(upstreamMode === "redirect") {response.writeHead(302,{location:"/redirect-target"});response.end();return;}
+    if(upstreamMode === "large") {response.writeHead(200,{"content-type":"application/json"});response.end("x".repeat(2*1024*1024+1));return;}
     response.writeHead(200, { "content-type": "application/json" });
     response.end(JSON.stringify(request.method === "GET" ? { requests: [] } : { ok: true }));
   });
@@ -194,6 +196,30 @@ test("inventory permissions, validation, and recovery", async (t) => {
     assert.equal((await api("/api/service-requests?id=request-0", "DELETE", undefined, admin)).status, 200);
     assert.equal(calls.at(-1).authorization, `Bearer ${secret}`);
     assert.equal(calls.at(-1).method, "DELETE");
+  });
+
+  await t.test("listing proxy forwards only valid filters to its configured endpoint",async()=>{
+    const {regular}=await setup(),before=calls.length;
+    for(const query of ["limit=101","limit=2&limit=3","cursor=e30","url=https://example.test","status=Unknown"])
+      assert.equal((await api(`/api/service-requests?${query}`,"GET",undefined,regular)).status,400);
+    assert.equal(calls.length,before);
+    const query=new URLSearchParams({limit:"50",status:"Pending",q:"literal%_\\text'"});
+    assert.equal((await api(`/api/service-requests?${query}`,"GET",undefined,regular)).status,200);
+    assert.deepEqual([...new URL(calls.at(-1).url,"http://localhost").searchParams],[...query]);
+    assert.equal(calls.at(-1).authorization,`Bearer ${secret}`);
+  });
+  await t.test("listing proxy rejects redirects and oversized responses without leaking diagnostics",async()=>{
+    const {regular}=await setup();
+    try{
+      for(const mode of ["redirect","large"]){
+        upstreamMode=mode;const before=calls.length;
+        const response=await api("/api/service-requests","GET",undefined,regular);
+        assert.equal(response.status,503);
+        assert.deepEqual(await response.json(),{error:"Service request synchronization failed."});
+        assert.equal(calls.length,before+1,"Redirect must never reach another endpoint.");
+      }
+    }finally{upstreamMode="normal";}
+    assert.equal((await api("/api/service-requests","GET",undefined,regular)).status,200);
   });
 
   for (const operation of ["replace", "recover", "delete request"]) {
