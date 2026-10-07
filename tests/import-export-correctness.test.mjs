@@ -83,7 +83,7 @@ test("West Texas moves reserve capacity in file order and retain metadata, leadi
   assert.ok(after.receiverEvents.some(row=>row.receiverId==="receiver-19"&&row.title==="Moved to Account 000001"&&row.changedBy==="testadmin"));
   assert.equal(after.accounts.find(row=>row.number==="000004").office,"West");
   assert.equal(after.master.find(row=>row.assetNumber==="NEW-OK").notes,"Imported notes");
-  assert.match(instance.messages.at(-1),/1 assigned, 1 moved, 0 already.*1 skipped.*1 added.*Awaiting sync/);
+  assert.match(instance.messages.at(-1),/1 assigned, 1 moved, 0 already.*1 skipped.*1 added.*Awaiting save/);
   assert.equal(instance.saves.length,1);
 });
 

@@ -2948,3 +2948,131 @@ Existing NPM host names/HTTPS upstream/port/wildcard settings suffice; Advanced
 stays empty. The known private proxy entry point is recorded only in protected
 operator files. Next owner reviews/merges this PR and runs the gateway update,
 then verifies real AD sign-in/out. Spreadsheet and backup/monitoring work remain.
+
+Owner review is [PR #41](https://github.com/tanmar-org/AssetTrackerProDTV/pull/41).
+Hosted [run 37642317890](https://github.com/tanmar-org/AssetTrackerProDTV/actions/runs/37642317890)
+passed all 385 tests, both jobs, builds/types/zero-warning lint and cleanup gates
+at code head `ccc85ce`, with zero failures/skips. Evidence and activation receipts
+remain protected operator records. No automatic merging is enabled.
+
+## 2026-10-07 (America/Chicago) — Gateway activated; client DNS remains
+
+Owner merged PR #41 at `5414d3f` and ran the protected gateway-only updater.
+Its private receipt confirms normal NPM HTTPS forwarding for staff/QR, private
+API/method rejection and direct-peer denial. Application credentials and databases
+were preserved. Independent read-only checks confirm staff root redirects to the
+actual static page, which returns 200 along with staff health and QR root.
+
+A fresh unauthenticated Chromium browser through the real NPM host reaches the
+staff AD sign-in page with no script/resource/navigation failures; all mutations
+and unrelated hosts were blocked. Bare QR root also renders, with the expected
+invalid lookup response when no receiver identifier is supplied. No sign-in,
+operational request or company data import was performed. Real login and mobile
+receiver-specific acceptance remain open.
+
+Owner Safari screenshot reports it cannot find the hostname. The VM's internal
+resolver maps both names to the existing proxy, but Google public DNS returns
+NXDOMAIN for both. This is a client/public DNS blocker, distinct from the resolved
+NPM 502. Next add public records at the existing DNS provider pointing to the same
+public NPM entry point as its other sites, or ensure corporate DNS/LAN/VPN access
+for internal testing. No NPM snippets, additional gateway changes or new code PR
+are needed. Routine journal/TODO updates remain held for the next substantive PR.
+
+## 2026-10-07 (America/Chicago) — Mac internal DNS confirmed; diagnosis corrected
+
+Owner supplied successful Mac nslookup through the corporate primary DNS wildcard
+and a screenshot of the correct normal NPM HTTPS hosts. Missing public records do
+not explain this internal client test by themselves; earlier advice incorrectly
+treated public DNS as the established cause. Independent VM checks still return
+200 for both actual sites. Safari and Chrome both fail on the Mac, so no specific
+browser or Private Relay cause is assumed. Requested a bounded Mac curl HEAD
+check to distinguish system lookup/cache, routing/proxy and TLS errors. No NPM,
+VM, AD, database or application-topology change is needed without that evidence.
+Public DNS remains separate eventual internet-access work; current internal DNS
+should be used for browser/login acceptance. This correction is held with routine
+rollout documentation for the next substantive PR.
+
+## 2026-10-07 (America/Chicago) — Mac page loading restored
+
+Owner Mac curl returned code 6 despite successful direct corporate DNS lookup.
+Owner confirmed clearing the Mac DNS cache and signalling its resolver fixed
+page loading. Corporate wildcard DNS and ordinary NPM host settings work for
+this internal client; no further server or proxy change was necessary. Earlier
+public-DNS explanation was not the cause of this internal test. Requested actual
+production AD sign-in, logout and sign-in again before recording session acceptance.
+Spreadsheet review/import and mobile QR acceptance follow; external DNS and
+scheduled/off-server backup/monitoring work remain separate. No code change or
+standalone documentation PR; these rollout notes stay held for the next task.
+
+## 2026-10-07 (America/Chicago) — Production AD session acceptance confirmed
+
+Owner explicitly confirmed sign-in, sign-out and sign-in again on the deployed
+staff host using the initial linked AD administrator. The owner-confirmed result
+is recorded privately, distinct from automated synthetic tests and the earlier
+preview acceptance. No end-user password was received by the agent. Corporate
+DNS/client loading, normal NPM forwarding and actual AD session lifecycle now
+work for the internal client. No code, server configuration or production data
+was changed to record this acceptance.
+
+Next receive the owner's inventory spreadsheet outside source control, inspect
+its original format, preserve formatted/leading-zero identifiers, map actual
+sheets/columns/assignments and preview duplicate/invalid/capacity-blocked rows.
+Reconcile expected counts and obtain approval for the concrete import before
+changing inventory. Mobile receiver-specific QR HTTPS/GPS, production reboot/
+restart acceptance, scheduled encrypted off-server backups/retention/alerts and
+external-client DNS/routing remain separate. Routine rollout documentation stays
+held for the next substantive implementation PR.
+
+## 2026-10-07 (America/Chicago) — Initial spreadsheet reviewed privately
+
+Received the owner's original workbook outside source control. Its ZIP sizes are
+within the parser limits, but formatting dimensions on unrelated/source sheets
+exceed row/column bounds. The actual browser worker rejects the original with the
+expected range-limit message. Kept the original unchanged and prepared separate
+values-only Master and regional preview workbooks in protected operator storage;
+both pass the same bounded worker. Executed the actual import planner offline
+against empty state and verified regional entries are identical before/after
+preparation and all nonblank Master asset records retain their mapped values.
+Removed only Master rows without an asset or any permanent receiver fields. No
+formula execution, external data service, production API or database write was
+used. Real workbook bytes, identifiers, counts and customer/account details remain
+outside Git and synthetic tests.
+
+The protected human-review workbook records duplicate assignments across accounts,
+duplicate registry records, genuine permanent-field disagreements versus mere
+leading-zero differences, shared serial/card identifiers, account-name/Office
+ambiguity and receivers missing from the rent report. Regional Office values vary
+within accounts, while today's importer retains one last nonempty value per
+account. Access-card status and rent are not part of this import mapping. The TQ
+sheet has usable rent rows but no import heading; rent conversion/reconciliation
+requires a separate reviewed file. Missing TQ membership or blank rent cells are
+not evidence of Off Rent, despite the new-receiver default.
+
+Asked the owner to select regional-only or complete Master registry scope. Next
+resolve source conflicts and mapping with the private review workbook, prepare
+the chosen import/rent files, obtain approval for that concrete load, then verify
+actual server synchronization and reconcile exported counts. Preview files have
+not been approved for Apply. No application code/deployment change or standalone
+documentation PR; these notes join the next substantive implementation PR.
+
+## 2026-10-07 (America/Chicago) — Inventory save status says Saved
+
+Owner selected "Saved" instead of "Cloud Sync Ready" or "Server synced". On
+`Dev/saved-status`, based on owner-merged main `5414d3f`, updated the staff status
+chip/sidebar/Settings to Loading, Saving, Saved and Save unavailable. Related
+inventory import, error, recovery and activity/CSV heading text uses saving or
+inventory wording. QR operation synchronization still describes its separate
+cross-application workflow. Internal functions/DOM hooks, queue/revision/session
+checks and persistence behavior are retained. Added a comment explaining that
+separation and incremented the staff JavaScript URL to asset version 69.
+
+Validation: zero-warning lint/vendor integrity pass; all 17 existing save/import
+regressions and all nine existing Chromium shared-device scenarios (10 checks
+including the parent) pass with no failures/skips. Updated two existing message
+expectations; no new tests for a text-only change. A restricted test attempt
+failed to execute all scenarios; the subsequent correctly permitted run revealed
+one old wording expectation, which was aligned and rerun successfully. Chromium
+served the existing compatible Next build with the revised static assets, using
+only synthetic local data and blocked outside requests. No production write,
+container rollout or inventory import. Pending rollout/workbook review notes are
+bundled in this code PR as requested, without a separate documentation PR.

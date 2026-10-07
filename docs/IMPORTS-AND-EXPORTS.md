@@ -1,7 +1,7 @@
 # Inventory imports and spreadsheet reports
 
 Imports change the current tab's draft first. Accepted/updated/skipped totals
-refer to those local changes; the sync indicator confirms the server save.
+refer to those local changes; the "Saved" indicator confirms the server save.
 Server validation, role checks and expected revisions still apply. A rejected or
 conflicting save pauses sync and keeps the draft for explicit recovery/export.
 Resolve or export a paused draft before applying another import.
@@ -94,8 +94,10 @@ verify output bytes, field boundaries and text values, not desktop Excel behavio
 Use the JSON inventory snapshot for exact operational values and
 [complete PostgreSQL backups](DATABASE-BACKUPS.md) for users, requests, logs,
 history and disaster recovery. Neither a spreadsheet report nor an inventory
-snapshot is a complete database backup. Reload staff tabs after shipping asset
-version 64 with the matching server/UI.
+snapshot is a complete database backup. Reload staff tabs after shipping the
+matching server/UI. Staff JavaScript asset version 69 uses "Saved"/"Saving"/
+"Save unavailable" wording for inventory storage; the internal save queue,
+acknowledgements and revision checks are unchanged.
 
 ## Verification
 
