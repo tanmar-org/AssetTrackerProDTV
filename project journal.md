@@ -3246,3 +3246,56 @@ follows below; no separate documentation PR was created.
 Opened [PR #44](https://github.com/tanmar-org/AssetTrackerProDTV/pull/44) against
 main from `Dev/ad-link-dialog`, implementation commit `4e9a010`. Owner retains
 final review/merging; GitHub validation runs on the PR.
+
+
+## 2026-10-07 (America/Chicago) — Separate linking dialog merged; update prepared
+
+Owner merged [PR #44](https://github.com/tanmar-org/AssetTrackerProDTV/pull/44)
+at `be440fa`. Both final-head hosted validation jobs pass at `b694803` in run
+`37686298003`, including the portable Docker drill. Advanced the local Dev branch
+and created a clean detached merged release. Backend routes/libraries, migrations,
+Docker/Compose inputs, lockfiles, QR app and shared database package are unchanged
+from deployed `148b623`.
+
+Prepared one protected VM command under `ad-link-dialog-update` to build the
+reviewed app image and recreate only staff. It retains installed credentials and
+other containers, saves the prior image configuration, reloads the existing
+gateway routing and verifies health, exact reviewed HTML/JavaScript/CSS (71/69),
+and unauthenticated lookup denial. Activation failure restores the prior staff
+image/configuration. Prior image and expected environment digest derive from the
+completed onboarding receipt and unchanged staged image transformation. Script
+Bash/embedded Python syntax, clean release and configuration transformation checks
+pass. These checks do not constitute a completed Docker build or activation.
+
+The VM still needs the owner's interactive sudo terminal for Docker. Next run the
+single prepared command, refresh Settings and confirm the existing user's AD
+match in the separate dialog; their application ID/permission/access/records stay
+preserved. Then verify their AD sign-in. No account/database/directory mutation
+or inventory import was performed during preparation. Routine merge/rollout notes
+remain local for the next substantive PR, avoiding a documentation-only PR.
+
+## 2026-10-07 (America/Chicago) — Post-merge Docker crash drill failure
+
+Owner reported the latest CI failure after PR #44 merged. The earlier PR run
+`37686298003` passed both jobs; the main-push run `37687942231` at `be440fa`
+passed Validate applications but failed the portable Docker job. All four images
+built and the initial healthy stack, synthetic AD sign-in and QR request passed.
+The deliberate staff-crash command returned 137 before the test reached recovery
+polling. Failure diagnostics show the same staff container already restarted once,
+without an OOM. This is a race in the test's crash injection, not evidence that
+linking or the Docker restart policy failed. Full recovery/restore still needs a
+successful complete drill; no failed phase is treated as passing.
+
+On `Dev/docker-crash-ci`, accept only the crash exec's expected numeric 137;
+missing-process/daemon/other command failures still propagate. Strengthened the
+real drill to crash the same container twice, checking a fresh restart count and
+start time, healthy running non-OOM state and exact authenticated inventory after
+each crash. Updated CI guidance and TODO status to distinguish PR/main evidence.
+Application/runtime/deployment code is unchanged. Local syntax/lint and hosted
+validation results follow below. The prepared staff update is held pending this
+validation; no live Docker command or account/inventory mutation was performed.
+
+Local validation: Node syntax and diff checks pass; root lint/vendor verification
+passes with zero warnings. The Docker daemon requires the owner's interactive sudo
+on this VM, so the actual revised two-crash and restore drill will run on the
+isolated hosted CI runner. No passing Docker result is claimed before it finishes.

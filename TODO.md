@@ -216,7 +216,10 @@ approval; unresolved owner/operational items remain listed below.
   show the preserved permission/access. Never put an existing administrator into
   the creation form with a Regular User default. Implemented on `Dev/ad-link-dialog`
   in [PR #44](https://github.com/tanmar-org/AssetTrackerProDTV/pull/44); local checks
-  pass. Owner merge/rollout acceptance remains. The server's
+  pass. Owner merged at `be440fa`; both PR validation jobs pass, but the main-push
+  Docker crash drill failed (QA-01-CI-CRASH). A protected
+  staff-only Docker update is prepared; activation and owner acceptance remain.
+  The server's
   reviewed identity proof/authorization and linking API remain unchanged.
 - [x] AUTH-01-DOMAIN-SCOPE — Require critical AD DOMAIN_SCOPE on every identity/status
   search, preventing normal domain-root partition references without following
@@ -562,6 +565,11 @@ approval; unresolved owner/operational items remain listed below.
   permission/concurrency/backup drills and Chromium, with no production secrets/VM
   runner. See [CI operations](docs/CONTINUOUS-INTEGRATION.md). CI status alone does
   not enforce branch protection or replace owner review/actual-device acceptance.
+- [ ] QA-01-CI-CRASH — Correct the Docker drill's deliberate-crash race: Docker
+  may terminate the injecting exec with status 137 when the service dies. Accept
+  only that status, still reject other command failures, and require a new healthy
+  restart and exact inventory after each of two crashes on the same container.
+  Implemented on `Dev/docker-crash-ci`; hosted validation and owner review remain.
 - [x] QA-02 — Both apps pass lint with zero errors/warnings and require
   `--max-warnings=0`. Root verifies pinned local QR/barcode/SheetJS bytes, licenses
   and page SRI before exact upstream exclusions; first-party rules stay enabled.
