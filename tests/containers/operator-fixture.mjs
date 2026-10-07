@@ -21,6 +21,10 @@ try {
     await tracker.prepare(`INSERT INTO app_service_operations(id,request_id,kind,target_status,notes,expected_version,fingerprint,actor_id,actor_name,approver_id,approver_name,snapshot,created_at,updated_at)
       VALUES($1,'move-pending','status','Completed','Synthetic pending move',1,$2,$3,'containeradmin',$3,'containeradmin','{}',$4,$4)`)
       .bind(randomUUID(), "b".repeat(64), user.id, when).run();
+  } else if (mode === "offline") {
+    const manifest = JSON.parse(await readFile("/operator/database-plan/manifest.json", "utf8"));
+    const roles = Object.values(manifest.targets).flatMap(target => [target.roles.runtime, target.roles.backup]);
+    console.log(JSON.stringify({ restrictedLogins: (await tracker.prepare("SELECT count(*)::integer AS count FROM pg_roles WHERE rolname=ANY($1::text[]) AND rolcanlogin").bind(roles).first()).count }));
   } else if (mode === "inspect") {
     console.log(JSON.stringify({ state: (await tracker.prepare("SELECT payload FROM app_state").first()).payload,
       sessions: (await tracker.prepare("SELECT count(*)::integer AS count FROM app_sessions").first()).count,

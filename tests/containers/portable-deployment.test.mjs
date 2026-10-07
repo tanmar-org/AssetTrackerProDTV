@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
 import https from "node:https";
 import os from "node:os";
 import path from "node:path";
@@ -36,6 +36,16 @@ test("immutable Compose deployment persists and restores into an independent sta
     await ldap.close(); await rm(directory, { recursive: true, force: true });
   });
   const imageDirectory = path.join(directory, "images");
+  const canaries = [".env.container-build-canary", "service-request/.env.container-build-canary", "public/asset-tracker/container-build-canary.pem"];
+  // These ignored synthetic inputs must never survive the deny-by-default build
+  // context. Exclusive creation refuses any unrelated existing file.
+  const createdCanaries = [];
+  t.after(async () => { for (const filename of createdCanaries) await rm(filename, { force: true }); });
+  for (const filename of canaries) {
+    await run("git", ["check-ignore", filename]);
+    const full = path.join(repository, filename);
+    await writeFile(full, "SYNTHETIC BUILD CONTEXT SECRET", { flag: "wx", mode: 0o600 }); createdCanaries.push(full);
+  }
   // Build through the real allowlisted context; public configuration changes
   // happen only in the builder, not in the preview/host checkout.
   await new Promise((resolve, reject) => {
@@ -43,6 +53,33 @@ test("immutable Compose deployment persists and restores into an independent sta
     child.once("error", reject); child.once("exit", code => { if (code === 0) resolve(); else reject(new Error("Synthetic container build failed")); });
   });
   const pins = JSON.parse(await readFile(path.join(imageDirectory, "images.json"), "utf8"));
+  // Remove ignored canaries after building so native readiness is unaffected.
+  for (const filename of createdCanaries) await rm(filename, { force: true });
+  await t.test("build context excludes secret canaries, Git and fixtures; public QR URL exists only in image", async () => {
+    const code = `import fs from 'node:fs'; console.log(JSON.stringify({
+      excluded: ${JSON.stringify([...canaries, ".git", "tests"])}.every(name => !fs.existsSync('/opt/assettracker/'+name)),
+      publicConfig: fs.readFileSync('/opt/assettracker/public/asset-tracker/config.js','utf8') }));`;
+    const facts = JSON.parse(await run("docker", ["run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL", "--entrypoint", "node", pins.appImage, "--input-type=module", "-e", code]));
+    assert.equal(facts.excluded, true); assert.match(facts.publicConfig, /https:\/\/qr\.example\.test\//);
+    assert.equal(await run("git", ["status", "--porcelain"]), "");
+  });
+  await t.test("exact release images survive Docker save/load with revision and platform intact", async () => {
+    const archive = path.join(directory, "release-images.tar"), handle = await open(archive, "wx", 0o600);
+    try {
+      await new Promise((resolve, reject) => {
+        const child = spawn("docker", ["image", "save", ...["app", "postgres", "operator", "gateway"].map(kind => pins[`${kind}Image`])], { stdio: ["ignore", handle.fd, "inherit"] });
+        child.once("error", reject); child.once("exit", code => { if (code === 0) resolve(); else reject(new Error("Image export failed")); });
+      });
+      await handle.sync();
+    } finally { await handle.close(); }
+    await run("docker", ["image", "load", "--input", archive]);
+    for (const kind of ["app", "postgres", "operator", "gateway"]) {
+      const [info] = JSON.parse(await run("docker", ["image", "inspect", pins[`${kind}Image`]]));
+      assert.equal(info.Id, pins[`${kind}Image`]); assert.equal(info.Config.Labels["org.opencontainers.image.revision"], pins.revision);
+      assert.equal(`${info.Os}/${info.Architecture}`, pins.platform);
+    }
+    await rm(archive);
+  });
   async function stack(kind) {
     const fixtureDirectory = path.join(directory, kind); await mkdir(fixtureDirectory, { mode: 0o700 });
     const suffix = randomBytes(6).toString("hex"), installed = `/tmp/assettracker-installed-${suffix}`, project = `assettracker_container_test_${suffix}`;
@@ -81,7 +118,7 @@ test("immutable Compose deployment persists and restores into an independent sta
     assert.equal(response.status, 200, response.text); assert.equal(response.json().authMode, "ad");
     return response.headers["set-cookie"][0].split(";")[0];
   }
-  const source = await stack("source"); let cookie, backup;
+  const source = await stack("source"); let cookie, backup, transferArchive;
   await t.test("restricted socket-only PG initializes; immutable nonroot services start healthy", async () => {
     await source.operator(["initialize"]); await source.fixture("seed");
     await source.compose(["up", "--detach", "--wait", "--wait-timeout", "180", "staff", "qr", "reconciler", "gateway"]);
@@ -137,7 +174,7 @@ test("immutable Compose deployment persists and restores into an independent sta
   const destination = await stack("destination");
   await t.test("backup restores to independent fresh databases with sessions revoked and intents paused", async () => {
     await destination.operator(["restore-empty"]);
-    const bundle = path.join(directory, "move.tar");
+    const bundle = path.join(directory, "move.tar"); transferArchive = bundle;
     const archive = await run("sudo", [...source.args, "run", "--rm", "--no-deps", "-T", "--entrypoint", "tar", "operator", "-C", "/operator/backups", "-cf", "-", backup], { encoding: "buffer" });
     await writeFile(bundle, archive, { mode: 0o600 });
     // A read-only bind preserves host UID, just like Compose secrets.
@@ -165,4 +202,19 @@ test("immutable Compose deployment persists and restores into an independent sta
     assert.match((await destination.operator(["backup"])).trim(), /^backup-/);
     assert.deepEqual(JSON.parse(await destination.fixture("inspect")).operations, [{ phase: "blocked", error_code: "restore_review" }]);
   });
+  await t.test("a late operator manifest failure contains restored runtime/backup logins", async () => {
+    const failure = await stack("late-failure"); await failure.operator(["restore-empty"]);
+    const mountedManifest = path.join(directory, "readonly-manifest.json");
+    const manifest = JSON.parse(await readFile(path.join(failure.prepared, "operator/database-plan/manifest.json"), "utf8"));
+    await writeFile(mountedManifest, JSON.stringify({ ...manifest, status: "restore-empty" }), { mode: 0o600 });
+    await run("sudo", ["-n", "chown", "999:999", mountedManifest]); await run("sudo", ["-n", "chmod", "400", mountedManifest]);
+    await failure.compose(["run", "--rm", "--no-deps", "-T", "--entrypoint", "mkdir", "operator", "-m", "700", "/operator/incoming"]);
+    await run("sudo", [...failure.args, "run", "--rm", "--no-deps", "-T", "--volume", `${transferArchive}:/transfer.tar:ro`, "--entrypoint", "tar", "operator", "-C", "/operator/incoming", "-xf", "/transfer.tar"]);
+    // A bind-mounted manifest cannot be atomically replaced. The pair restores
+    // successfully, then publication fails; new runtime/backup logins must close.
+    await assert.rejects(run("sudo", [...failure.args, "run", "--rm", "--no-deps", "-T", "--volume", `${mountedManifest}:/operator/database-plan/manifest.json:ro`, "operator", "restore", backup]));
+    assert.deepEqual(JSON.parse(await failure.fixture("offline")), { restrictedLogins: 0 });
+    assert.deepEqual(JSON.parse(await failure.fixture("inspect")).state, inventory());
+  });
+
 });

@@ -131,7 +131,7 @@ services:
     secrets:
       - source: reconciler_runtime
         target: /run/assettracker-credentials/runtime.json
-    tmpfs: [/tmp:uid=10003,gid=10003,mode=700]
+    tmpfs: ["/tmp:uid=10003,gid=10003,mode=700"]
     logging: *logging
 
   gateway:
@@ -197,7 +197,7 @@ services:
         target: /seed
         read_only: true
         bind: {create_host_path: false}
-    tmpfs: [/tmp:uid=999,gid=999,mode=700]
+    tmpfs: ["/tmp:uid=999,gid=999,mode=700"]
     logging: *logging
 
 # Compose project-scoped volumes/networks permit an independent destination

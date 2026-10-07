@@ -1,5 +1,6 @@
+import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createDatabase } from "@tanmar/database";
 import { initializeDatabases, protectedOperatorPath } from "./database-provisioning.mjs";
@@ -47,6 +48,13 @@ async function childCommand(script, args, env) {
   });
 }
 const cancellation = operatorCancellation();
+let verifiedRestoreTargets;
+// Publish operator status atomically; a torn JSON write must not masquerade as a
+// usable deployment. Files remain private even under a permissive host umask.
+async function publishManifest(manifest) {
+  const temporary = `${plan}/.manifest-${randomBytes(12).toString("hex")}`;
+  await privateWrite(temporary, JSON.stringify(manifest)); await rename(temporary, `${plan}/manifest.json`);
+}
 try {
   const [command, ...args] = process.argv.slice(2);
   if (command === "help" && !args.length) {
@@ -71,6 +79,8 @@ try {
       // Restores grant runtime DML only. Restore SELECT-only backup access after
       // the verified pair, using protected owner URLs and fixed generated names.
       const manifest = await json(`${plan}/manifest.json`);
+      verifiedRestoreTargets = manifest.targets;
+      if (cancellation.signal.aborted) throw new Error();
       for (const app of Object.keys(applications)) {
         const database = createDatabase((await json(`${plan}/${app}-owner.json`)).DATABASE_URL), target = manifest.targets[app];
         if (![target.database, target.roles.backup].every(value => /^[a-z][a-z0-9_]{0,62}$/.test(value))) throw new Error();
@@ -82,7 +92,9 @@ try {
           });
         } finally { await database.close(); }
       }
-      await writeFile(`${plan}/manifest.json`, JSON.stringify({ ...manifest, status: "restored" }), { mode: 0o600 });
+      if (cancellation.signal.aborted) throw new Error();
+      await publishManifest({ ...manifest, status: "restored" });
+      verifiedRestoreTargets = undefined;
       console.log("Paired restore verified; old sessions revoked and unfinished operations paused. Applications remain offline until approved cutover.");
     } else if (command === "admin" && !args.length) {
       await childCommand("scripts/provision-admin.mjs", [], await json(`${plan}/tracker-owner.json`));
@@ -92,5 +104,26 @@ try {
     } else throw new Error();
   }
 } catch {
+  // The paired restore already contains its own failures. After it succeeds,
+  // contain any later backup-grant/status failure too. Do not touch a concurrent
+  // winner when this attempt failed before completing its own verified restore.
+  if (verifiedRestoreTargets) {
+    let administrator;
+    try {
+      administrator = createDatabase((await json(settings)).administratorUrl);
+      const roles = [];
+      for (const target of Object.values(verifiedRestoreTargets)) {
+        const pair = [target.roles.runtime, target.roles.backup];
+        if (!pair.every(role => /^assettracker_restore_[a-z0-9_]{1,40}$/.test(role))) throw new Error();
+        roles.push(...pair);
+      }
+      await administrator.transaction(async tx => {
+        for (const role of roles) await tx.prepare(`ALTER ROLE "${role}" NOLOGIN`).run();
+      });
+      await administrator.prepare("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename=ANY($1::text[]) AND pid<>pg_backend_pid()")
+        .bind(roles).run();
+    } catch { /* Interrupted/unavailable containment still requires offline DBA review. */ }
+    finally { await administrator?.close(); }
+  }
   console.error("Container operator failed. Inspect protected configuration/state privately; keep recovery destinations offline."); process.exitCode = 1;
 } finally { cancellation.close(); }
