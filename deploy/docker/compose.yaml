@@ -1,0 +1,234 @@
+# Production topology: exact locally built/loaded image IDs, no mutable tags,
+# no source-code mounts, no Docker API socket and no public app/database ports.
+# All parameters come from the protected, generated compose.env, outside Git.
+services:
+  database:
+    image: ${ASSETTRACKER_POSTGRES_IMAGE:?Prepare exact image IDs}
+    pull_policy: never
+    user: '999:999'
+    init: true
+    restart: unless-stopped
+    network_mode: none
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    mem_limit: 1g
+    pids_limit: 128
+    stop_grace_period: 60s
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-password
+      POSTGRES_INITDB_ARGS: --auth-local=scram-sha-256 --auth-host=scram-sha-256 --no-locale --encoding=UTF8
+    secrets:
+      - source: postgres_password
+        target: postgres-password
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - postgres_socket:/var/run/postgresql
+    healthcheck:
+      test: [CMD, pg_isready, -h, /var/run/postgresql, -U, postgres, -d, postgres]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    logging: &logging
+      driver: local
+      options: {max-size: 10m, max-file: '3'}
+
+  staff:
+    image: ${ASSETTRACKER_APP_IMAGE:?Prepare exact image IDs}
+    pull_policy: never
+    user: '10001:10001'
+    init: true
+    restart: unless-stopped
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    command: [staff]
+    mem_limit: 1g
+    pids_limit: 128
+    stop_grace_period: 30s
+    depends_on:
+      database: {condition: service_healthy}
+    # Only staff has outbound connectivity for the private on-premises AD.
+    networks: [application, directory_egress]
+    volumes:
+      - type: volume
+        source: postgres_socket
+        target: /var/run/postgresql
+        read_only: true
+        # After PG stops the socket volume can be empty. Readers must never
+        # copy root-owned image directory metadata into PostgreSQL's volume.
+        volume: {nocopy: true}
+    secrets:
+      - source: staff_runtime
+        target: /run/assettracker-credentials/runtime.json
+      - source: ad_ca
+        target: /run/assettracker-credentials/ad-ca.pem
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=700
+      - /opt/assettracker/.next/cache:uid=10001,gid=10001,mode=700
+    healthcheck:
+      test: [CMD, node, scripts/check-container-health.mjs, staff]
+      interval: 15s
+      timeout: 7s
+      retries: 4
+      start_period: 30s
+    logging: *logging
+
+  qr:
+    image: ${ASSETTRACKER_APP_IMAGE:?Prepare exact image IDs}
+    pull_policy: never
+    user: '10002:10002'
+    init: true
+    restart: unless-stopped
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    command: [qr]
+    mem_limit: 1g
+    pids_limit: 128
+    stop_grace_period: 30s
+    depends_on:
+      database: {condition: service_healthy}
+    networks: [application]
+    volumes:
+      - type: volume
+        source: postgres_socket
+        target: /var/run/postgresql
+        read_only: true
+        # After PG stops the socket volume can be empty. Readers must never
+        # copy root-owned image directory metadata into PostgreSQL's volume.
+        volume: {nocopy: true}
+    secrets:
+      - source: qr_runtime
+        target: /run/assettracker-credentials/runtime.json
+    tmpfs:
+      - /tmp:uid=10002,gid=10002,mode=700
+      - /opt/assettracker/service-request/.next/cache:uid=10002,gid=10002,mode=700
+    healthcheck:
+      test: [CMD, node, scripts/check-container-health.mjs, qr]
+      interval: 15s
+      timeout: 7s
+      retries: 4
+      start_period: 30s
+    logging: *logging
+
+  reconciler:
+    image: ${ASSETTRACKER_APP_IMAGE:?Prepare exact image IDs}
+    pull_policy: never
+    user: '10003:10003'
+    init: true
+    restart: unless-stopped
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    command: [reconciler]
+    mem_limit: 512m
+    pids_limit: 64
+    stop_grace_period: 45s
+    depends_on:
+      staff: {condition: service_healthy}
+      qr: {condition: service_healthy}
+    networks: [application]
+    volumes:
+      - type: volume
+        source: postgres_socket
+        target: /var/run/postgresql
+        read_only: true
+        # After PG stops the socket volume can be empty. Readers must never
+        # copy root-owned image directory metadata into PostgreSQL's volume.
+        volume: {nocopy: true}
+    secrets:
+      - source: reconciler_runtime
+        target: /run/assettracker-credentials/runtime.json
+    tmpfs: ["/tmp:uid=10003,gid=10003,mode=700"]
+    logging: *logging
+
+  gateway:
+    image: ${ASSETTRACKER_GATEWAY_IMAGE:?Prepare exact image IDs}
+    pull_policy: never
+    user: '10004:10004'
+    init: true
+    restart: unless-stopped
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    mem_limit: 256m
+    pids_limit: 64
+    stop_signal: SIGQUIT
+    stop_grace_period: 30s
+    depends_on:
+      staff: {condition: service_healthy}
+      qr: {condition: service_healthy}
+    networks: [application, edge]
+    # Private VM address only; wildcard/public publication is not a default.
+    ports:
+      - target: 8443
+        published: '${ASSETTRACKER_GATEWAY_PORT:?Prepare private gateway port}'
+        host_ip: ${ASSETTRACKER_VM_ADDRESS:?Prepare private host address}
+        protocol: tcp
+    secrets:
+      - source: gateway_policy
+        target: /etc/nginx/runtime/vm.conf
+      - source: gateway_qr_policy
+        target: /etc/nginx/runtime/vm-qr-upstream.conf
+      - source: gateway_certificate
+        target: /etc/nginx/runtime/tls.pem
+      - source: gateway_key
+        target: /etc/nginx/runtime/tls.key
+    tmpfs:
+      - /run:uid=10004,gid=10004,mode=700
+      - /var/cache/nginx:uid=10004,gid=10004,mode=700
+      - /tmp:uid=10004,gid=10004,mode=700
+    logging: *logging
+
+  operator:
+    profiles: [operator]
+    image: ${ASSETTRACKER_OPERATOR_IMAGE:?Prepare exact image IDs}
+    pull_policy: never
+    user: '999:999'
+    init: true
+    restart: 'no'
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    network_mode: none
+    mem_limit: 1g
+    pids_limit: 128
+    # Operators never start apps or receive AD/gateway runtime credentials.
+    volumes:
+      - operator_data:/operator
+      - type: volume
+        source: postgres_socket
+        target: /var/run/postgresql
+        read_only: true
+        # After PG stops the socket volume can be empty. Readers must never
+        # copy root-owned image directory metadata into PostgreSQL's volume.
+        volume: {nocopy: true}
+      - type: bind
+        source: ${ASSETTRACKER_SECRET_DIR:?Prepare protected secret paths}/operator
+        target: /seed
+        read_only: true
+        bind: {create_host_path: false}
+    tmpfs: ["/tmp:uid=999,gid=999,mode=700"]
+    logging: *logging
+
+# Compose project-scoped volumes/networks permit an independent destination
+# stack. Never use fixed container names, host networking or shared DB volumes.
+volumes:
+  postgres_data:
+  postgres_socket:
+  operator_data:
+networks:
+  application: {internal: true}
+  directory_egress:
+  edge:
+secrets:
+  postgres_password: {file: '${ASSETTRACKER_SECRET_DIR:?}/postgres-password'}
+  staff_runtime: {file: '${ASSETTRACKER_SECRET_DIR:?}/staff-runtime.json'}
+  qr_runtime: {file: '${ASSETTRACKER_SECRET_DIR:?}/qr-runtime.json'}
+  reconciler_runtime: {file: '${ASSETTRACKER_SECRET_DIR:?}/reconciler-runtime.json'}
+  ad_ca: {file: '${ASSETTRACKER_SECRET_DIR:?}/ad-ca.pem'}
+  gateway_policy: {file: '${ASSETTRACKER_SECRET_DIR:?}/vm.conf'}
+  gateway_qr_policy: {file: '${ASSETTRACKER_SECRET_DIR:?}/vm-qr-upstream.conf'}
+  gateway_certificate: {file: '${ASSETTRACKER_SECRET_DIR:?}/tls.pem'}
+  gateway_key: {file: '${ASSETTRACKER_SECRET_DIR:?}/tls.key'}

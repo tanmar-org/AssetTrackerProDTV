@@ -1,5 +1,11 @@
 # Node/PostgreSQL architecture and setup
 
+Production now uses [Docker Compose](DOCKER-DEPLOYMENT.md), as selected by the owner
+for datacenter portability. Native setup below remains an alternative/development
+reference. Compose uses its own private service network and Unix-socket PostgreSQL;
+follow its runbook for activation and [datacenter moves](DATACENTER-MOVE.md).
+
+
 Both applications use native Next.js on Node. The staff server serves the existing
 `public/asset-tracker/` UI and APIs; the QR server serves the React form and request
 API. PostgreSQL replaces D1. Neither application needs Cloudflare credentials,

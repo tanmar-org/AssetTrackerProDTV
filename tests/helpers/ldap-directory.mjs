@@ -27,7 +27,7 @@ export function syntheticAdEntry(overrides = {}) {
 // A narrow synthetic LDAP server over actual TLS. Parse equality filter octets
 // independently so tests detect binary GUID corruption by client text encoding.
 // It supports only bind/search, never production directories or write operations.
-export async function createLdapDirectory({ certificateHost = "localhost" } = {}) {
+export async function createLdapDirectory({ certificateHost = "localhost", listenHost = "127.0.0.1" } = {}) {
   const directory = await mkdtemp(join(tmpdir(), "assettracker-ldap-test-"));
   const caFile = join(directory, "ca.pem"), certFile = join(directory, "server.pem"), keyFile = join(directory, "server.key");
   const sockets = new Set(), errors = [];
@@ -127,7 +127,9 @@ export async function createLdapDirectory({ certificateHost = "localhost" } = {}
       });
     });
     server.on("tlsClientError", () => {}); // Expected certificate-rejection scenarios.
-    server.listen(0, "127.0.0.1"); await once(server, "listening");
+    // Container drills explicitly bind the synthetic directory to the runner.
+    // Existing integration tests remain on loopback.
+    server.listen(0, listenHost); await once(server, "listening");
     const env = { AUTH_MODE: "ad", AD_DIRECTORY_ID: "synthetic-ad", AD_LDAP_URL: `ldaps://localhost:${server.address().port}`,
       AD_BASE_DN: "DC=example,DC=invalid", AD_BIND_DN: model.reader, AD_BIND_PASSWORD: model.readerPassword, AD_CA_FILE: caFile };
     return { model, env, errors, caFile, close: async () => {

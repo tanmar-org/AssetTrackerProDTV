@@ -25,7 +25,10 @@
     "ingress:prepare": "node scripts/prepare-ingress.mjs",
     "test:ingress": "node --test tests/ingress/*.test.mjs",
     "test:services": "node --test tests/services/*.test.mjs",
-    "db:prepare": "node scripts/prepare-databases.mjs"
+    "db:prepare": "node scripts/prepare-databases.mjs",
+    "docker:build": "node scripts/build-container-images.mjs",
+    "docker:prepare": "node scripts/prepare-containers.mjs",
+    "test:containers": "node --experimental-strip-types --test tests/containers/*.test.mjs"
   },
   "dependencies": {
     "@tanmar/database": "file:packages/database",

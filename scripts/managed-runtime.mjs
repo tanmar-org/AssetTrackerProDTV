@@ -19,17 +19,20 @@ export function servicePorts(env = process.env) {
 async function credential(directory, name, maximum) {
   if (!path.isAbsolute(directory || "")) throw failure();
   const filename = path.join(directory, name), info = await lstat(filename);
-  // systemd supplies a private, read-only copy to this service's UID. Never
+  // systemd or Compose supplies a private read-only file owned by this UID. Never
   // follow a replacement symlink or read a group/world-readable source file.
   if (!info.isFile() || info.uid !== process.getuid() || (info.mode & 0o077) || info.size > maximum) throw failure();
   return readFile(filename, "utf8");
 }
-function internalUrl(value, port, pathname) {
+function internalUrl(value, port, pathname, network, service) {
   const url = new URL(value);
-  if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || Number(url.port) !== port ||
+  if (url.protocol !== "http:" || url.hostname !== (network === "compose" ? service : "127.0.0.1") || Number(url.port) !== port ||
       url.pathname !== pathname || url.username || url.password || url.search || url.hash) throw failure();
 }
-export async function managedEnvironment(role, directory, ports = servicePorts()) {
+export async function managedEnvironment(role, directory, ports = servicePorts(), { network = "loopback" } = {}) {
+  // Container launchers permit only fixed Compose service names. Arbitrary
+  // hosts/public URLs remain invalid, and existing VM defaults stay loopback.
+  if (!["loopback", "compose"].includes(network)) throw failure();
   if (!Object.hasOwn(fields, role)) throw failure();
   const settings = JSON.parse(await credential(directory, "runtime.json", 65536));
   if (!settings || typeof settings !== "object" || Array.isArray(settings) ||
@@ -40,8 +43,8 @@ export async function managedEnvironment(role, directory, ports = servicePorts()
   if (!/^[A-Za-z0-9_-]{32,128}$/.test(settings.ADMIN_SHARED_SECRET)) throw failure();
   const ingress = role === "staff" ? settings.LOGIN_PROXY_SECRET : settings.REQUEST_PROXY_SECRET;
   if (role !== "reconciler" && (!/^[A-Za-z0-9_-]{32,128}$/.test(ingress) || ingress === settings.ADMIN_SHARED_SECRET)) throw failure();
-  if (role === "qr") internalUrl(settings.TRACKER_ASSET_API_URL, ports.staff, "/api/service-assets");
-  else internalUrl(settings.SERVICE_REQUEST_API_URL, ports.qr, "/api/requests");
+  if (role === "qr") internalUrl(settings.TRACKER_ASSET_API_URL, ports.staff, "/api/service-assets", network, "staff");
+  else internalUrl(settings.SERVICE_REQUEST_API_URL, ports.qr, "/api/requests", network, "qr");
   if (role === "staff") {
     // Production services implement the owner's AD choice. PIN development stays
     // in the existing npm commands, never as a managed-service fallback.

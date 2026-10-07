@@ -2639,3 +2639,73 @@ Then configure NPM/DNS and verify real HTTPS/login/phone GPS/reboot behavior.
 Existing records require authorized import/reconciliation; a fresh preview is not
 an approved source. Encrypted off-server scheduled backups/retention and alerts
 remain rollout prerequisites rather than features supplied by this preparation.
+
+## 2026-10-06 (America/Chicago) — Docker deployment and datacenter portability
+
+Owner merged PR #38 at `1d1187a`. Its final-head `195d544` hosted run
+37549509046 passed all 349 checks: staff 118, QR 4, ingress 10, native services 2,
+PostgreSQL/HTTP 160 and Chromium 55; both builds/types/zero-warning lint passed,
+zero failures/skips and zero remaining synthetic SQL fixtures. Private final
+provisioning evidence is saved outside Git. PR #38 is no longer awaiting merge.
+
+Owner chose Docker for moving between datacenters. Work on
+`Dev/docker-portable-deployment` makes Compose the production packaging plan,
+retaining native development and the private AD preview. Four official pinned
+images produce revision-labelled immutable local image IDs. Staff, QR and
+reconciliation use distinct UIDs/configurations; only staff receives AD reader
+access/egress. A nonroot Nginx gateway retains authenticated-hop/private-route
+policy and publishes only the configured private VM HTTPS port. PostgreSQL 18
+persists its versioned data below the parent volume, has no network/TCP listener,
+and serves SCRAM app roles through a shared socket. A separate peer-admin operator
+profile holds initialization, admin/link and verified backup/restore commands.
+
+Offline preparation generates protected fresh DB/runtime/hop credentials, verifies
+backend leaf/key/hostnames, and stages NPM/config outside Git. Root installation
+uses a fixed file allowlist and numeric service ownership because Compose bind-backed
+secrets preserve host modes/UIDs. It starts no stack. New recovery-only provisioning
+creates empty `assettracker_restore_*` targets without migrations or runtime/backup
+CONNECT; the existing paired restore validates contents, revokes sessions and pauses
+unfinished intents before access, then restores SELECT-only backup permissions.
+
+Owner ran the reviewed Docker installer interactively on this VM: Engine 29.8.2,
+Compose v5.6.0 and daemon dependencies installed; no AssetTracker stack was deployed.
+Agent daemon access still requires interactive sudo. Hosted synthetic Docker
+validation avoids changing that authorization or adding root-equivalent group
+membership. Local offline configuration tests pass. Hosted run 37554406338 at `5035ea9`
+passed all 370 tests: staff 125, QR 4, ingress 10, native services 2, PostgreSQL/HTTP
+162, Chromium 55 and Docker 12; zero failures/skips in these suites. Both apps'
+builds/types/zero-warning lint pass, and shared SQL cleanup reports zero fixtures.
+Its Docker test step passed all 12 checks; the separate final cleanup gate failed
+because default Compose down omitted the disabled operator profile's named volume.
+Corrected test disposal selects that profile explicitly and reports retained volume
+names before failing. Final-head CI/cleanup evidence is tracked on PR #39 and saved
+privately; never infer overall CI success solely from a passing test step.
+No production data/service/AD/NPM/DNS/preview changes.
+
+Documentation includes a concrete maintenance-window move: exact image archives,
+private trust/config, source writer quiescence, complete paired logical backup,
+independent fresh destination, explicit acceptance and rollback with one writer
+pair. DNS/proxy/AD routing, encryption/off-server retention, monitoring and real
+reboot/phone acceptance remain rollout work. Launch inventory/import choice is
+still pending; no choice assumed. [PR #39](https://github.com/tanmar-org/AssetTrackerProDTV/pull/39)
+is the owner-review handoff; no auto-merge is enabled.
+
+The actual Docker drill identified and fixed root directory copy-up into an empty
+PostgreSQL socket volume after recreation. Socket consumers now use read-only
+`nocopy` mounts; only the database initializes that directory's ownership. It also
+proved the default libpq socket password-file localhost matching rule, now covered
+by exact database/user/port aliases (no wildcard hosts or TCP enablement), and
+strict restore acceptance of the producer's timestamp-with-milliseconds/UUID name.
+Tests reject path traversal and preserve native custom-socket backup behavior.
+The image context excludes synthetic dotenv/certificate canaries; exact images
+survive save/load. Real internal application crash restarts, full container
+recreation retains data, quiesced read-only paired backup restores to independent
+volumes, old cookies fail, fresh synthetic AD login/drafts/QR work and post-restore
+backups succeed. A third disposable failure target forces late manifest publication
+failure and verifies runtime/backup logins close while recovered data remains.
+
+Next, after owner review, prepare the actual production Docker configuration and
+backend TLS/trust so existing NPM can reach the private gateway. Confirm launch
+inventory/import scope before database activation, then carry out an explicitly
+approved rollout with real AD/HTTPS/phone/reboot acceptance and encrypted scheduled
+off-server backups/alerts. This task does not activate that deployment.

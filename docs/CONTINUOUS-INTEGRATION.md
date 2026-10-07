@@ -107,3 +107,10 @@ The runner installs matching server/client packages with package-service startup
 disabled; the test creates and removes its own private cluster. It never rewrites
 the shared service's HBA or uses company credentials. Missing binaries fail the
 check. See [the fresh provisioning runbook](PRODUCTION-DATABASES.md).
+
+
+A separate hosted `Validate portable Docker deployment` job builds the pinned
+release images and executes two independent synthetic Compose projects, private
+TLS/LDAP login, QR lookup/submission, crash restart, volume retention and verified
+paired recovery with session revocation/unfinished-operation pause. No VM runner,
+production secrets, image registry publication or deployment is involved.

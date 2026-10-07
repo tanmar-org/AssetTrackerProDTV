@@ -369,3 +369,12 @@ in addition to the existing test URL when running the complete integration suite
 This selects initdb's matching share files; it never relaxes authentication. CI's
 installed PG18 finds its own share files. The scratch cluster/directory is removed
 after the test; no production service/cluster is installed by these checks.
+
+
+Production containers: see [Docker deployment](DOCKER-DEPLOYMENT.md).
+`npm run test:containers` builds four immutable images and exercises two isolated
+Compose stacks with synthetic TLS/LDAP, process restart, volume persistence and
+paired backup/restore. It requires Docker daemon access and noninteractive sudo
+for installing test-only numeric-UID secret files. Missing tools fail, never skip.
+It deletes only its generated test projects; never run generic volume pruning.
+Native application/integration/browser tests remain required for shared launch code.
