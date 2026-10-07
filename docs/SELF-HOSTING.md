@@ -18,7 +18,8 @@ Worker bindings, Sites hosting metadata, Wrangler, or Vinext.
 | Staff request proxy | Configured QR `/api/requests` URL | Server-only shared credential |
 | Operator migrations | `npm run db:migrate` in each app | Separate schema-owner connection |
 | Initial admin | Root `npm run admin:provision` | Tracker only; AD-mode app record or hidden local PIN |
-| AD identity links | Root `npm run auth:link-ad` | Tracker operator connection; reviewed directory/GUID mapping |
+| AD staff enrollment | Settings → Find AD user → review → Add/Link | Tracker runtime transaction and existing LDAPS reader; preserves app permissions |
+| AD bootstrap/replacements | Root `npm run auth:link-ad` | Tracker operator connection; reviewed directory/GUID mapping |
 
 The shared `packages/database/` module owns a bounded pool of four connections per
 Node process. Its query facade accepts native PostgreSQL statements and bound `$1`

@@ -7,13 +7,11 @@ LDAPS username/password verification, retaining application-managed roles and
 stable application user IDs. No identity broker or MFA is planned. Public customer
 QR submissions do not require a staff login and retain their separate controls.
 
-**AD sign-in is opt-in; internet staff access is not enabled.** Owner-directed
-acceptance has verified trusted TLS, the reader and one nominated identity. An
-isolated empty preview now has an explicit administrator link and loopback-only
-SSH access. Owner personal-password login and a later directory-status recheck
-pass, and owner sign-out/relogin confirms old-session removal and fresh AD access.
-Real policy changes and recovery admins remain pending. Set
-`AUTH_MODE=ad` only after the operator setup and acceptance below. Unconfigured
+**Production Docker uses AD sign-in.** The owner has verified sign-in, sign-out
+and sign-in again through the staff HTTPS site and ordinary Nginx Proxy Manager.
+Corporate DNS resolves the staff hostname; internet reachability and real policy
+changes/recovery administrators remain pending. Set `AUTH_MODE=ad` only after the
+operator setup and acceptance below. Unconfigured
 local development retains PIN sign-in; partial AD settings without an explicit
 mode fail closed. AD mode rejects PIN login and old PIN sessions. Both modes use
 the existing 12-hour application session limit. No MFA or broker was added.
@@ -160,13 +158,44 @@ accounts receive the same generic 401. Configuration/TLS/reader outages receive
 
 ## Explicit application identity links
 
-AD proves identity; application records still control roles and active status.
-There is no automatic admission or linking by username/email. Obtain each
-reviewed AD `objectGUID` using approved directory administration and match it to
-the existing **application user ID**, preserving that ID, role, inventory and
-draft/recovery ownership. A renamed AD username keeps its link; deleting/recreating
-the same username with another GUID cannot inherit access. One directory/GUID pair
-can belong to only one application user.
+AD proves identity; application records control roles and active status. There is
+no automatic admission or linking during login. A renamed AD username keeps its
+immutable GUID link; deleting/recreating that username cannot inherit access. One
+directory/GUID pair can belong to only one application user.
+
+After the first administrator is bootstrapped, add staff in **Settings → User
+Management**:
+
+1. Enter the employee's exact AD username (for example `j.doe`).
+2. Click **Find AD user** and review the returned display name and username.
+3. Select **Regular User** or **Administrator**, then click **Add User**.
+
+The application creates the user and AD link together. That employee can then
+sign in with their own AD password; the administrator never enters it. The lookup
+uses the configured reader over verified LDAPS, stays inside the configured
+naming context and rejects missing, ambiguous or ineligible directory accounts.
+Display name is optional; the username is shown if it is unavailable.
+
+For an existing unlinked application account, click **Link AD account** on its
+row, enter/find/review the intended AD username, then confirm **Link AD account**.
+This retains its application ID, name, permissions and existing records/drafts.
+Inactive accounts stay inactive until an administrator explicitly reactivates
+access. Already linked accounts cannot be replaced through this flow. Rename,
+role and activation controls continue to manage application permissions; AD
+password changes/unlocks remain directory administration tasks.
+
+The server returns a five-minute signed review proof, held only in the current
+browser tab. Its purpose-specific HMAC key derives from the existing protected
+`ADMIN_SHARED_SECRET`; missing/invalid signing material makes enrollment
+unavailable. The proof binds the current admin/session, directory configuration,
+immutable GUID, reviewed username/display name and optional existing target ID.
+Editing the username, canceling or locking clears the browser review. The server
+rejects expired/forged/reused-across-session reviews, and rereads the exact GUID
+before SQL locks rather than trusting a browser GUID or a reused username. Under
+account lock `728303`, it rechecks current admin authorization, proof expiry and
+binding, uniqueness and existing links. Account/link, session revocation and audit
+commit together. Directory changes after that read are checked again at login;
+LDAP and PostgreSQL do not share a global transaction.
 
 The operator command reads owner `DATABASE_URL` and `AD_DIRECTORY_ID` from
 `.env.migrate`. Use the same namespace as the runtime. It does not need the reader
@@ -179,10 +208,10 @@ npm run auth:link-ad -- --user-id EXISTING_APP_ID --guid REVIEWED_AD_OBJECT_GUID
 Replacing a link requires `--expected-binding DIRECTORY_ID:OLD_GUID` with the exact
 reviewed previous value. A changed/duplicate link fails atomically. A real change
 revokes all that user's sessions and writes an audit entry in the same transaction;
-an identical link is a no-op. Browser administrators cannot set GUIDs or change
-AD passwords/unlocks; Settings shows whether each app account is linked and still
-permits application role/activation changes. New AD-mode app accounts have no
-usable chosen PIN and remain unable to sign in until explicitly linked.
+an identical link is a no-op. This operator path remains for initial bootstrap
+and reviewed identity replacements/recovery. New Settings accounts have no usable
+chosen PIN and are linked as part of their creation; unreviewed AD-mode creation
+is rejected.
 
 For an empty database, `npm run admin:provision` with `AUTH_MODE=ad` prompts only
 for an app username, then use `auth:link-ad` for its reviewed AD administrator.

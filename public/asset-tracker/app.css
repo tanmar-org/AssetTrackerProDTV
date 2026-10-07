@@ -481,6 +481,10 @@ body.auth-locked .app-shell{visibility:hidden}
 .profile-menu{position:fixed;right:30px;top:82px;z-index:120;width:220px;padding:16px;border:1px solid #555b5f;background:#111416 url("brushed-gunmetal.png");background-size:500px auto;box-shadow:var(--shadow)}
 .profile-menu[hidden]{display:none}.profile-menu strong,.profile-menu span{display:block}.profile-menu span{margin:4px 0 14px;color:var(--muted);font-size:.72rem}.profile-menu button{width:100%}
 .user-management-panel{margin-top:18px}.user-create-form{display:grid;grid-template-columns:1.2fr .8fr .8fr auto;gap:12px;align-items:end;padding:18px}
+/* AD review controls share one action area; PIN mode keeps its original fields. */
+.user-create-form[data-auth-mode="ad"]{grid-template-columns:1.2fr .8fr auto}
+.user-create-actions{display:flex;flex-wrap:wrap;gap:10px}
+#directoryLinkTarget,#directoryUserPreview,#userDirectoryNotice{margin:0 18px 16px;line-height:1.5;overflow-wrap:anywhere}
 .user-list{display:grid}.user-row{display:grid;grid-template-columns:1.2fr .8fr .8fr auto;gap:12px;align-items:end;padding:14px 18px;border-top:1px solid #343a3e}.user-row-actions{display:flex;gap:7px;flex-wrap:wrap}
 .user-status{display:block;margin-top:6px;color:var(--muted);font-size:.66rem;font-weight:650}.user-status.locked{color:#ff8f99}.user-status.active{color:#57d9a6}
 .user-row.inactive{opacity:.58}.changed-by{color:#dba039!important;font-weight:750}
@@ -489,9 +493,9 @@ body.auth-locked .app-shell{visibility:hidden}
 .activity-list{display:grid;border-top:1px solid #343a3e}.activity-row{display:grid;grid-template-columns:minmax(110px,.55fr) minmax(220px,1.8fr) minmax(150px,.8fr);gap:18px;align-items:center;padding:13px 18px;border-bottom:1px solid #2b3033}
 .activity-row:last-child{border-bottom:0}.activity-user{color:#e2a93f;font-weight:850}.activity-action{color:#f0f2f3}.activity-row.denied .activity-action{color:#ff8f99}.activity-time{color:var(--muted);font-size:.72rem;text-align:right}.activity-revision{display:block;margin-top:3px;color:#7f898f;font-size:.64rem}
 [data-admin-only][hidden]{display:none!important}
-@media(max-width:900px){.user-create-form,.user-row{grid-template-columns:1fr 1fr}.profile-menu{right:16px}}
+@media(max-width:900px){.user-create-form,.user-create-form[data-auth-mode="ad"],.user-row{grid-template-columns:1fr 1fr}.profile-menu{right:16px}}
 @media(max-width:900px){.activity-controls{grid-template-columns:1fr 1fr}}
-@media(max-width:600px){.user-create-form,.user-row,.activity-controls{grid-template-columns:1fr}.activity-row{grid-template-columns:1fr;gap:4px}.activity-time{text-align:left}}
+@media(max-width:600px){.user-create-form,.user-create-form[data-auth-mode="ad"],.user-row,.activity-controls{grid-template-columns:1fr}.activity-row{grid-template-columns:1fr;gap:4px}.activity-time{text-align:left}}
 
 .cloud-sync-chip{
   min-height:36px;

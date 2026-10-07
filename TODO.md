@@ -54,7 +54,11 @@ approval; unresolved owner/operational items remain listed below.
   related import, recovery and activity wording no longer calls inventory storage
   "cloud". Implemented on `Dev/saved-status`; JavaScript asset version 69 avoids
   stale script caching. Save/revision/session logic is unchanged. Lint and existing
-  save/import/shared-device checks pass. Owner review/merge and rollout remain.
+  save/import/shared-device checks pass. Owner merged
+  [PR #42](https://github.com/tanmar-org/AssetTrackerProDTV/pull/42) at `81f7c1a`;
+  both hosted validation jobs passed. Owner deployed the reviewed staff image;
+  its receipt and independent HTTPS checks confirm exact new static files,
+  healthy staff/QR responses and private-route denial. Live rollout is complete.
 
 - [x] DOC-01 — Add agent instructions with `Dev/` branches, agent pushes/PRs,
   owner-only final review/merging, human-review comments, and documentation upkeep.
@@ -195,6 +199,14 @@ approval; unresolved owner/operational items remain listed below.
   [PR #34](https://github.com/tanmar-org/AssetTrackerProDTV/pull/34). Implementation is tested
   against synthetic TLS/LDAP/SQL/Chromium only. Owner merged PR #34 at `b2c63a9`;
   final hosted run 37528356444 passed all 303 checks and both builds/types/lint.
+- [ ] AUTH-01-ONBOARDING — Include explicit AD identity review in Settings user
+  creation and existing-account linking, so administrators do not need a VM command
+  for each employee. Implemented on `Dev/ad-user-onboarding`: exact read-only LDAPS
+  lookup, display-name/username review, five-minute session/config/target-bound
+  proof and fresh GUID check; account/link/audit writes are atomic. Existing
+  records/permissions are preserved; initial bootstrap and replacements remain
+  operator-only. Validation, owner PR review/merge and Docker rollout are tracked
+  in the journal. Completion requires deployed owner acceptance of this flow.
 - [x] AUTH-01-DOMAIN-SCOPE — Require critical AD DOMAIN_SCOPE on every identity/status
   search, preventing normal domain-root partition references without following
   referrals or relaxing rejection of unexpected references/unsupported controls.

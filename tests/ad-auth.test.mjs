@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Client, EqualityFilter } from "ldapts";
-import { adConfiguration, authenticationMode, canonicalAdUsername, guidBytes, guidText, verifyAdPassword, lookupAdGuid, directoryDeadlineMs } from "../lib/ad-auth.ts";
+import { adConfiguration, authenticationMode, canonicalAdUsername, guidBytes, guidText, verifyAdPassword, lookupAdGuid, lookupAdUsername, directoryDeadlineMs } from "../lib/ad-auth.ts";
 import { createLdapDirectory, directoryBytes, directoryGuid, syntheticAdEntry } from "./helpers/ldap-directory.mjs";
 
 test("AD mode cannot silently fall back from unknown or partial configuration", () => {
@@ -26,6 +26,20 @@ test("private LDAPS credential and status adapter", { timeout: 30000 }, async t 
   const reset = () => { model.entries = [syntheticAdEntry()]; model.requests = []; model.onUserBind = null;
     model.stall = false; model.duplicate = false; model.referral = false; model.domainPartitions = true;
     model.rejectDomainScope = false; model.omit = null; model.operationDelayMs = 0; };
+  await t.test("onboarding exact lookup uses only the reader and optional display names never grant identity", async () => {
+    reset(); const identity = await lookupAdUsername(config, " J.Doe ");
+    assert.equal(identity.guid, directoryGuid); assert.equal(identity.displayName, "Synthetic Staff");
+    assert.ok(model.requests.every(value => value.type !== "bind" || value.reader));
+    const search = model.requests.find(value => value.type === "search");
+    assert.deepEqual(search.controls, [{ type: "1.2.840.113556.1.4.1339", critical: true }]);
+    assert.equal(search.sizeLimit, 2); assert.ok(search.attributes.includes("displayName"));
+    model.entries[0].displayName = undefined;
+    assert.equal((await lookupAdUsername(config, "j.doe")).displayName, "j.doe");
+    model.requests = []; assert.equal(await lookupAdUsername(config, "*)(objectClass=*)"), null); assert.equal(model.requests.length, 0);
+    for (const failure of ["duplicate", "referral", "rejectDomainScope"]) {
+      reset(); model[failure] = true; await assert.rejects(lookupAdUsername(config, "j.doe"), { status: 503 });
+    }
+  });
   await t.test("domain-root user plus three partition referrals succeeds only with a scoped adapter search", async () => {
     reset(); const client = new Client({ url: config.url, timeout: 2000, connectTimeout: 2000,
       tlsOptions: { ca: config.ca, servername: config.hostname, rejectUnauthorized: true } });

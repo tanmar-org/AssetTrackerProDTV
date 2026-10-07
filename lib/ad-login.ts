@@ -2,7 +2,7 @@ import { adConfiguration, verifyAdPassword } from "./ad-auth.ts";
 import { createSession, db, tokenContext, type SessionUser } from "./pin-auth.ts";
 
 // The caller has validated input and committed traffic budgets. AD verifies only
-// identity; explicit operator links and existing app records grant permissions.
+// identity; explicit administrator-reviewed links and app records grant permissions.
 export async function adLogin(username: string, password: string) {
   const config = adConfiguration(), identity = await verifyAdPassword(config, username, password);
   // Cache approval from directory verification, never from a later SQL-lock wait.

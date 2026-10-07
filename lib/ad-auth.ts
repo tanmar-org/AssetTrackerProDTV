@@ -73,7 +73,7 @@ export function adConfiguration(env = process.env) {
   } catch { throw unavailable(); } // Never expose paths, credentials or TLS diagnostics.
 }
 export type AdConfiguration = ReturnType<typeof adConfiguration>;
-export type AdIdentity = { guid: string; dn: string; username: string; passwordStamp: string };
+export type AdIdentity = { guid: string; dn: string; username: string; passwordStamp: string; displayName?: string };
 function scalar(entry: Entry, attribute: string): string | Buffer {
   const key = Object.keys(entry).find(key => key.toLowerCase() === attribute.toLowerCase());
   const field = key ? entry[key] : undefined;
@@ -124,7 +124,7 @@ async function directoryOperation<T>(config: AdConfiguration, operation: (client
 }
 // Structured equality filters encode values separately from filter syntax. Keep
 // GUIDs as Buffer values: string filter parsing would UTF-8 encode binary bytes.
-async function searchIdentity(client: Client, config: AdConfiguration, filter: Filter): Promise<AdIdentity | null> {
+async function searchIdentity(client: Client, config: AdConfiguration, filter: Filter, preview = false): Promise<AdIdentity | null> {
   await client.bind(config.reader, config.password);
   // AD domain-root searches otherwise include referrals to DNS/other partitions.
   // Require DOMAIN_SCOPE (no control value) to stay in one naming context; an
@@ -134,11 +134,18 @@ async function searchIdentity(client: Client, config: AdConfiguration, filter: F
       new EqualityFilter({ attribute: "objectClass", value: "user" }), filter,
     ] }),
     sizeLimit: 2, timeLimit: 2, paged: false, derefAliases: "never",
-    attributes: ["objectGUID", "sAMAccountName", "userAccountControl", "msDS-User-Account-Control-Computed", "pwdLastSet", "accountExpires"],
+    attributes: ["objectGUID", "sAMAccountName", "userAccountControl", "msDS-User-Account-Control-Computed", "pwdLastSet", "accountExpires", ...(preview ? ["displayName"] : [])],
     explicitBufferAttributes: ["objectGUID"],
   }, new Control("1.2.840.113556.1.4.1339", { critical: true }));
   if (result.searchReferences.length || result.searchEntries.length > 1) throw unavailable();
-  return result.searchEntries.length ? adIdentity(result.searchEntries[0]) : null;
+  const entry = result.searchEntries[0], identity = entry ? adIdentity(entry) : null;
+  if (!identity || !preview) return identity;
+  // The optional name helps an administrator review the person found. It never
+  // selects an identity, changes directory eligibility, or becomes a login key.
+  const key = Object.keys(entry).find(key => key.toLowerCase() === "displayname");
+  const name = key ? entry[key] : undefined;
+  return { ...identity, displayName: typeof name === "string" && name.length <= 256 && !/[\x00-\x1f]/.test(name) && name.trim()
+    ? name.trim() : identity.username };
 }
 export async function verifyAdPassword(config: AdConfiguration, username: string, password: string): Promise<AdIdentity | null> {
   if (!canonicalAdUsername(username) || !validAdPassword(password)) return null;
@@ -154,6 +161,16 @@ export async function verifyAdPassword(config: AdConfiguration, username: string
     return current && current.guid === identity.guid && current.passwordStamp === identity.passwordStamp ? current : null;
   });
 }
-export async function lookupAdGuid(config: AdConfiguration, guid: string): Promise<AdIdentity | null> {
-  return directoryOperation(config, create => searchIdentity(create(), config, new EqualityFilter({ attribute: "objectGUID", value: guidBytes(guid) })));
+export async function lookupAdGuid(config: AdConfiguration, guid: string, preview = false): Promise<AdIdentity | null> {
+  return directoryOperation(config, create => searchIdentity(create(), config, new EqualityFilter({ attribute: "objectGUID", value: guidBytes(guid) }), preview));
+}
+// Administrator onboarding is a read-only exact lookup using the same verified
+// TLS, domain scope, account flags, ambiguity checks and five-second deadline.
+export async function lookupAdUsername(config: AdConfiguration, value: string): Promise<AdIdentity | null> {
+  const name = canonicalAdUsername(value);
+  if (!name) return null;
+  return directoryOperation(config, async create => {
+    const identity = await searchIdentity(create(), config, new EqualityFilter({ attribute: "sAMAccountName", value: name }), true);
+    return identity?.username === name ? identity : null;
+  });
 }

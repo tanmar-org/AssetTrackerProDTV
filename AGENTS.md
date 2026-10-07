@@ -122,16 +122,23 @@ The journal records current evidence; older handoff statements may be stale.
   [staff authentication](docs/STAFF-AUTHENTICATION.md). Owner chose internet access,
   private on-premises AD and no MFA. Opt-in AD mode requires verified private LDAPS,
   mandatory CA/hostname validation, structured/binary equality filters, bounded
-  five-second I/O, computed AD account flags and explicit operator directory/GUID
-  links. Every identity/status search requires the critical AD DOMAIN_SCOPE
+  five-second I/O, computed AD account flags and explicit reviewed directory/GUID
+  links. Bootstrap and replacements remain operator-only; subsequent admins use
+  Settings exact AD lookup and review to create/link accounts. Preserve the
+  five-minute signed approval bound to actor/session/configuration/target, fresh
+  GUID lookup before account locks, and proof/permission rechecks inside the
+  transaction. Never accept browser-supplied raw GUIDs or replace existing links.
+  Every identity/status search requires the critical AD DOMAIN_SCOPE
   control with no value, restricting it to one naming context; preserve rejection
   of unsupported controls and unexpected referrals without following/fallback.
   Never auto-link by username/email, store/log passwords, mutate AD, add a
   PIN fallback or reintroduce public bootstrap. Preserve existing IDs/roles/drafts.
   AD status approval is cached at most 60 seconds in SQL across processes; outages
   must not extend it, and late checks must not resurrect/revoke newer credential
-  epochs. Runtime config changes bind/invalidate sessions. Real AD setup/acceptance
-  and internet ingress remain rollout work, not evidence from synthetic tests.
+  epochs. Runtime config changes bind/invalidate sessions. Owner production
+  sign-in/sign-out/relogin through ordinary NPM HTTPS passed;
+  internet reachability, additional administrators and real policy acceptance
+  remain rollout work, not evidence from synthetic tests.
 - Spreadsheet imports use pinned local SheetJS 0.20.3 and the same-origin
   `spreadsheet-worker.js` browser worker. Keep vendor bytes/license/SRI/digests
   consistent; never restore a runtime CDN fallback. Preserve file/time/ZIP/range/

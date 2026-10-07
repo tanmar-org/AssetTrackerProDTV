@@ -3076,3 +3076,88 @@ served the existing compatible Next build with the revised static assets, using
 only synthetic local data and blocked outside requests. No production write,
 container rollout or inventory import. Pending rollout/workbook review notes are
 bundled in this code PR as requested, without a separate documentation PR.
+
+## 2026-10-07 (America/Chicago) — Saved wording merged; Docker update prepared
+
+Owner merged [PR #42](https://github.com/tanmar-org/AssetTrackerProDTV/pull/42)
+at `81f7c1a`; both hosted validation jobs in run `37651110222` passed at PR head
+`a67cc6f`. Fetched main, advanced the local Dev branch and created a clean detached
+release checkout at the merged revision. Compose, Dockerfile and build exclusions
+are unchanged from the deployed baseline; backend APIs/migrations are unchanged.
+
+Prepared one protected VM-terminal command to build only the merged app image,
+retain existing credentials/other image IDs, save prior Compose image settings,
+recreate only staff and reload the existing gateway's resolved upstream routing.
+It verifies health and exact reviewed JavaScript/HTML through ordinary NPM HTTPS
+and restores the previous app image/configuration if activation checks fail. It
+does not run database initialization/migrations or import inventory. Bash and
+embedded Python syntax pass; image-setting transformation preserves every other
+configuration line. This is preparation evidence, not a completed Docker build
+or activation. Docker still requires the owner's interactive sudo authentication.
+Next owner runs the command and refreshes the staff page; inventory scope/conflict
+decisions remain MIG-01. Routine notes are held for the next substantive PR.
+
+## 2026-10-07 (America/Chicago) — Saved wording live and verified
+
+Owner ran the prepared Docker update. Its protected activation receipt confirms
+merged revision `81f7c1a`, staff recreation, gateway routing reload, retained other
+containers/credentials, healthy staff/QR HTTPS and exact staff asset version 69.
+Independent read-only HTTPS requests confirm health/root responses, private API
+denial and byte-identical JavaScript/HTML against the reviewed release. No agent
+login or inventory mutation was needed. The active Compose app-image setting now
+pins the new image; running QR/reconciler and the database/gateway/operator image
+settings retain their prior compatible release. Their exact IDs and prior staff
+image are in the private receipt for maintenance/moves/rollback.
+
+UI-01 rollout is complete. Next remains MIG-01: confirm regional versus complete
+registry scope, resolve the reviewed source assignment/metadata/rent gaps, then
+approve and reconcile the first inventory load. Routine rollout notes stay local
+for the next substantive PR, without another documentation-only review.
+
+## 2026-10-07 (America/Chicago) — AD enrollment included in Settings
+
+Owner asked to include the separate AD identity-link step in normal user creation.
+Implemented AUTH-01-ONBOARDING on `Dev/ad-user-onboarding` from owner-merged main
+`81f7c1a`. Settings now accepts the exact AD username, performs Find AD user,
+shows the optional display name and username for review, then creates the app
+account and stable directory/GUID link together with the selected role. Existing
+unlinked rows offer Link AD account; linking retains application ID, name, role,
+active status and draft ownership. No employee password is supplied to enrollment.
+Initial administrator bootstrap and replacement of an already linked identity
+remain explicit operator tasks. Login still never auto-creates or auto-links users.
+
+The new admin-only bounded lookup uses the existing certificate-validated LDAPS
+reader, structured equality filter, mandatory critical DOMAIN_SCOPE and account
+eligibility checks. Its five-minute HMAC review proof uses a purpose-derived key
+from existing protected runtime material and binds actor/session, directory
+configuration, GUID, username/display name and optional existing target ID. No
+new database table, migration, directory writes or runtime credential is required.
+Final create/link rereads the exact immutable GUID before SQL locks; it rechecks
+permission, proof expiry/configuration, unique identity and target status under
+account lock 728303. Account/link, session revocation and audit commit together.
+Editing/canceling/locking clears the tab's proof; delayed results cannot approve
+another selector/session. Directory names render as text. Staff assets now use
+JavaScript version 70 and CSS version 68. Updated agent, setup and auth guidance;
+prior Saved rollout documentation is bundled in this substantive change.
+
+Validation: staff build, standalone TypeScript and zero-warning lint/vendor
+integrity pass. Full synthetic PostgreSQL/HTTP integration passes 173 checks,
+including real TLS LDAP, review/session/target binding, no unreviewed admission,
+GUID reuse/rename/disable, duplicate creation races, atomic audit rollback,
+existing ownership and expiry/logout during account-lock waits. The final explicit
+GUID equality check also passes the focused authentication/enrollment rerun
+(29 checks). Full Chromium passes 57 checks, including reviewed creation/linking,
+editing/late-result invalidation, sign-out clearing, markup-safe directory names
+and a narrow-screen form. A synthetic reader-property assertion and proof-length
+expectation were corrected during validation; neither indicated a production
+failure. Restricted test-process attempts did not run valid checks and were
+rerun with the needed local process permissions. Disposable database/role counts
+are zero after completed integration runs. Final root regressions pass 137 checks with no failures/skips: combined
+root/integration/browser coverage is 367 checks. The PR reference follows below. No company-directory lookup, production account
+change, Docker activation or inventory import occurred for this task.
+
+Next: owner reviews/merges the onboarding PR, then activate its merged Docker
+staff image and verify adding a nominated staff member through Settings. That
+acceptance completes AUTH-01-ONBOARDING and makes additional/recovery-admin setup
+available without per-user VM commands. MIG-01 workbook scope/conflicts remain
+open independently; no inventory Apply has been approved.
