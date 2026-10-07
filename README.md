@@ -77,8 +77,10 @@ npm run dev
 Unconfigured local development uses PIN sign-in. The provisioning command prompts
 for username and a hidden PIN and refuses if any user already exists. With
 `AUTH_MODE=ad`, it prompts only for an app username; explicitly link its reviewed
-AD GUID using the operator `auth:link-ad` command before login. The website only
-permits login and never links directory identities or bootstraps administrators.
+AD GUID using the operator `auth:link-ad` command before first login. After
+bootstrap, administrators add or link users through Settings: Find AD user,
+review the person found, then confirm application access. Existing identity
+replacements and initial bootstrap remain operator-only.
 Ports default to 5173 (staff) and 5174 (QR), bound to loopback. Open
 `http://localhost:5173/` and `http://localhost:5174/` with synthetic data. Sessions use
 Secure cookies; phone GPS and real staff access require correctly configured HTTPS.
@@ -86,7 +88,9 @@ Staff login traffic uses shared PostgreSQL counters (tracker migration 0006).
 Internet ingress needs `LOGIN_PROXY_SECRET` and overwritten trusted headers;
 Opt-in AD username/password sign-in uses verified private LDAPS, tracker migration
 0007 and explicit stable identity links, without MFA or a PIN fallback. Company
-AD setup and acceptance have not been performed.
+Production AD sign-in/sign-out/relogin through ordinary NPM HTTPS has passed
+owner acceptance; internet reachability and further policy/recovery-admin checks
+remain open. See [staff authentication](docs/STAFF-AUTHENTICATION.md).
 See [staff authentication and rollout](docs/STAFF-AUTHENTICATION.md).
 
 Staff inventory loads from the authenticated server; unsaved edits stay only in

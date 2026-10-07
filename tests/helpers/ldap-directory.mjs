@@ -21,7 +21,7 @@ export const directoryGuid = "12345678-90ab-cdef-8123-456789abcdef";
 export const directoryBytes = Buffer.from("78563412ab90efcd8123456789abcdef", "hex");
 export function syntheticAdEntry(overrides = {}) {
   return { guid: directoryGuid, bytes: directoryBytes, username: "j.doe", dn: "CN=Synthetic Staff,DC=example,DC=invalid",
-    password: "Synthetic AD password 007!", flags: "512", computed: "0", stamp: "134000000000000000", expires: "0", ...overrides };
+    password: "Synthetic AD password 007!", displayName: "Synthetic Staff", flags: "512", computed: "0", stamp: "134000000000000000", expires: "0", ...overrides };
 }
 
 // A narrow synthetic LDAP server over actual TLS. Parse equality filter octets
@@ -104,7 +104,8 @@ export async function createLdapDirectory({ certificateHost = "localhost", liste
         }));
         for (const entry of model.duplicate ? [...matches, ...matches] : matches) {
           const values = { objectGUID: entry.bytes, sAMAccountName: entry.username, userAccountControl: entry.flags,
-            "msDS-User-Account-Control-Computed": entry.computed, pwdLastSet: entry.stamp, accountExpires: entry.expires };
+            "msDS-User-Account-Control-Computed": entry.computed, pwdLastSet: entry.stamp, accountExpires: entry.expires,
+            ...(entry.displayName === undefined ? {} : { displayName: entry.displayName }) };
           socket.write(response(messageId, 0x64, writer => {
             writer.writeString(entry.dn); writer.startSequence();
             for (const [type, value] of Object.entries(values)) if (attributes.includes(type) && type !== model.omit)

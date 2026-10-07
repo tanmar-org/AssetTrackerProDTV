@@ -51,6 +51,9 @@ let authNeedsProvisioning=false;
 let authMode="pin";
 let currentCloudAction="Data change";
 let activityRecords=[];
+// AD review proofs and link targets belong only to this admin's current tab.
+// Editing the selector, canceling, or locking discards any previous approval.
+let directoryUserConfirmation=null,directoryLinkTarget=null,directoryLookupGeneration=0,directoryUserBusy=false;
 // Baseline is the last acknowledged server copy, never the latest unsaved UI.
 let cloudBaseState=null;
 let draftCopy=null,draftSavePromise=null,draftSaveTimer=null,draftGeneration=0,draftSavedGeneration=-1,draftReview=null,draftBusy=false;
@@ -3665,6 +3668,7 @@ function lockSession(retainDraft=false,message=""){
       undo:structuredClone(undoHistory),pending:structuredClone(cloudPendingStates),cache:new Map(cacheEntries)};
   }else if(!retainDraft){lockedDraft=null;}
   sessionEpoch++;sessionContext="";currentUser=null;
+  directoryLinkTarget=null;directoryUserBusy=false;resetDirectoryUserReview();
   clearTimeout(cloudSaveTimer);clearInterval(cloudPollTimer);clearTimeout(draftSaveTimer);
   sessionRequests.forEach(controller=>controller.abort());sessionRequests.clear();
   importCancellations.forEach(cancel=>cancel());importCancellations.clear();
@@ -3732,8 +3736,13 @@ function configureAuthMode(mode){
   if(ad)credential.removeAttribute("pattern");else credential.setAttribute("pattern","[0-9]{4,8}");
   name.maxLength=ad?64:40;name.pattern=ad?"[A-Za-z0-9][A-Za-z0-9._-]{0,63}":"[A-Za-z][A-Za-z0-9]{1,39}";
   const newPin=$("newUserPin");newPin.closest("label").hidden=ad;newPin.required=!ad;newPin.disabled=ad;
+  $("newUserNameLabel").textContent=ad?"AD username":"Username";
+  $("userCreateForm").dataset.authMode=authMode;
+  $("newUserName").maxLength=ad?64:40;$("newUserName").pattern=name.pattern;
+  $("findDirectoryUser").hidden=!ad;
   $("userDirectoryNotice").hidden=!ad;
-  if(changed){credential.value="";newPin.value="";}
+  if(changed){credential.value="";newPin.value="";directoryLinkTarget=null;resetDirectoryUserReview();}
+  updateDirectoryUserControls();
 }
 
 // Empty databases require an operator-created admin. The locked gate contains no
@@ -3816,7 +3825,7 @@ async function loadUsers(){
     if(!response.ok)throw new Error(result.error||"Unable to load users.");
     $("userList").innerHTML=result.users.map(user=>`
       <div class="user-row ${user.active?"":"inactive"}" data-user-id="${esc(user.id)}">
-        <label><span>Username</span><input data-user-name maxlength="40" pattern="[A-Za-z][A-Za-z0-9]{1,39}" autocapitalize="none" spellcheck="false" value="${esc(user.name)}">
+        <label><span>Username</span><input data-user-name maxlength="${authMode==="ad"?64:40}" pattern="${authMode==="ad"?"[A-Za-z0-9][A-Za-z0-9._-]{0,63}":"[A-Za-z][A-Za-z0-9]{1,39}"}" autocapitalize="none" spellcheck="false" value="${esc(user.name)}">
           ${authMode!=="ad"&&user.locked_until&&new Date(user.locked_until).getTime()>Date.now()
             ?`<small class="user-status locked">Locked until ${esc(formatHistoryDate(user.locked_until))}</small>`
             :`<small class="user-status ${user.active?"active":""}">${user.active?"Active":"Inactive"} · Last sign-in ${esc(user.last_login_at?formatHistoryDate(user.last_login_at):"Never")}</small>`}
@@ -3825,6 +3834,7 @@ async function loadUsers(){
         ${authMode==="ad"?`<small class="user-status">${user.ad_linked?"AD account linked":"AD account linking required"}</small>`:`<label><span>New PIN (optional)</span><input data-user-pin type="password" inputmode="numeric" maxlength="8" placeholder="Leave unchanged"></label>`}
         <div class="user-row-actions">
           <button class="small-button" data-save-user type="button">Save</button>
+          ${authMode==="ad"&&!user.ad_linked?'<button class="small-button" data-link-user type="button">Link AD account</button>':""}
           ${authMode!=="ad"&&user.locked_until&&new Date(user.locked_until).getTime()>Date.now()?`<button class="small-button" data-unlock-user type="button">Unlock</button>`:""}
           <button class="small-button ${user.active?"danger":""}" data-toggle-user="${user.active?"off":"on"}" type="button">${user.active?"Deactivate":"Reactivate"}</button>
         </div>
@@ -3939,20 +3949,66 @@ function exportActivityCsv(){
 }
 $("exportActivityButton").addEventListener("click",exportActivityCsv);
 
+function updateDirectoryUserControls(){
+  const ad=authMode==="ad",linking=Boolean(directoryLinkTarget);
+  $("createUserButton").disabled=directoryUserBusy||(ad&&!directoryUserConfirmation);
+  $("createUserButton").textContent=linking?"Link AD account":"Add User";
+  $("findDirectoryUser").disabled=directoryUserBusy;
+  $("cancelDirectoryLink").hidden=!linking;
+  $("newUserRole").disabled=linking||directoryUserBusy;
+  $("directoryLinkTarget").hidden=!linking;
+  $("directoryLinkTarget").textContent=linking?`Link an AD identity to application user ${directoryLinkTarget.name}. Existing permissions and records are preserved.`:"";
+}
+function resetDirectoryUserReview(){
+  directoryLookupGeneration++;directoryUserConfirmation=null;
+  $("directoryUserPreview").hidden=true;$("directoryUserPreview").textContent="";
+  updateDirectoryUserControls();
+}
+$("newUserName").addEventListener("input",resetDirectoryUserReview);
+$("cancelDirectoryLink").addEventListener("click",()=>{
+  directoryLinkTarget=null;$("userCreateForm").reset();resetDirectoryUserReview();
+});
+$("findDirectoryUser").addEventListener("click",async()=>{
+  if(currentUser?.role!=="admin"||authMode!=="ad"||directoryUserBusy)return;
+  const name=$("newUserName");if(!name.reportValidity())return;
+  resetDirectoryUserReview();const generation=directoryLookupGeneration,epoch=sessionEpoch;
+  directoryUserBusy=true;updateDirectoryUserControls();
+  $("directoryUserPreview").hidden=false;$("directoryUserPreview").textContent="Finding AD user…";
+  try{
+    const {response,result}=await staffRequest("/api/users/ad-lookup",{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({name:name.value.trim(),...(directoryLinkTarget?{userId:directoryLinkTarget.id}:{})})});
+    if(!sessionActive(epoch)||generation!==directoryLookupGeneration)return;
+    if(!response.ok)throw new Error(result.error||"Unable to find the AD user.");
+    directoryUserConfirmation={name:result.username,proof:result.confirmation};
+    // Text-only rendering prevents a directory display name becoming markup.
+    $("directoryUserPreview").textContent=`Found: ${result.displayName||result.username} (${result.username}). Review this person before granting access. Review expires after five minutes.`;
+  }catch(error){
+    if(sessionActive(epoch)&&generation===directoryLookupGeneration)$("directoryUserPreview").textContent=error.message||"Unable to find the AD user.";
+  }finally{
+    if(sessionActive(epoch)){directoryUserBusy=false;updateDirectoryUserControls();}
+  }
+});
+
 $("userCreateForm").addEventListener("submit",async event=>{
   event.preventDefault();
+  if(currentUser?.role!=="admin"||directoryUserBusy)return;
+  if(authMode==="ad"&&!directoryUserConfirmation){toast("Find and review the AD user first.");return;}
+  const epoch=sessionEpoch,target=directoryLinkTarget;
+  directoryUserBusy=true;updateDirectoryUserControls();
   try{
     const {response,result}=await staffRequest("/api/users",{
-      method:"POST",
+      method:target?"PATCH":"POST",
       headers:{"content-type":"application/json"},
-      body:JSON.stringify({name:$("newUserName").value.trim(),...(authMode==="ad"?{}:{pin:$("newUserPin").value}),role:$("newUserRole").value})
+      body:JSON.stringify(target?{id:target.id,adUsername:$("newUserName").value.trim(),directoryConfirmation:directoryUserConfirmation.proof}:
+        {name:$("newUserName").value.trim(),...(authMode==="ad"?{directoryConfirmation:directoryUserConfirmation.proof}:{pin:$("newUserPin").value}),role:$("newUserRole").value})
     });
     if(!response.ok)throw new Error(result.error||"Unable to add user.");
-    event.target.reset();
+    directoryLinkTarget=null;event.target.reset();resetDirectoryUserReview();
     await loadUsers();
     await loadActivity();
-    toast("Authorized user added.");
-  }catch(error){toast(error.message||"Unable to add user.")}
+    toast(target?"AD account linked. Existing application permissions are preserved.":authMode==="ad"?"User added and linked to AD. They can sign in with their AD password.":"Authorized user added.");
+  }catch(error){if(sessionActive(epoch)){resetDirectoryUserReview();toast(error.message||"Unable to add user.");}}
+  finally{if(sessionActive(epoch)){directoryUserBusy=false;updateDirectoryUserControls();}}
 });
 
 $("userList").addEventListener("click",async event=>{
@@ -3961,6 +4017,11 @@ $("userList").addEventListener("click",async event=>{
   const saveButton=event.target.closest("[data-save-user]");
   const toggleButton=event.target.closest("[data-toggle-user]");
   const unlockButton=event.target.closest("[data-unlock-user]");
+  if(event.target.closest("[data-link-user]")&&authMode==="ad"&&currentUser?.role==="admin"&&!directoryUserBusy){
+    directoryLinkTarget={id:row.dataset.userId,name:row.querySelector("[data-user-name]").value};
+    $("userCreateForm").reset();$("newUserName").value=directoryLinkTarget.name;
+    resetDirectoryUserReview();$("newUserName").focus();return;
+  }
   if(!saveButton&&!toggleButton&&!unlockButton)return;
   try{
     const {response,result}=await staffRequest("/api/users",{

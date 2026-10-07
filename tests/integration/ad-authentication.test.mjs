@@ -18,7 +18,7 @@ test("AD sign-in, explicit account ownership and session revocation", { timeout:
   const tracker = await createPostgresFixture("tracker"), directory = await createLdapDirectory(), servers = [];
   t.after(async () => { for (const server of servers.reverse()) await server.close(); await directory.close();
     await tracker.close(); assert.deepEqual(directory.errors, []); });
-  const env = { ...directory.env, DATABASE_URL: tracker.url, LOGIN_PROXY_SECRET: "" };
+  const env = { ...directory.env, DATABASE_URL: tracker.url, LOGIN_PROXY_SECRET: "", ADMIN_SHARED_SECRET: "synthetic-enrollment-secret-1234567890" };
   const start = async extra => { const server = await startNext(fileURLToPath(new URL("../../", import.meta.url)), { ...env, ...extra });
     servers.push(server); return server; };
   const first = await start(), second = await start(), pinServer = await start({ AUTH_MODE: "pin" });
@@ -179,9 +179,11 @@ test("AD sign-in, explicit account ownership and session revocation", { timeout:
     const result = await Promise.allSettled([link({ guid: next, expectedBinding }), link({ guid: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", expectedBinding })]);
     assert.equal(result.filter(value => value.status === "fulfilled").length, 1);
   });
-  await t.test("app user management permits roles/access, rejects directory credential/link writes and leaves new users unlinked", async () => {
+  await t.test("app user management permits roles/access on legacy records but requires reviewed links for new users", async () => {
     await setup(); const session = await signIn();
-    assert.equal((await api(first, "/api/users", "POST", { name: "regularuser", role: "user" }, session.cookie)).status, 200);
+    assert.equal((await api(first, "/api/users", "POST", { name: "regularuser", role: "user" }, session.cookie)).status, 409);
+    // Model a pre-existing unlinked record, never create one via the AD browser API.
+    await tracker.database.prepare("INSERT INTO app_users (id,name,role,pin_hash,pin_salt,active,created_at,updated_at) SELECT $1,'regularuser','user',pin_hash,pin_salt,1,created_at,updated_at FROM app_users LIMIT 1").bind(randomUUID()).run();
     const target = await tracker.database.prepare("SELECT * FROM app_users WHERE name='regularuser'").first(); assert.equal(target.ad_guid, null);
     for (const body of [{ pin: "123456" }, { password: "Synthetic must not persist" }, { ad_guid: directoryGuid }, { unlock: true }])
       assert.equal((await api(first, "/api/users", "PATCH", { id: target.id, ...body }, session.cookie)).status, 400);
@@ -202,10 +204,11 @@ test("AD sign-in, explicit account ownership and session revocation", { timeout:
   });
   await t.test("regular AD staff retain server permissions and administrator role changes revoke their sessions", async () => {
     await setup(); const admin = await signIn(), guid = "87654321-90ab-cdef-8123-456789abcdef";
-    assert.equal((await api(first, "/api/users", "POST", { name: "regularuser" }, admin.cookie)).status, 200);
-    const target = await tracker.database.prepare("SELECT id FROM app_users WHERE name='regularuser'").first();
-    await link({ userId: target.id, guid });
     model.entries.push(syntheticAdEntry({ guid, bytes: Buffer.from("21436587ab90efcd8123456789abcdef", "hex"), username: "staff.doe", dn: "CN=Other Staff,DC=example,DC=invalid" }));
+    const lookup = await api(first, "/api/users/ad-lookup", "POST", { name: "staff.doe" }, admin.cookie);
+    assert.equal(lookup.status, 200); const reviewed = await lookup.json();
+    assert.equal((await api(first, "/api/users", "POST", { name: "staff.doe", directoryConfirmation: reviewed.confirmation }, admin.cookie)).status, 200);
+    const target = await tracker.database.prepare("SELECT id FROM app_users WHERE name='staff.doe'").first();
     const response = await login(second, { name: "staff.doe" }); assert.equal(response.status, 200);
     const cookie = response.headers.get("set-cookie").split(";")[0];
     assert.equal((await api(first, "/api/users", "GET", undefined, cookie)).status, 403);

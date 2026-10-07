@@ -47,7 +47,10 @@ or SQL files are used. Bootstrap takes a PostgreSQL table lock and refuses if an
 user exists, including inactive users. Public HTTP setup always returns 403. In
 AD mode, provisioning asks only for an app username; operator `auth:link-ad` uses
 the owner URL/namespace in `.env.migrate` to map a reviewed GUID without replacing
-the application user. See [AD configuration and linking](STAFF-AUTHENTICATION.md).
+the application user. After bootstrap, administrators add or link staff through
+Settings: enter the exact AD username, Find AD user, review the match and confirm
+the application role/access. Identity replacements remain operator-only. See
+[AD configuration and linking](STAFF-AUTHENTICATION.md).
 Keep local development explicitly `AUTH_MODE=pin` when using PIN fixtures; incomplete
 AD settings without an explicit mode fail closed. Do not use company AD for tests.
 
