@@ -55,6 +55,9 @@ services:
         source: postgres_socket
         target: /var/run/postgresql
         read_only: true
+        # After PG stops the socket volume can be empty. Readers must never
+        # copy root-owned image directory metadata into PostgreSQL's volume.
+        volume: {nocopy: true}
     secrets:
       - source: staff_runtime
         target: /run/assettracker-credentials/runtime.json
@@ -92,6 +95,9 @@ services:
         source: postgres_socket
         target: /var/run/postgresql
         read_only: true
+        # After PG stops the socket volume can be empty. Readers must never
+        # copy root-owned image directory metadata into PostgreSQL's volume.
+        volume: {nocopy: true}
     secrets:
       - source: qr_runtime
         target: /run/assettracker-credentials/runtime.json
@@ -128,6 +134,9 @@ services:
         source: postgres_socket
         target: /var/run/postgresql
         read_only: true
+        # After PG stops the socket volume can be empty. Readers must never
+        # copy root-owned image directory metadata into PostgreSQL's volume.
+        volume: {nocopy: true}
     secrets:
       - source: reconciler_runtime
         target: /run/assettracker-credentials/runtime.json
@@ -192,6 +201,9 @@ services:
         source: postgres_socket
         target: /var/run/postgresql
         read_only: true
+        # After PG stops the socket volume can be empty. Readers must never
+        # copy root-owned image directory metadata into PostgreSQL's volume.
+        volume: {nocopy: true}
       - type: bind
         source: ${ASSETTRACKER_SECRET_DIR:?Prepare protected secret paths}/operator
         target: /seed

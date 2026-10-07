@@ -24,7 +24,9 @@ HTTPS entry point with the owner's wildcard certificate and separate authenticat
 hop credentials. Backend TLS still needs its own matching leaf/key and NPM trust.
 
 The PostgreSQL 18 parent `/var/lib/postgresql` is a project-scoped persistent volume;
-its versioned PGDATA is `/var/lib/postgresql/18/docker`. Operator configuration and
+its versioned PGDATA is `/var/lib/postgresql/18/docker`. Socket consumers disable
+volume copy-up so an empty socket directory keeps PostgreSQL ownership on recreation.
+Operator configuration and
 backups persist separately. Ordinary `docker compose down` retains these volumes.
 **Never use `down --volumes`, `docker volume prune` or global cleanup on production.**
 Volumes preserve data across recreation; they are not off-server backups.
