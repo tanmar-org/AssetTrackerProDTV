@@ -36,5 +36,4 @@ export async function launchService(role, { network = "loopback" } = {}) {
   } finally {
     process.off("SIGTERM", term); process.off("SIGINT", interrupt);
   }
-
 }

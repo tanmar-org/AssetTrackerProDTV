@@ -34,7 +34,9 @@ Use an approved maintenance window; this procedure is not zero-downtime failover
    redirect binary output to a private host file (`umask 077`). Transfer encrypted.
    On destination use a one-off operator to create `/operator/incoming` mode 0700 and
    extract the trusted directory there. A temporary read-only bind of the private
-   archive supports import (`run --volume /private/move.tar:/transfer.tar:ro
+   archive supports import. Install that file owned by UID/GID 999, mode 0400,
+   below a root 0700 directory: bind mounts retain host UID and permissions.
+   Import with (`run --volume /private/move.tar:/transfer.tar:ro
    --entrypoint tar operator -C /operator/incoming -xf /transfer.tar`). Extraction is
    for the trusted self-generated bundle only; never extract arbitrary untrusted tar
    files into operator storage. Confirm UID 999/private modes; do not loosen access.

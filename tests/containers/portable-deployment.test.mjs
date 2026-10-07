@@ -140,6 +140,9 @@ test("immutable Compose deployment persists and restores into an independent sta
     const bundle = path.join(directory, "move.tar");
     const archive = await run("sudo", [...source.args, "run", "--rm", "--no-deps", "-T", "--entrypoint", "tar", "operator", "-C", "/operator/backups", "-cf", "-", backup], { encoding: "buffer" });
     await writeFile(bundle, archive, { mode: 0o600 });
+    // A read-only bind preserves host UID, just like Compose secrets.
+    await run("sudo", ["-n", "chown", "999:999", bundle]);
+    await run("sudo", ["-n", "chmod", "400", bundle]);
     await destination.compose(["run", "--rm", "--no-deps", "-T", "--entrypoint", "mkdir", "operator", "-m", "700", "/operator/incoming"]);
     // Bind the trusted generated archive read-only for this fixture; production
     // copies must travel encrypted and be validated by the same restore command.

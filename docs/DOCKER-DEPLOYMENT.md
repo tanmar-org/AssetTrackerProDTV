@@ -146,7 +146,7 @@ Provision the initial AD app administrator interactively with operator `admin`,
 then operator `link-ad --user-id APP_ID --guid REVIEWED_GUID` using a reviewed
 AD objectGUID. Those commands receive only owner DB access and the directory ID;
 no PIN fallback or automatic username linking. Existing imports need their own
-approved reconciliation procedure. See [AD rollout](AD-ROLLOUT.md).
+approved reconciliation procedure. See [staff authentication and AD rollout](STAFF-AUTHENTICATION.md).
 
 Only after database/admin/data review, start `staff qr reconciler gateway` using
 `up -d --wait`, install the matching NPM snippets/CA, and complete HTTPS/domain,

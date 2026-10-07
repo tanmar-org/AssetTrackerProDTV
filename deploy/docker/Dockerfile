@@ -23,7 +23,7 @@ COPY --from=builder /opt/assettracker /opt/assettracker
 RUN mkdir -p /run/assettracker-credentials /var/run/postgresql
 ARG SOURCE_REVISION
 LABEL org.opencontainers.image.revision=$SOURCE_REVISION
-ENV NODE_ENV=production CREDENTIALS_DIRECTORY=/run/assettracker-credentials
+ENV NODE_ENV=production
 USER 10001:10001
 ENTRYPOINT ["node", "scripts/run-container-service.mjs"]
 CMD ["staff"]
@@ -41,6 +41,8 @@ USER 999:999
 CMD ["postgres", "-c", "listen_addresses=", "-c", "hba_file=/etc/postgresql/assettracker-hba.conf", "-c", "unix_socket_permissions=0777", "-c", "password_encryption=scram-sha-256"]
 
 FROM postgres AS operator
+# Root is used only while assembling the image; runtime remains UID 999.
+USER 0:0
 # Same Debian release/PG major as the database; private peer administration is
 # scoped to this separate profile and UID. No operator secret reaches web apps.
 COPY --from=app /usr/local/bin/node /usr/local/bin/node
