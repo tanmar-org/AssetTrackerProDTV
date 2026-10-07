@@ -86,6 +86,26 @@ test("fresh paired database initialization with real SCRAM and failure containme
     const result = await backupDatabases(config, output);
     assert.ok(result);
   });
+  await t.test("restore preparation requires reserved names before database creation", async () => {
+    const ordinary = await plan("assettracker_not_recovery");
+    await assert.rejects(initializeDatabases(ordinary.input, ordinary.output, { restoreEmpty: true }));
+    assert.equal((await admin.prepare("SELECT count(*)::integer AS count FROM pg_database WHERE datname LIKE 'assettracker_not_recovery_%'").first()).count, 0);
+  });
+  await t.test("fresh recovery targets remain empty and deny runtime/backup connections", async () => {
+    const recovery = await plan("assettracker_restore_drill");
+    await initializeDatabases(recovery.input, recovery.output, { restoreEmpty: true });
+    assert.equal(JSON.parse(await readFile(path.join(recovery.output, "manifest.json"), "utf8")).status, "restore-empty");
+    for (const app of Object.keys(applications)) {
+      const owner = createDatabase(JSON.parse(await readFile(path.join(recovery.output, `${app}-owner.json`), "utf8")).DATABASE_URL);
+      try { assert.equal((await owner.prepare("SELECT count(*)::integer AS count FROM information_schema.tables WHERE table_schema='public'").first()).count, 0); }
+      finally { await owner.close(); }
+      for (const kind of ["runtime", "backup"]) {
+        const denied = createDatabase(JSON.parse(await readFile(path.join(recovery.output, `${app}-${kind}.json`), "utf8")).DATABASE_URL);
+        try { await assert.rejects(denied.prepare("SELECT 1").first(), error => error.code === "42501"); }
+        finally { await denied.close(); }
+      }
+    }
+  });
   await t.test("existing second database blocks all creation and preserves existing data", async () => {
     const conflict = await plan("assettracker_conflict");
     await admin.prepare('CREATE DATABASE "assettracker_conflict_requests"').run();

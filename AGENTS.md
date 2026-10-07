@@ -46,7 +46,10 @@ The journal records current evidence; older handoff statements may be stale.
 - Public QR application: `service-request/`, especially `app/page.tsx` and
   `app/api/requests/route.ts`.
 - Both applications build/run with native Next.js on Node and PostgreSQL, using
-  separate database URLs and runtime roles. No Worker/D1 binding is required.
+  separate database URLs and runtime roles. Production packaging is Docker Compose
+  with persistent PostgreSQL and a separate operator profile; native npm development
+  stays available. Read [Docker deployment](docs/DOCKER-DEPLOYMENT.md) and
+  [datacenter moves](docs/DATACENTER-MOVE.md). No Worker/D1 binding is required.
   `packages/database/` supplies a shared parameterized-query/transaction facade;
   SQL uses PostgreSQL `$1` placeholders with no D1/SQLite translation.
 - The tracker retains operational collections as a JSONB state document. State,
@@ -69,7 +72,7 @@ The journal records current evidence; older handoff statements may be stale.
   review. Recheck active approving account/admin deletion before new upstream writes;
   already-applied proof may finish facts after logout/revocation. Receipt lookup and
   mutation share a five-second budget. Run root `service:reconcile` as a separate
-  restricted VM process; reads do not drive mutations. Restored unfinished intents
+  restricted Compose service (or native VM process); reads do not drive mutations. Restored unfinished intents
   stay paused for admin approval. Update both new tables in backup catalogs/drills.
   Read [QR operations](docs/QR-OPERATIONS.md) before changing this protocol.
 - Regular browser operations queue separately. A permanent rejection/conflict

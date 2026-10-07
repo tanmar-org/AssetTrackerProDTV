@@ -1,5 +1,11 @@
 # HTTPS through Nginx Proxy Manager
 
+Production now uses [Docker Compose](DOCKER-DEPLOYMENT.md), as selected by the owner
+for datacenter portability. Native setup below remains an alternative/development
+reference. Compose uses its own private service network and Unix-socket PostgreSQL;
+follow its runbook for activation and [datacenter moves](DATACENTER-MOVE.md).
+
+
 The owner chose separate staff/QR names, an existing Nginx Proxy Manager (NPM),
 and its existing wildcard certificate. Actual infrastructure values remain in
 protected operator notes. Both names returned NXDOMAIN at 2026-10-06 preflight.

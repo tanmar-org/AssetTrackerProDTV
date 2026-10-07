@@ -138,3 +138,38 @@ jobs:
           # Tests must not rewrite sources, lockfiles or tracked build inputs.
           git diff --check
           test -z "$(git status --porcelain)"
+
+  containers:
+    name: Validate portable Docker deployment
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the proposed merge
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up the repository's Node version
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Install fixture dependencies from the staff lockfile
+        run: npm run install:ci
+      - name: Build immutable images and exercise independent source/destination stacks
+        run: |
+          # Uses hosted-runner sudo, synthetic TLS/LDAP, private temporary files
+          # and project-scoped volumes. No registry publication or VM deployment.
+          docker version
+          docker compose version
+          npm run test:containers
+      - name: Verify isolated container cleanup and source cleanliness
+        run: |
+          remaining="$(docker ps -aq --filter 'label=com.docker.compose.project' | xargs -r docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' | awk '/^assettracker_container_test_/ { count++ } END { print count+0 }')"
+          printf 'Remaining synthetic containers: %s\n' "$remaining"
+          test "$remaining" = "0"
+          test -z "$(docker volume ls -q --filter 'label=com.docker.compose.project' | awk '/^assettracker_container_test_/')"
+          git diff --check
+          test -z "$(git status --porcelain)"

@@ -30,7 +30,7 @@ export function scramVerifier(password) {
 
 // Credentials must be private, canonical and outside every Git worktree. Check
 // ancestor ownership/write permissions too: a writable parent defeats file modes.
-async function protectedPath(filename, directory = false) {
+export async function protectedOperatorPath(filename, directory = false) {
   if (!path.isAbsolute(filename || "")) throw fail();
   const info = await lstat(filename);
   if ((directory ? !info.isDirectory() : !info.isFile()) || info.uid !== process.getuid() ||
@@ -84,7 +84,7 @@ async function saveManifest(output, manifest) {
   } finally { await rm(temporary, { force: true }); }
 }
 export async function prepareDatabases(settingsFile, output) {
-  await protectedPath(settingsFile); await protectedPath(path.dirname(output), true);
+  await protectedOperatorPath(settingsFile); await protectedOperatorPath(path.dirname(output), true);
   const settings = JSON.parse(await readFile(settingsFile, "utf8"));
   const { url, targets } = provisioningSettings(settings);
   // Generate/save credentials before DDL so a partial failure cannot lose the
@@ -110,20 +110,23 @@ export async function prepareDatabases(settingsFile, output) {
   return { files: 9 };
 }
 
-export async function initializeDatabases(settingsFile, output, { signal } = {}) {
+export async function initializeDatabases(settingsFile, output, { signal, restoreEmpty = false } = {}) {
   const cancelled = () => { if (signal?.aborted) throw fail(); };
   cancelled();
-  await protectedPath(settingsFile); await protectedPath(output, true);
+  await protectedOperatorPath(settingsFile); await protectedOperatorPath(output, true);
   const settings = JSON.parse(await readFile(settingsFile, "utf8"));
   const { url, targets } = provisioningSettings(settings), connections = {};
-  await protectedPath(path.join(output, "manifest.json"));
+  if (restoreEmpty && (!/^assettracker_restore_[a-z0-9_]+$/.test(settings.namespace) ||
+      Object.values(targets).some(target => !/^assettracker_restore_[a-z0-9_]{1,40}$/.test(target.database) ||
+        !/^assettracker_restore_[a-z0-9_]{1,40}$/.test(target.roles.runtime)))) throw fail();
+  await protectedOperatorPath(path.join(output, "manifest.json"));
   const manifest = JSON.parse(await readFile(path.join(output, "manifest.json"), "utf8"));
   if (manifest.version !== 1 || manifest.status !== "prepared" || manifest.namespace !== settings.namespace ||
       JSON.stringify(manifest.targets) !== JSON.stringify(targets)) throw fail();
   for (const [app, target] of Object.entries(targets)) {
     connections[app] = {};
     for (const [kind, role] of Object.entries(target.roles)) {
-      const file = path.join(output, `${app}-${kind}.json`); await protectedPath(file);
+      const file = path.join(output, `${app}-${kind}.json`); await protectedOperatorPath(file);
       const value = JSON.parse(await readFile(file, "utf8"));
       const parsed = new URL(value.DATABASE_URL);
       if (Object.keys(value).length !== 1 || !/^[A-Za-z0-9_-]{43}$/.test(parsed.password) ||
@@ -134,8 +137,8 @@ export async function initializeDatabases(settingsFile, output, { signal } = {})
   if (new Set(Object.values(connections).flatMap(group => Object.values(group).map(value => new URL(value).password))).size !== 6) throw fail();
   // Backup credentials contain the same generated secrets; exposed or replaced
   // companion files must also block initialization before any DDL.
-  await protectedPath(path.join(output, "pg_service.conf"));
-  await protectedPath(path.join(output, "pgpass"));
+  await protectedOperatorPath(path.join(output, "pg_service.conf"));
+  await protectedOperatorPath(path.join(output, "pgpass"));
   const admin = createDatabase(url.href);
   let createdRoles = false, started = false;
   try {
@@ -173,9 +176,10 @@ export async function initializeDatabases(settingsFile, output, { signal } = {})
       await admin.prepare(`CREATE DATABASE ${identifier(target.database)} WITH OWNER ${identifier(target.roles.owner)} TEMPLATE template0 ENCODING 'UTF8' ALLOW_CONNECTIONS false`).run();
       await admin.transaction(async tx => {
         await tx.prepare(`REVOKE ALL ON DATABASE ${identifier(target.database)} FROM PUBLIC`).run();
-        await tx.prepare(`GRANT CONNECT ON DATABASE ${identifier(target.database)} TO ${identifier(target.roles.runtime)}, ${identifier(target.roles.backup)}`).run();
+        if (!restoreEmpty) await tx.prepare(`GRANT CONNECT ON DATABASE ${identifier(target.database)} TO ${identifier(target.roles.runtime)}, ${identifier(target.roles.backup)}`).run();
         await tx.prepare(`ALTER DATABASE ${identifier(target.database)} ALLOW_CONNECTIONS true`).run();
       });
+      if (restoreEmpty) continue; // Recovery imports its schema; keep runtime/backup CONNECT denied.
       const databaseUrl = new URL(url); databaseUrl.pathname = `/${target.database}`;
       const database = createDatabase(databaseUrl.href);
       try {
@@ -213,14 +217,14 @@ export async function initializeDatabases(settingsFile, output, { signal } = {})
     // credentials be used. Verify real connections and runtime least privilege.
     await admin.transaction(async tx => { for (const role of roles) await tx.prepare(`ALTER ROLE ${identifier(role)} LOGIN`).run(); });
     for (const app of Object.keys(targets)) {
-      cancelled(); await verifyRuntimeDatabase(connections[app].runtime);
-      for (const value of Object.values(connections[app])) {
+      cancelled(); if (!restoreEmpty) await verifyRuntimeDatabase(connections[app].runtime);
+      for (const value of restoreEmpty ? [connections[app].owner] : Object.values(connections[app])) {
         const valid = createDatabase(value);
         try { await valid.prepare("SELECT 1").first(); } finally { await valid.close(); }
       }
     }
     cancelled();
-    await saveManifest(output, { ...manifest, status: "initialized", inventoryImported: false, administratorsProvisioned: false });
+    await saveManifest(output, { ...manifest, status: restoreEmpty ? "restore-empty" : "initialized", inventoryImported: false, administratorsProvisioned: false });
     return { databases: 2, roles: 6 };
   } catch {
     // Preserve partial databases for private diagnosis. Never silently delete

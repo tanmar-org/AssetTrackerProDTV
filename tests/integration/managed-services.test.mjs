@@ -46,7 +46,7 @@ test("managed service startup and shutdown with actual restricted PostgreSQL rol
   t.after(() => rm(directory, { recursive: true, force: true }));
   const release = path.join(directory, "release"); await mkdir(path.join(release, "scripts"), { recursive: true });
   await mkdir(path.join(release, "service-request"));
-  for (const file of ["managed-runtime.mjs", "run-managed-service.mjs", "reconcile-service-operations.mjs"])
+  for (const file of ["managed-runtime.mjs", "service-launcher.mjs", "run-managed-service.mjs", "reconcile-service-operations.mjs"])
     await cp(path.join(root, "scripts", file), path.join(release, "scripts", file));
   for (const file of ["lib", "node_modules", ".next", "public"]) await symlink(path.join(root, file), path.join(release, file));
   for (const file of ["node_modules", ".next", "public"]) await symlink(path.join(root, "service-request", file), path.join(release, "service-request", file));

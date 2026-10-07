@@ -2639,3 +2639,44 @@ Then configure NPM/DNS and verify real HTTPS/login/phone GPS/reboot behavior.
 Existing records require authorized import/reconciliation; a fresh preview is not
 an approved source. Encrypted off-server scheduled backups/retention and alerts
 remain rollout prerequisites rather than features supplied by this preparation.
+
+## 2026-10-06 (America/Chicago) — Docker deployment and datacenter portability
+
+Owner merged PR #38 at `1d1187a`. Its final-head `195d544` hosted run
+37549509046 passed all 349 checks: staff 118, QR 4, ingress 10, native services 2,
+PostgreSQL/HTTP 160 and Chromium 55; both builds/types/zero-warning lint passed,
+zero failures/skips and zero remaining synthetic SQL fixtures. Private final
+provisioning evidence is saved outside Git. PR #38 is no longer awaiting merge.
+
+Owner chose Docker for moving between datacenters. Work on
+`Dev/docker-portable-deployment` makes Compose the production packaging plan,
+retaining native development and the private AD preview. Four official pinned
+images produce revision-labelled immutable local image IDs. Staff, QR and
+reconciliation use distinct UIDs/configurations; only staff receives AD reader
+access/egress. A nonroot Nginx gateway retains authenticated-hop/private-route
+policy and publishes only the configured private VM HTTPS port. PostgreSQL 18
+persists its versioned data below the parent volume, has no network/TCP listener,
+and serves SCRAM app roles through a shared socket. A separate peer-admin operator
+profile holds initialization, admin/link and verified backup/restore commands.
+
+Offline preparation generates protected fresh DB/runtime/hop credentials, verifies
+backend leaf/key/hostnames, and stages NPM/config outside Git. Root installation
+uses a fixed file allowlist and numeric service ownership because Compose bind-backed
+secrets preserve host modes/UIDs. It starts no stack. New recovery-only provisioning
+creates empty `assettracker_restore_*` targets without migrations or runtime/backup
+CONNECT; the existing paired restore validates contents, revokes sessions and pauses
+unfinished intents before access, then restores SELECT-only backup permissions.
+
+Owner ran the reviewed Docker installer interactively on this VM: Engine 29.8.2,
+Compose v5.6.0 and daemon dependencies installed; no AssetTracker stack was deployed.
+Agent daemon access still requires interactive sudo. Hosted synthetic Docker
+validation avoids changing that authorization or adding root-equivalent group
+membership. Local offline configuration tests pass; full native/container regression
+validation is in progress. No production data/service/AD/NPM/DNS/preview changes.
+
+Documentation includes a concrete maintenance-window move: exact image archives,
+private trust/config, source writer quiescence, complete paired logical backup,
+independent fresh destination, explicit acceptance and rollback with one writer
+pair. DNS/proxy/AD routing, encryption/off-server retention, monitoring and real
+reboot/phone acceptance remain rollout work. Launch inventory/import choice is
+still pending; no choice assumed. Record final CI/test evidence before handoff.

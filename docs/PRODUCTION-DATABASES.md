@@ -1,5 +1,11 @@
 # Fresh production PostgreSQL provisioning
 
+Production now uses [Docker Compose](DOCKER-DEPLOYMENT.md), as selected by the owner
+for datacenter portability. Native setup below remains an alternative/development
+reference. Compose uses its own private service network and Unix-socket PostgreSQL;
+follow its runbook for activation and [datacenter moves](DATACENTER-MOVE.md).
+
+
 `npm run db:prepare` stages private credentials without a database connection.
 The separate `--initialize` operation creates two **new** databases, applies the
 current checksummed migrations as their distinct owners and grants explicit

@@ -420,9 +420,17 @@ approval; unresolved owner/operational items remain listed below.
   checksummed owner migrations, real wrong-password/startup checks and partial
   failure containment. Prepared on `Dev/production-database-provisioning` for
   owner review in [PR #38](https://github.com/tanmar-org/AssetTrackerProDTV/pull/38).
+  Owner merged it at `1d1187a`; final hosted run 37549509046 passed all 349
+  checks with zero failures/skips and zero remaining SQL fixtures.
   See [database setup](docs/PRODUCTION-DATABASES.md). Staging is
   offline; initialization requires an approved deployment and new target names.
   No production database/import/administrator/service is created by this work.
+- [ ] HOST-04-DOCKER — Owner chose Docker Compose for portable production,
+  superseding native systemd as the deployment plan. Prepare immutable images,
+  isolated app/operator credentials, socket-only persistent PostgreSQL, private
+  TLS gateway and a verified two-stack move/restore drill. In progress on
+  `Dev/docker-portable-deployment`; see [Docker setup](docs/DOCKER-DEPLOYMENT.md)
+  and [datacenter moves](docs/DATACENTER-MOVE.md). No production activation.
 - [ ] MIG-01-LAUNCH **Owner decision** — Confirm empty first-launch inventory or
   authorized existing-record imports before the production database/cutover plan.
   Requested while preparing independent tooling; no choice assumed.

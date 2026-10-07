@@ -32,9 +32,12 @@ function privateAddress(value) {
 export async function renderIngress(settings, outputDirectory) {
   if (!settings || typeof settings !== "object" || Array.isArray(settings)) invalid();
   const allowed = new Set(["staffHostname", "qrHostname", "vmAddress", "gatewayPort", "staffPort", "qrPort",
-    "vmCertificate", "vmCertificateKey", "npmTrustedCa", "npmQrInclude", "vmQrInclude", "proxySourceAddress"]);
+    "vmCertificate", "vmCertificateKey", "npmTrustedCa", "npmQrInclude", "vmQrInclude", "proxySourceAddress", "backendNetwork"]);
   if (Object.keys(settings).some(key => !allowed.has(key))) invalid();
+  const container = settings.backendNetwork === "compose";
+  if (settings.backendNetwork !== undefined && !["loopback", "compose"].includes(settings.backendNetwork)) invalid();
   if (Object.hasOwn(settings, "proxySourceAddress")) privateAddress(settings.proxySourceAddress);
+  privateAddress(settings.vmAddress); // Host publishing still requires a private/loopback address.
   const staff = hostname(settings.staffHostname), qr = hostname(settings.qrHostname);
   if (staff === qr) invalid();
   const staffPort = settings.staffPort ?? 5173, qrPort = settings.qrPort ?? 5174;
@@ -43,7 +46,8 @@ export async function renderIngress(settings, outputDirectory) {
   const loginSecret = randomBytes(32).toString("base64url");
   const requestSecret = randomBytes(32).toString("base64url");
   const values = {
-    STAFF_HOST: staff, QR_HOST: qr, VM_LISTEN: privateAddress(settings.vmAddress),
+    STAFF_HOST: staff, QR_HOST: qr, VM_LISTEN: container ? "0.0.0.0" : privateAddress(settings.vmAddress),
+    STAFF_UPSTREAM: container ? "staff" : "127.0.0.1", QR_UPSTREAM: container ? "qr" : "127.0.0.1",
     VM_PORT: port(gatewayPort), STAFF_PORT: port(staffPort), QR_PORT: port(qrPort),
     VM_CERT: filePath(settings.vmCertificate), VM_KEY: filePath(settings.vmCertificateKey),
     NPM_CA: filePath(settings.npmTrustedCa),

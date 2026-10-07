@@ -1,5 +1,11 @@
 # Production service preparation
 
+Production now uses [Docker Compose](DOCKER-DEPLOYMENT.md), as selected by the owner
+for datacenter portability. Native setup below remains an alternative/development
+reference. Compose uses its own private service network and Unix-socket PostgreSQL;
+follow its runbook for activation and [datacenter moves](DATACENTER-MOVE.md).
+
+
 These files make startup/restart, private credentials and readiness checks
 reviewable. They install/enable nothing. The working AD preview uses different
 loopback ports/databases and remains separate. Owner-approved deployment, TLS,

@@ -1,4 +1,4 @@
-# Include in the VM nginx http context. Node apps stay loopback-only.
+# Include in the VM nginx http context. Node apps stay on loopback or the private Compose network.
 # This is a private TLS gateway, not an additional public certificate issuer.
 # Authenticated headers gate EVERY route, including static files; IP restriction
 # is additional protection when the operator provides the proxy source address.
@@ -25,7 +25,7 @@ server {
     access_log off;
     location ~* ^/api/service-assets(?:/|$) { return 404; }
     location / {
-        proxy_pass http://127.0.0.1:@@STAFF_PORT@@;
+        proxy_pass http://@@STAFF_UPSTREAM@@:@@STAFF_PORT@@;
         proxy_set_header Host @@STAFF_HOST@@;
         proxy_set_header X-Forwarded-Proto https;
         # Only the authenticated NPM hop may supply these two rate-limit fields.
