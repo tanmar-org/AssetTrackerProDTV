@@ -344,3 +344,28 @@ run real managed startup/worker shutdown with separate synthetic roles and built
 apps. `npm run test:services` requires systemd-analyze and Nginx and validates all
 supplied units without installing them; CI runs it after test-tool installation.
 Read [the service runbook](PRODUCTION-SERVICES.md) before changing this contract.
+
+## Fresh database provisioning checks
+
+`npm run db:prepare -- /private/settings.json /private/new-plan` stages credentials
+without a database connection. The separate `--initialize` step is operator-only
+and creates fresh targets; see [production databases](PRODUCTION-DATABASES.md).
+No current database is automatically upgraded, imported or overwritten.
+
+Default regressions check path isolation, secret generation, injection rejection
+and CLI redaction. Integration `database-provisioning.test.mjs` starts/stops an
+additional isolated socket-only PostgreSQL 18 cluster with actual SCRAM, private
+random credentials and no company data. It checks wrong passwords, separate owners,
+cross-database/DDL denial, SELECT-only complete backups, existing-name refusal,
+concurrent initializers, cancellation and second-migration failure containment.
+It also verifies loaded trust cannot hide behind an unreloaded strict HBA file.
+The shared integration cluster remains unchanged. Missing server/client tools fail
+instead of skipping. CI installs PG18 server/client on its disposable runner; it
+uses the existing policy-rc.d to prevent installation from starting system services.
+
+The extracted VM tools need
+`POSTGRES_TEST_SHARE=$HOME/.local/share/assettracker-tools/postgresql/usr/share/postgresql/18`
+in addition to the existing test URL when running the complete integration suite.
+This selects initdb's matching share files; it never relaxes authentication. CI's
+installed PG18 finds its own share files. The scratch cluster/directory is removed
+after the test; no production service/cluster is installed by these checks.

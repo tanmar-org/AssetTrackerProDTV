@@ -2569,3 +2569,73 @@ These make the approved URLs usable and services return after reboot. Public
 activation still needs owner-approved deployment, working recovery admins, original
 data/old-label handling, encrypted off-server backups and actual HTTPS/GPS/boot
 acceptance. Local readiness is not an alerting or backup system.
+
+## 2026-10-06 — Guarded fresh PostgreSQL provisioning (America/Chicago)
+
+Owner merged PR #37 at `90de7e5439282aed3605a2c0158628e71e26032f`
+(18:44 America/Chicago). Fetched current main and branched
+`Dev/production-database-provisioning`. Its final-head hosted run 37547589869
+at `a7c89aa` passed all 334 tests: staff 113, QR 4, ingress 10, native services 2,
+PostgreSQL/HTTP 150 and Chromium 55; builds/types/zero-warning lint also passed,
+with zero failures/skips and zero remaining synthetic fixtures. Final evidence
+was saved privately and is bundled here; PR #37 is no longer awaiting merge.
+
+Added `db:prepare`: offline staging creates nine protected files, including six
+unique owner/runtime/backup connection JSONs, paired libpq backup services/passfile
+and an atomic non-secret manifest. Canonical operator-owned files/parents outside
+all Git worktrees, exclusive new output, a constrained namespace/socket-only URI
+and exact settings prevent overwrite, credential exposure and SQL/libpq injection.
+Staging makes no database connection. The separate `--initialize` operation is an
+operator command for approved NEW paired databases, not a deployment/import action.
+
+Initialization checks PG18, socket-only server, administrator authority and actual
+HBA file rules. Both database and all role names must be absent before any creation;
+role reservation serializes concurrent attempts, and a losing attempt cannot revoke
+the winner's accounts. Six roles begin NOLOGIN with no elevated flags/memberships.
+Database connections stay disabled until PUBLIC is revoked. Checksummed migrations
+run as each actual owner, runtime gets explicit DML only on its app tables, and
+backup gets SELECT on the complete shared catalog/migration history. Only SCRAM
+verifiers are submitted in password DDL; generated plaintext stays in protected
+credential files, not SQL statement logs.
+
+Before enabling any role login, incorrect passwords must fail with SQLSTATE 28P01.
+This catches active trust/peer rules concealed behind an unreloaded strict HBA file
+while all accounts remain offline. Real connections for all six roles and the
+managed runtime permission check then precede the initialized manifest. Ordinary
+failure commits NOLOGIN before terminating this attempt's sessions, preserves
+partial databases/credentials and refuses automatic reuse/deletion/retry. Interrupted
+processes or failed containment still require private DBA review; the operation is
+not globally atomic. Existing maintenance CONNECT grants/HBA are not modified.
+
+Added a commented fresh-provisioning runbook and updated development, CI,
+self-hosting, service setup and TODO handoffs. CI installs PG18 server/client only
+on its disposable runner, retaining disabled package service startup. The new
+integration fixture uses a separate socket-only SCRAM cluster rather than changing
+the existing trust-authenticated regression service. It tests wrong passwords,
+owner replay, cross-database/DDL/SET ROLE denial, real complete read-only dumps,
+existing data/role preservation, concurrency, cancellation, unsafe/stale HBA and a
+forced failure in the second migration. Synthetic cluster/credentials are removed.
+
+Local validation: 118 staff defaults and the complete 160 PostgreSQL/HTTP checks
+pass, zero failures/skips and zero remaining shared-cluster fixtures. Matching
+existing app builds were reused because this changes operator tooling, not app
+source/dependencies. After final authentication/containment refinements, all ten
+focused real-SCRAM provisioning checks pass; zero-warning lint/vendor checks,
+actionlint and diff checks pass. The shared test cluster was stopped; both private
+AD preview services remain active. Full final-head hosted results will be saved
+privately and reported in [PR #38](https://github.com/tanmar-org/AssetTrackerProDTV/pull/38);
+bundle them in the next substantive
+journal change rather than a separate documentation PR.
+
+No production database/role, migration/import, administrator, system unit, listener,
+certificate, NPM/DNS or existing preview configuration was created/changed. Asked
+for the owner's empty-versus-existing-record launch choice; no answer/assumption is
+recorded. Production installation is still separate from code review/merge.
+
+Next settle that data decision and review the concrete production installation
+plan: supervised persistent PostgreSQL, these new schemas/credentials, reviewed AD
+administrator/recovery access, compatible app/worker services and backend TLS.
+Then configure NPM/DNS and verify real HTTPS/login/phone GPS/reboot behavior.
+Existing records require authorized import/reconciliation; a fresh preview is not
+an approved source. Encrypted off-server scheduled backups/retention and alerts
+remain rollout prerequisites rather than features supplied by this preparation.

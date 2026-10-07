@@ -19,14 +19,16 @@ decision is recorded explicitly. The owner reviews and merges all changes from
    an explicit reviewed administrator GUID link. Owner normal-password sign-in
    succeeds with active admin access and a later real directory-status recheck.
    Owner sign-out/relogin also pass, with the original session removed and a fresh
-   AD session retaining admin access. Owner merged HTTPS ingress preparation in PR #36 at `b67f962`. Next prepare
-   supervised production services, then complete recovery-admin and real policy acceptance.
+   AD session retaining admin access. Owner merged HTTPS ingress preparation in
+   PR #36 at `b67f962` and service preparation in PR #37 at `90de7e5`. Next finish
+   guarded production database setup, then recovery-admin and real policy acceptance.
    Owner selected both public names and confirmed an existing reverse proxy;
    public DNS is unresolved. Nginx Proxy Manager and an existing wildcard certificate
    are confirmed; source-IP restriction is optional per owner direction. Protected
    ingress preparation and real synthetic proxy validation are complete; deployment
    configuration and acceptance remain pending. Production service preparation is
-   complete on `Dev/production-service-preparation`, pending owner review.
+   merged in PR #37; final-head hosted run 37547589869 passed 334 checks
+   with zero failures/skips and zero remaining fixtures.
    Preserve existing app roles, recovery ownership and shared-device sign-out.
    Internet staff access is not enabled; public customer QR access remains separate.
 2. **Retain automated validation (QA-01-CI).** Owner merged PR #32 at `396be11`.
@@ -398,7 +400,7 @@ approval; unresolved owner/operational items remain listed below.
   owner merged it at `b67f962`; final hosted run 37544501862 passed all 320
   checks with zero skips/failures and zero remaining SQL fixtures. Source-IP
   restriction is optional, TLS/secrets mandatory. See [the runbook](docs/HTTPS-INGRESS.md).
-- [ ] HOST-03-INGRESS-ROLLOUT — Review/merge the preparation PR, install the VM
+- [ ] HOST-03-INGRESS-ROLLOUT — Install the reviewed VM
   leaf/key and trusted issuer bundle, configure actual NPM hosts and loopback web
   services with matching credentials, set public DNS to the existing proxy entry
   point and complete HTTPS/header/route/phone acceptance during approved deployment.
@@ -408,9 +410,22 @@ approval; unresolved owner/operational items remain listed below.
   and private readiness monitoring. Native unit/gateway validation and real
   restricted-PostgreSQL startup/stop tests pass. A transient user-systemd smoke
   also verifies credential delivery and crash restart. See [service setup](docs/PRODUCTION-SERVICES.md).
-  Prepared in [PR #37](https://github.com/tanmar-org/AssetTrackerProDTV/pull/37).
+  Owner merged [PR #37](https://github.com/tanmar-org/AssetTrackerProDTV/pull/37)
+  at `90de7e5`; its final-head hosted run 37547589869 passed all 334 checks,
+  both builds/types/zero-warning lint and zero remaining synthetic fixtures.
   Production installation, actual UID/sandbox/boot acceptance and alert delivery
   remain HOST-04; no production service or database was installed.
+- [x] HOST-04-DATABASE-PREPARE — Guarded fresh paired database preparation,
+  role-isolated random credentials, explicit runtime/SELECT-only backup grants,
+  checksummed owner migrations, real wrong-password/startup checks and partial
+  failure containment. Prepared on `Dev/production-database-provisioning` for
+  owner review in [PR #38](https://github.com/tanmar-org/AssetTrackerProDTV/pull/38).
+  See [database setup](docs/PRODUCTION-DATABASES.md). Staging is
+  offline; initialization requires an approved deployment and new target names.
+  No production database/import/administrator/service is created by this work.
+- [ ] MIG-01-LAUNCH **Owner decision** — Confirm empty first-launch inventory or
+  authorized existing-record imports before the production database/cutover plan.
+  Requested while preparing independent tooling; no choice assumed.
 - [ ] HOST-04 — Provision production web and QR reconciliation services
   (`service:reconcile -- --watch`), least-privilege credentials, startup/
   restart supervision, health checks, monitoring, backup retention, and a documented

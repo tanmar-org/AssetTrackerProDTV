@@ -101,7 +101,9 @@ Do this only after a release/deployment is approved and required data/recovery
 decisions are complete. This runbook does not authorize a production cutover.
 
 1. Prepare supervised production PostgreSQL separately. Use restricted runtime
-   roles and distinct databases from [self-hosting](SELF-HOSTING.md). Apply each
+   roles and distinct databases from [self-hosting](SELF-HOSTING.md). The guarded
+   [fresh database command](PRODUCTION-DATABASES.md) stages private credentials and
+   initializes only new paired targets after approval. Apply each
    migration with operator credentials, provision/link reviewed identities and
    validate recovery administrators. Confirm empty-versus-existing-data handling;
    importing old inventory is not implicit in a fresh preview or service install.

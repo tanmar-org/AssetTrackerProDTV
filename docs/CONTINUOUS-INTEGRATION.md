@@ -100,3 +100,10 @@ Managed service checks also run in this workflow: default protected-credential/
 readiness scenarios, actual restricted-PostgreSQL launcher and worker cases, and
 `test:services` offline systemd unit/timer verification after installing test-only
 Nginx. CI never installs/enables the supplied production units or uses company AD.
+
+Fresh database provisioning also exercises a separate Unix-socket-only PostgreSQL
+18 server with actual SCRAM passwords, alongside the existing disposable service.
+The runner installs matching server/client packages with package-service startup
+disabled; the test creates and removes its own private cluster. It never rewrites
+the shared service's HBA or uses company credentials. Missing binaries fail the
+check. See [the fresh provisioning runbook](PRODUCTION-DATABASES.md).

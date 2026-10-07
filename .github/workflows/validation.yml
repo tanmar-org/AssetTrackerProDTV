@@ -97,10 +97,11 @@ jobs:
           sudo apt-get install --yes --no-install-recommends nginx openssl
           npm run test:ingress
           npm run test:services
-      - name: Install matching PostgreSQL backup clients
+      - name: Install matching PostgreSQL test server and backup clients
         run: |
           # Only the ephemeral runner changes. PGDG's signed Ubuntu repository
-          # supplies client 18 for actual pg_dump/pg_restore against service 18.
+          # supplies server/client 18 for private SCRAM provisioning drills and actual
+          # pg_dump/pg_restore against service 18.
           sudo install -d /usr/share/postgresql-common/pgdg
           sudo curl --fail --silent --show-error --location --retry 3 \
             https://www.postgresql.org/media/keys/ACCC4CF8.asc \
@@ -108,7 +109,7 @@ jobs:
           printf '%s\n' 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main' \
             | sudo tee /etc/apt/sources.list.d/assettracker-pgdg.list > /dev/null
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends postgresql-client-18
+          sudo apt-get install --yes --no-install-recommends postgresql-18 postgresql-client-18
           printf '%s\n' /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - name: Run real PostgreSQL and HTTP integration tests
         id: integration
