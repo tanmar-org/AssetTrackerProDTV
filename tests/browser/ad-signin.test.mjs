@@ -14,7 +14,8 @@ test("AD password UI preserves shared-device and app-role controls", { timeout: 
   t.after(async () => { await browser.close(); await server.close(); });
   const fixture = async scenario => {
     const context = await browser.newContext(); scenario.after(() => context.close());
-    const model = { user: null, context: "1".repeat(64), login: [], writes: [], lookups: [], lookupReject: false, lookupWait: null, reject: false }, errors = [];
+    const model = { user: null, context: "1".repeat(64), login: [], writes: [], lookups: [], lookupReject: false, lookupWait: null, writeWait: null, reject: false, users: [{ ...admin, active: 1, ad_linked: true },
+      { id: "unlinked", name: "existing.staff", role: "admin", active: 1, ad_linked: false }] }, errors = [];
     await context.route("**/*", async route => {
       const request = route.request(), url = new URL(request.url()); assert.equal(url.origin, server.url);
       if (url.pathname === "/api/auth") {
@@ -33,9 +34,14 @@ test("AD password UI preserves shared-device and app-role controls", { timeout: 
         return route.fulfill({ json: { username: body.name, displayName: "Synthetic <b>Staff</b>", confirmation: "synthetic-reviewed-proof" } });
       }
       if (url.pathname === "/api/users") {
-        if (request.method() !== "GET") model.writes.push(request.postDataJSON());
-        return route.fulfill({ json: { ok: true, authMode: "ad", users: [{ ...admin, active: 1, ad_linked: true },
-          { id: "unlinked", name: "newstaff", role: "user", active: 1, ad_linked: false }] } });
+        if (request.method() !== "GET") {
+          const body = request.postDataJSON(); model.writes.push(body);
+          if (model.writeWait) await model.writeWait;
+          const target = model.users.find(user => user.id === body.id);
+          if (target && body.directoryConfirmation) target.ad_linked = true;
+          if (target && body.role) target.role = body.role;
+        }
+        return route.fulfill({ json: { ok: true, authMode: "ad", users: model.users } });
       }
       if (url.pathname.startsWith("/api/")) return route.fulfill({ json: { state: null, revision: 0, requests: [], activity: [], snapshots: [], drafts: [], operations: [] } });
       return route.continue();
@@ -94,29 +100,109 @@ test("AD password UI preserves shared-device and app-role controls", { timeout: 
     await page.locator('#userCreateForm button[type="submit"]').click(); await created;
     assert.ok(model.writes.some(body => body.name === "different.staff" && body.directoryConfirmation === "synthetic-reviewed-proof" && !("pin" in body) && !("password" in body)));
   });
-  await t.test("existing accounts link without renaming or changing permissions; lock clears the review", async scenario => {
+  await t.test("row linking opens its own review, preserves Administrator and the add-user draft, and PATCHes only the existing ID", async scenario => {
+    const { page, model, login } = await fixture(scenario);
+    await login(); await page.waitForFunction(() => document.getElementById("authGate").hidden);
+    await page.locator('[data-view="settings"]').click();
+    await page.locator("#newUserName").fill("pending.new-user");
+    // Unsaved row edits must not be presented as the existing server permission.
+    await page.locator('[data-user-id="unlinked"] [data-user-role]').selectOption("user");
+    await page.locator('[data-user-id="unlinked"] [data-link-user]').click();
+    await page.waitForFunction(() => !document.getElementById("confirmDirectoryLink").disabled);
+    assert.equal(await page.locator("#directoryLinkDialog").evaluate(el => el.open), true);
+    assert.deepEqual(model.lookups[0], { name: "existing.staff", userId: "unlinked" });
+    assert.equal(model.writes.length, 0);
+    assert.match(await page.locator("#directoryLinkPermission").textContent(), /Administrator \(preserved\)/);
+    assert.match(await page.locator("#directoryLinkPreview").textContent(), /Synthetic <b>Staff<\/b>/);
+    assert.equal(await page.locator("#directoryLinkPreview b").count(), 0);
+    assert.equal(await page.locator("#newUserName").inputValue(), "pending.new-user");
+    assert.equal(await page.locator("#newUserRole").inputValue(), "user");
+    assert.equal(await page.locator("#createUserButton").textContent(), "Add User");
+    assert.equal(await page.locator("#createUserButton").isEnabled(), false);
+    const linked = page.waitForResponse(response => new URL(response.url()).pathname === "/api/users" && response.request().method() === "PATCH");
+    await page.locator("#confirmDirectoryLink").click(); await linked;
+    await page.waitForFunction(() => !document.getElementById("directoryLinkDialog").open);
+    assert.deepEqual(model.writes[0], { id: "unlinked", adUsername: "existing.staff", directoryConfirmation: "synthetic-reviewed-proof" });
+    await page.waitForFunction(() => document.querySelector('[data-user-id="unlinked"] [data-link-user]') === null);
+    assert.equal(await page.locator('[data-user-id="unlinked"] [data-user-role]').inputValue(), "admin");
+    assert.equal(await page.locator("#newUserName").inputValue(), "pending.new-user");
+    assert.equal(model.users.length, 2);
+  });
+  await t.test("dialog lookup failures/editing block confirmation and Escape/sign-out clear the independent proof", async scenario => {
+    const { page, model, login } = await fixture(scenario);
+    await login(); await page.waitForFunction(() => document.getElementById("authGate").hidden);
+    await page.locator('[data-view="settings"]').click(); model.lookupReject = true;
+    await page.locator('[data-user-id="unlinked"] [data-link-user]').click();
+    await page.waitForFunction(() => document.getElementById("directoryLinkPreview").textContent.includes("No eligible"));
+    assert.equal(await page.locator("#confirmDirectoryLink").isEnabled(), false);
+    model.lookupReject = false;
+    await page.locator("#directoryLinkName").fill("correct.staff");
+    await page.locator("#findDirectoryLinkUser").click();
+    await page.waitForFunction(() => !document.getElementById("confirmDirectoryLink").disabled);
+    await page.locator("#directoryLinkName").fill("different.staff");
+    assert.equal(await page.locator("#confirmDirectoryLink").isEnabled(), false);
+    await page.locator("#findDirectoryLinkUser").click();
+    await page.waitForFunction(() => !document.getElementById("confirmDirectoryLink").disabled);
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator("#directoryLinkDialog").evaluate(el => el.open), false);
+    assert.equal(await page.evaluate(() => directoryLinkConfirmation), null);
+    assert.equal(await page.locator("#directoryLinkPermission").textContent(), "");
+    assert.equal(model.writes.length, 0);
+    await page.locator('[data-user-id="unlinked"] [data-link-user]').click();
+    await page.waitForFunction(() => !document.getElementById("confirmDirectoryLink").disabled);
+    await page.evaluate(() => lockSession());
+    assert.equal(await page.locator("#directoryLinkDialog").evaluate(el => el.open), false);
+    assert.equal(await page.locator("#directoryLinkPreview").textContent(), "");
+    assert.equal(await page.locator("#directoryLinkName").inputValue(), "");
+    assert.equal(await page.evaluate(() => directoryLinkConfirmation), null);
+  });
+  await t.test("canceled and overlapping dialog lookups cannot approve another user; modal fits a narrow screen", async scenario => {
+    const { page, model, login } = await fixture(scenario);
+    await login(); await page.waitForFunction(() => document.getElementById("authGate").hidden);
+    await page.locator('[data-view="settings"]').click();
+    let release; model.lookupWait = new Promise(resolve => { release = resolve; });
+    await page.locator('[data-user-id="unlinked"] [data-link-user]').click();
+    await page.waitForFunction(() => document.getElementById("findDirectoryLinkUser").disabled);
+    await page.keyboard.press("Escape"); model.lookupWait = null;
+    model.users.push({ id: "second-user", name: "other.staff", role: "user", active: 0, ad_linked: false });
+    await page.evaluate(() => loadUsers());
+    await page.locator('[data-user-id="second-user"] [data-link-user]').click();
+    await page.waitForFunction(() => !document.getElementById("confirmDirectoryLink").disabled);
+    release(); await page.waitForTimeout(100);
+    assert.match(await page.locator("#directoryLinkPreview").textContent(), /other.staff/);
+    assert.match(await page.locator("#directoryLinkPermission").textContent(), /Regular User/);
+    assert.match(await page.locator("#directoryLinkAccess").textContent(), /Inactive/);
+    assert.equal(await page.evaluate(() => directoryLinkTarget.id), "second-user");
+    await page.setViewportSize({ width: 375, height: 812 });
+    assert.equal(await page.locator("#directoryLinkDialog").evaluate(el => el.scrollWidth <= el.clientWidth + 1), true);
+    await page.locator("#directoryLinkName").focus();
+    for (let i = 0; i < 8; i++) {
+      await page.keyboard.press("Tab");
+      assert.equal(await page.evaluate(() => document.getElementById("directoryLinkDialog").contains(document.activeElement)), true);
+    }
+    const linked = page.waitForResponse(response => new URL(response.url()).pathname === "/api/users" && response.request().method() === "PATCH");
+    await page.locator("#confirmDirectoryLink").click(); await linked;
+    assert.equal(model.writes[0].id, "second-user"); assert.equal(model.writes[0].adUsername, "other.staff");
+    assert.equal(model.users.find(user => user.id === "second-user").active, 0);
+  });
+  await t.test("a pending link cannot double-submit or close, but session lock scrubs it and discards its late response", async scenario => {
     const { page, model, login } = await fixture(scenario);
     await login(); await page.waitForFunction(() => document.getElementById("authGate").hidden);
     await page.locator('[data-view="settings"]').click();
     await page.locator('[data-user-id="unlinked"] [data-link-user]').click();
-    assert.equal(await page.locator("#newUserRole").isEnabled(), false);
-    await page.locator("#newUserName").fill("linked.staff");
-    await page.locator("#findDirectoryUser").click();
-    await page.waitForFunction(() => !document.getElementById("createUserButton").disabled);
-    assert.deepEqual(model.lookups[0], { name: "linked.staff", userId: "unlinked" });
-    const linked = page.waitForResponse(response => new URL(response.url()).pathname === "/api/users" && response.request().method() === "PATCH");
-    await page.locator("#createUserButton").click(); await linked;
-    assert.deepEqual(model.writes[0], { id: "unlinked", adUsername: "linked.staff", directoryConfirmation: "synthetic-reviewed-proof" });
-    await page.waitForFunction(() => document.getElementById("cancelDirectoryLink").hidden);
-    await page.locator("#newUserName").fill("new.staff"); model.lookupReject = true;
-    await page.locator("#findDirectoryUser").click();
-    await page.waitForFunction(() => document.getElementById("directoryUserPreview").textContent.includes("No eligible"));
-    assert.equal(await page.locator("#createUserButton").isEnabled(), false);
-    model.lookupReject = false; await page.locator("#findDirectoryUser").click();
-    await page.waitForFunction(() => !document.getElementById("createUserButton").disabled);
-    await page.evaluate(() => lockSession());
-    assert.equal(await page.locator("#directoryUserPreview").textContent(), "");
-    assert.equal(await page.evaluate(() => directoryUserConfirmation), null);
+    await page.waitForFunction(() => !document.getElementById("confirmDirectoryLink").disabled);
+    let release; model.writeWait = new Promise(resolve => { release = resolve; });
+    await page.locator("#confirmDirectoryLink").click();
+    await page.waitForFunction(() => document.getElementById("directoryLinkName").disabled);
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator("#directoryLinkDialog").evaluate(el => el.open), true);
+    assert.equal(await page.locator("#confirmDirectoryLink").isEnabled(), false);
+    assert.equal(model.writes.length, 1);
+    await page.evaluate(() => lockSession()); release(); await page.waitForTimeout(100);
+    assert.equal(await page.locator("#directoryLinkDialog").evaluate(el => el.open), false);
+    assert.equal(await page.locator("#directoryLinkPreview").textContent(), "");
+    assert.equal(await page.evaluate(() => directoryLinkTarget), null);
+    assert.equal(await page.locator("#authGate").isVisible(), true);
   });
   await t.test("late lookup cannot approve an edited selector and AD controls fit narrow screens", async scenario => {
     const { page, model, login } = await fixture(scenario);

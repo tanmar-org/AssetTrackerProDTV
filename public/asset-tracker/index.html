@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark">
   <title>TanMar Receiver Control</title>
-  <link rel="stylesheet" href="app.css?v=68">
+  <link rel="stylesheet" href="app.css?v=69">
   <link rel="stylesheet" href="reskin.css?v=51">
   <link rel="stylesheet" href="capacity.css?v=1">
   <link rel="stylesheet" href="labels.css?v=55">
@@ -571,10 +571,8 @@
             <div class="user-create-actions">
               <button class="secondary-button" id="findDirectoryUser" type="button" hidden>Find AD user</button>
               <button class="primary-button" id="createUserButton" type="submit">Add User</button>
-              <button class="secondary-button" id="cancelDirectoryLink" type="button" hidden>Cancel link</button>
             </div>
           </form>
-          <p id="directoryLinkTarget" hidden></p>
           <p id="directoryUserPreview" role="status" hidden></p>
           <div class="user-list" id="userList"></div>
         </section>
@@ -657,6 +655,21 @@
       </div>
     </section>
   </div>
+
+  <!-- Linking an existing user has its own review, preserving the add-user draft. -->
+  <dialog class="modal small-modal directory-link-dialog" id="directoryLinkDialog" tabindex="-1" aria-labelledby="directoryLinkTitle" aria-describedby="directoryLinkDescription">
+    <div class="modal-header"><div><p class="eyebrow">Existing user access</p><h2 id="directoryLinkTitle">Link AD account</h2></div><button class="icon-button" type="button" data-cancel-directory-link aria-label="Close AD account linking">×</button></div>
+    <form id="directoryLinkForm">
+      <p id="directoryLinkDescription">Review the AD user, then confirm the link. Existing permissions and records are preserved.</p>
+      <p id="directoryLinkAccount"></p>
+      <p id="directoryLinkPermission"></p>
+      <p id="directoryLinkAccess"></p>
+      <label class="single-field"><span>AD username</span><input id="directoryLinkName" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,63}" autocapitalize="none" spellcheck="false" required autofocus></label>
+      <button class="secondary-button" id="findDirectoryLinkUser" type="button">Find AD user</button>
+      <p id="directoryLinkPreview" role="status"></p>
+      <div class="modal-actions"><button class="secondary-button" type="button" data-cancel-directory-link>Cancel</button><button class="primary-button" id="confirmDirectoryLink" type="submit" disabled>Link AD account</button></div>
+    </form>
+  </dialog>
 
   <div class="modal-backdrop" id="activationModal" hidden>
     <section class="modal">
@@ -987,6 +1000,6 @@
   <script src="vendor/qrcode.js" integrity="sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k" crossorigin="anonymous"></script>
   <script src="vendor/jsbarcode.min.js" integrity="sha384-Kk5SjBOKprEnGfyBWfD2zROFd1Cu8kwOXxG2GIhYPcoDL2rBJS9P8Ud1ZMy4412a" crossorigin="anonymous"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=70"></script>
+  <script src="app.js?v=71"></script>
 </body>
 </html>

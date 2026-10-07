@@ -484,7 +484,7 @@ body.auth-locked .app-shell{visibility:hidden}
 /* AD review controls share one action area; PIN mode keeps its original fields. */
 .user-create-form[data-auth-mode="ad"]{grid-template-columns:1.2fr .8fr auto}
 .user-create-actions{display:flex;flex-wrap:wrap;gap:10px}
-#directoryLinkTarget,#directoryUserPreview,#userDirectoryNotice{margin:0 18px 16px;line-height:1.5;overflow-wrap:anywhere}
+#directoryUserPreview,#userDirectoryNotice{margin:0 18px 16px;line-height:1.5;overflow-wrap:anywhere}
 .user-list{display:grid}.user-row{display:grid;grid-template-columns:1.2fr .8fr .8fr auto;gap:12px;align-items:end;padding:14px 18px;border-top:1px solid #343a3e}.user-row-actions{display:flex;gap:7px;flex-wrap:wrap}
 .user-status{display:block;margin-top:6px;color:var(--muted);font-size:.66rem;font-weight:650}.user-status.locked{color:#ff8f99}.user-status.active{color:#57d9a6}
 .user-row.inactive{opacity:.58}.changed-by{color:#dba039!important;font-weight:750}
@@ -946,3 +946,13 @@ body.auth-locked .modal-backdrop,body.auth-locked .profile-menu,body.auth-locked
 .service-operation-row>div:first-child{flex:1;min-width:220px;}
 .service-operation-row span{display:block;color:var(--muted);margin-top:5px;font-size:13px;}
 .service-action-controls{border:0;margin:0;padding:0;min-width:0;}
+
+/* Native modal focus/escape behavior keeps existing-user linking separate from creation. */
+.directory-link-dialog{padding:0;width:min(560px,calc(100vw - 32px));color:var(--text)}
+.directory-link-dialog::backdrop{background:rgba(0,0,0,.7);backdrop-filter:blur(4px)}
+#directoryLinkForm{padding:20px 24px}
+#directoryLinkForm p{line-height:1.5;overflow-wrap:anywhere}
+#directoryLinkName{width:100%;min-width:0}
+#findDirectoryLinkUser{margin-top:12px}
+#directoryLinkPreview{min-height:1.5em}
+.directory-link-dialog .modal-actions{flex-wrap:wrap}

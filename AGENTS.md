@@ -127,7 +127,10 @@ The journal records current evidence; older handoff statements may be stale.
   Settings exact AD lookup and review to create/link accounts. Preserve the
   five-minute signed approval bound to actor/session/configuration/target, fresh
   GUID lookup before account locks, and proof/permission rechecks inside the
-  transaction. Never accept browser-supplied raw GUIDs or replace existing links.
+  transaction. Existing-user linking uses its own dialog with the saved permission,
+  leaving the creation draft alone. Close/scrub the dialog and discard its independent
+  proof/target and delayed results when the session locks. Never accept browser-
+  supplied raw GUIDs or replace existing links.
   Every identity/status search requires the critical AD DOMAIN_SCOPE
   control with no value, restricting it to one naming context; preserve rejection
   of unsupported controls and unexpected referrals without following/fallback.
