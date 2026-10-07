@@ -26,7 +26,22 @@ test("immutable Compose deployment persists and restores into an independent sta
   await run("docker", ["info", "--format", "{{.ServerVersion}}"]); // Missing daemon fails, never silently skips.
   const directory = await mkdtemp(path.join(os.tmpdir(), "assettracker-container-drill-")), stacks = [];
   const ldap = await createLdapDirectory({ certificateHost: "directory.example.test", listenHost: "0.0.0.0" });
+  let complete = false;
+  async function check(name, callback) {
+    let failure;
+    await t.test(name, async () => { try { await callback(); } catch (error) { failure = error; throw error; } });
+    if (failure) throw failure; // Later phases depend on this phase's actual success.
+  }
   t.after(async () => {
+    if (!complete) for (const stack of stacks) {
+      // These are disposable synthetic services only, never VM deployment logs.
+      const ids = (await stack.compose(["ps", "--all", "--quiet"])).trim().split("\n").filter(Boolean);
+      if (ids.length) {
+        const states = JSON.parse(await run("docker", ["inspect", ...ids])).map(info => ({ name: info.Name, state: info.State, restarts: info.RestartCount }));
+        console.error(JSON.stringify(states));
+        console.error(await stack.compose(["logs", "--no-color", "--tail", "20"]));
+      }
+    }
     // Delete only this test's two named stacks/private files. Never prune Docker
     // globally or use --volumes on an operator/production project.
     for (const stack of stacks.reverse()) {
@@ -55,7 +70,7 @@ test("immutable Compose deployment persists and restores into an independent sta
   const pins = JSON.parse(await readFile(path.join(imageDirectory, "images.json"), "utf8"));
   // Remove ignored canaries after building so native readiness is unaffected.
   for (const filename of createdCanaries) await rm(filename, { force: true });
-  await t.test("build context excludes secret canaries, Git and fixtures; public QR URL exists only in image", async () => {
+  await check("build context excludes secret canaries, Git and fixtures; public QR URL exists only in image", async () => {
     const code = `import fs from 'node:fs'; console.log(JSON.stringify({
       excluded: ${JSON.stringify([...canaries, ".git", "tests"])}.every(name => !fs.existsSync('/opt/assettracker/'+name)),
       publicConfig: fs.readFileSync('/opt/assettracker/public/asset-tracker/config.js','utf8') }));`;
@@ -63,7 +78,7 @@ test("immutable Compose deployment persists and restores into an independent sta
     assert.equal(facts.excluded, true); assert.match(facts.publicConfig, /https:\/\/qr\.example\.test\//);
     assert.equal(await run("git", ["status", "--porcelain"]), "");
   });
-  await t.test("exact release images survive Docker save/load with revision and platform intact", async () => {
+  await check("exact release images survive Docker save/load with revision and platform intact", async () => {
     const archive = path.join(directory, "release-images.tar"), handle = await open(archive, "wx", 0o600);
     try {
       await new Promise((resolve, reject) => {
@@ -119,7 +134,7 @@ test("immutable Compose deployment persists and restores into an independent sta
     return response.headers["set-cookie"][0].split(";")[0];
   }
   const source = await stack("source"); let cookie, backup, transferArchive;
-  await t.test("restricted socket-only PG initializes; immutable nonroot services start healthy", async () => {
+  await check("restricted socket-only PG initializes; immutable nonroot services start healthy", async () => {
     await source.operator(["initialize"]); await source.fixture("seed");
     await source.compose(["up", "--detach", "--wait", "--wait-timeout", "180", "staff", "qr", "reconciler", "gateway"]);
     const ids = (await source.compose(["ps", "--quiet"])).trim().split("\n"), containers = JSON.parse(await run("docker", ["inspect", ...ids]));
@@ -135,23 +150,32 @@ test("immutable Compose deployment persists and restores into an independent sta
       assert.equal(container.Mounts.some(mount => mount.Source === "/var/run/docker.sock"), false);
     }
   });
-  await t.test("HTTPS denies missing hop credentials and private routes; synthetic AD signs in", async () => {
+  await check("HTTPS denies missing hop credentials and private routes; synthetic AD signs in", async () => {
     assert.equal((await request(source, false, "/asset-tracker/index.html", { authenticate: false })).status, 403);
     assert.equal((await request(source, false, "/api/service-assets")).status, 404);
+    assert.equal((await request(source, false, "/asset-tracker/index.html")).status, 200);
+    assert.equal((await request(source, true, "/")).status, 200);
     assert.equal((await request(source, true, "/api/health")).status, 404);
     cookie = await login(source);
     assert.ok(ldap.model.requests.some(entry => entry.type === "search")); assert.deepEqual(ldap.errors, []);
     const response = await request(source, false, "/api/app-state", { headers: { cookie, ...sessionHeaders(cookie) } });
     assert.equal(response.status, 200); assert.deepEqual(response.json().state, inventory());
   });
-  await t.test("public QR performs authenticated internal lookup and saves a real GPS request", async () => {
+  await check("public QR performs authenticated internal lookup and saves a real GPS request", async () => {
     const lookup = await request(source, true, "/api/asset?id=receiver-0"); assert.equal(lookup.status, 200); assert.deepEqual(lookup.json(), { id: "receiver-0", assetNumber: "TEST-0" });
     const submitted = await request(source, true, "/api/requests", { method: "POST", body: { assetId: "receiver-0", requesterName: "Synthetic Docker Requester", requesterPhone: "555-0100", operatorName: "Synthetic Operator", rigFrac: "Test Rig", lease: "Test Lease", errorCode: "771", latitude: 31.9, longitude: -102.2, gpsAccuracy: 10, gpsCapturedAt: new Date().toISOString() } });
     assert.equal(submitted.status, 201, submitted.text);
   });
-  await t.test("staff process crash restarts without losing inventory", async () => {
+  await check("staff process crash restarts without losing inventory", async () => {
     const [id] = (await source.compose(["ps", "--quiet", "staff"])).trim().split("\n");
-    await run("docker", ["kill", "--signal", "SIGKILL", id]);
+    // Docker's explicit kill/stop command can suppress restart policies. Kill
+    // the supervised Node process inside the container to simulate a real crash.
+    const crash = `import fs from 'node:fs'; const pid = fs.readdirSync('/proc').find(name => {
+      if (!/^\\d+$/.test(name)) return false;
+      try { const args = fs.readFileSync('/proc/'+name+'/cmdline','utf8').split('\\0');
+        return args[1] === 'scripts/run-container-service.mjs'; } catch { return false; }
+    }); if (!pid) process.exit(1); process.kill(Number(pid),'SIGKILL');`;
+    await run("docker", ["exec", id, "node", "--input-type=module", "-e", crash]);
     let restarted = false;
     for (let attempt = 0; attempt < 60; attempt++) {
       await delay(1000);
@@ -161,18 +185,18 @@ test("immutable Compose deployment persists and restores into an independent sta
     assert.equal(restarted, true);
     assert.equal((await request(source, false, "/api/app-state", { headers: { cookie, ...sessionHeaders(cookie) } })).status, 200);
   });
-  await t.test("container recreation retains database and owner-only recovery copies", async () => {
+  await check("container recreation retains database and owner-only recovery copies", async () => {
     await source.compose(["down"]); // Persistent volumes deliberately retained.
     await source.compose(["up", "--detach", "--wait", "--wait-timeout", "180", "database", "staff", "qr", "reconciler", "gateway"]);
     const facts = JSON.parse(await source.fixture("inspect")); assert.deepEqual(facts.state, inventory()); assert.equal(facts.drafts, 1); assert.equal(facts.requests.length, 1);
     assert.equal((await request(source, false, "/api/drafts", { headers: { cookie, ...sessionHeaders(cookie) } })).status, 200);
   });
-  await t.test("quiesced source produces a complete paired read-only backup", async () => {
+  await check("quiesced source produces a complete paired read-only backup", async () => {
     await source.compose(["stop", "gateway", "reconciler", "staff", "qr"]); await source.fixture("pending");
     backup = (await source.operator(["backup"])).trim(); assert.match(backup, /^backup-[A-Za-z0-9-]+$/);
   });
   const destination = await stack("destination");
-  await t.test("backup restores to independent fresh databases with sessions revoked and intents paused", async () => {
+  await check("backup restores to independent fresh databases with sessions revoked and intents paused", async () => {
     await destination.operator(["restore-empty"]);
     const bundle = path.join(directory, "move.tar"); transferArchive = bundle;
     const archive = await run("sudo", [...source.args, "run", "--rm", "--no-deps", "-T", "--entrypoint", "tar", "operator", "-C", "/operator/backups", "-cf", "-", backup], { encoding: "buffer" });
@@ -193,7 +217,7 @@ test("immutable Compose deployment persists and restores into an independent sta
     const destinationVolume = JSON.parse(await run("docker", ["inspect", (await destination.compose(["ps", "--quiet", "database"])).trim()]))[0].Mounts.find(mount => mount.Destination === "/var/lib/postgresql").Name;
     assert.notEqual(sourceVolume, destinationVolume);
   });
-  await t.test("destination rejects old cookies; fresh AD login reads inventory/drafts and backup still works", async () => {
+  await check("destination rejects old cookies; fresh AD login reads inventory/drafts and backup still works", async () => {
     await destination.compose(["up", "--detach", "--wait", "--wait-timeout", "180", "staff", "qr", "reconciler", "gateway"]);
     assert.equal((await request(destination, false, "/api/app-state", { headers: { cookie, ...sessionHeaders(cookie) } })).status, 401);
     const fresh = await login(destination);
@@ -202,7 +226,7 @@ test("immutable Compose deployment persists and restores into an independent sta
     assert.match((await destination.operator(["backup"])).trim(), /^backup-/);
     assert.deepEqual(JSON.parse(await destination.fixture("inspect")).operations, [{ phase: "blocked", error_code: "restore_review" }]);
   });
-  await t.test("a late operator manifest failure contains restored runtime/backup logins", async () => {
+  await check("a late operator manifest failure contains restored runtime/backup logins", async () => {
     const failure = await stack("late-failure"); await failure.operator(["restore-empty"]);
     const mountedManifest = path.join(directory, "readonly-manifest.json");
     const manifest = JSON.parse(await readFile(path.join(failure.prepared, "operator/database-plan/manifest.json"), "utf8"));
@@ -217,4 +241,5 @@ test("immutable Compose deployment persists and restores into an independent sta
     assert.deepEqual(JSON.parse(await failure.fixture("inspect")).state, inventory());
   });
 
+  complete = true;
 });

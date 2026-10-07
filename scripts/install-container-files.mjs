@@ -33,7 +33,7 @@ try {
   if (process.getuid() !== 0 || process.argv.length !== 3) throw fail();
   const source = process.argv[2]; await checked(source, true); await checked(path.join(source, "manifest.json"));
   const manifest = JSON.parse(await readFile(path.join(source, "manifest.json"), "utf8")), destination = manifest.installDirectory;
-  if (manifest.version !== 1 || !/^\/[A-Za-z0-9_/-]+$/.test(destination || "") || destination.includes("..")) throw fail();
+  if (manifest.version !== 1 || !/^\/[A-Za-z0-9_./-]+$/.test(destination || "") || destination.includes("..")) throw fail();
   const parent = path.dirname(destination);
   if (await realpath(parent) !== parent) throw fail();
   for (let ancestor = parent; ; ancestor = path.dirname(ancestor)) {
