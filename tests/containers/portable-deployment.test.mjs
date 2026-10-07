@@ -179,15 +179,31 @@ test("immutable Compose deployment persists and restores into an independent sta
       try { const args = fs.readFileSync('/proc/'+name+'/cmdline','utf8').split('\\0');
         return args[1] === 'scripts/run-container-service.mjs'; } catch { return false; }
     }); if (!pid) process.exit(1); process.kill(Number(pid),'SIGKILL');`;
-    await run("docker", ["exec", id, "node", "--input-type=module", "-e", crash]);
-    let restarted = false;
-    for (let attempt = 0; attempt < 60; attempt++) {
-      await delay(1000);
-      const [info] = JSON.parse(await run("docker", ["inspect", id]));
-      if (info.RestartCount > 0 && info.State.Health?.Status === "healthy") { restarted = true; break; }
+    // Repeat on the same container: an earlier restart must not satisfy the
+    // next crash's recovery check. Inventory must survive both interruptions.
+    for (let cycle = 0; cycle < 2; cycle++) {
+      const [before] = JSON.parse(await run("docker", ["inspect", id]));
+      try {
+        await run("docker", ["exec", id, "node", "--input-type=module", "-e", crash]);
+      } catch (error) {
+        // When the service dies before this exec exits, Docker kills the exec
+        // too (137). Accept only that expected race; missing PID, daemon and
+        // command errors still fail. Exit status alone never proves recovery.
+        if (error.code !== 137) throw error;
+      }
+      let restarted = false;
+      for (let attempt = 0; attempt < 60; attempt++) {
+        await delay(1000);
+        const [info] = JSON.parse(await run("docker", ["inspect", id]));
+        if (info.RestartCount > before.RestartCount && info.State.StartedAt !== before.State.StartedAt &&
+            info.State.Running && !info.State.OOMKilled && info.State.Health?.Status === "healthy") {
+          restarted = true; break;
+        }
+      }
+      assert.equal(restarted, true, `Staff did not recover from crash ${cycle + 1}`);
+      const response = await request(source, false, "/api/app-state", { headers: { cookie, ...sessionHeaders(cookie) } });
+      assert.equal(response.status, 200); assert.deepEqual(response.json().state, inventory());
     }
-    assert.equal(restarted, true);
-    assert.equal((await request(source, false, "/api/app-state", { headers: { cookie, ...sessionHeaders(cookie) } })).status, 200);
   });
   await check("container recreation retains database and owner-only recovery copies", async () => {
     await source.compose(["down"]); // Persistent volumes deliberately retained.

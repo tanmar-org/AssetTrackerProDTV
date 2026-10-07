@@ -114,3 +114,12 @@ release images and executes two independent synthetic Compose projects, private
 TLS/LDAP login, QR lookup/submission, crash restart, volume retention and verified
 paired recovery with session revocation/unfinished-operation pause. No VM runner,
 production secrets, image registry publication or deployment is involved.
+
+The crash drill kills the supervised process inside the synthetic container;
+explicit Docker stop/kill can suppress its restart policy. Docker can also kill
+the injecting exec before it exits, returning 137. Only that expected status is
+accepted. Two consecutive crashes each require a higher restart count, a changed
+start time, healthy running state and exact inventory through the authenticated
+API; an earlier restart cannot satisfy a later recovery check. Other command
+errors fail immediately. Inspect the main-push run separately after merging:
+a successful PR run does not prove the subsequent run succeeded.
