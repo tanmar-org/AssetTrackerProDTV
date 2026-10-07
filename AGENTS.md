@@ -165,6 +165,13 @@ The journal records current evidence; older handoff statements may be stale.
   Preserve atomic INSERT/reopen conflicts and the fail-closed authenticated lookup.
   Never trust forwarded client IPs without authenticated, overwritten ingress
   headers. Production ingress/configuration and mobile acceptance remain required.
+- The owner requires ordinary Nginx Proxy Manager Proxy Hosts with an empty
+  Advanced tab. Use `proxyMode: "standard"` and an explicit trusted private proxy
+  source address: the VM gateway accepts TLS without SNI, gates the original TCP
+  peer, takes the last appended X-Forwarded-For address and injects the app's
+  independent ingress credentials locally. Never accept forwarded identity from
+  arbitrary peers or remove application login/rate checks. The older authenticated
+  proxy mode remains supported; do not ask this owner to install NPM snippets.
 - Escape all cached/imported/API values used in staff HTML, including IDs and
   enum/class attributes; server schemas do not validate older browser caches or
   separate QR responses. Use `safeMapsLink` before Maps anchors: escaping an href

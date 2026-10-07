@@ -21,7 +21,17 @@ SCRAM passwords. Peer administrator access is confined to the operator UID/profi
 Only gateway HTTPS is published, on an explicit private VM address and high port;
 web app and database ports are never published. Existing NPM remains the public
 HTTPS entry point with the owner's wildcard certificate and separate authenticated
-hop credentials. Backend TLS still needs its own matching leaf/key and NPM trust.
+hop credentials. The owner chose a locally generated self-signed backend certificate
+covering both app names. Its key stays in protected VM storage. The owner accepted
+ordinary NPM Proxy Hosts on October 7, 2026: empty Advanced tabs, normal HTTPS
+forwarding and no files transferred to NPM. Select `proxyMode: "standard"` and a
+validated private `proxySourceAddress`. The gateway accepts TLS without SNI,
+checks the original TCP peer, derives the last proxy-appended client address and
+supplies the independent application hop credentials locally. This preserves HTTPS
+encryption without requiring NPM to validate the self-signed backend certificate.
+Public wildcard validation and verified AD/LDAPS are unchanged. The repository
+generator retains authenticated proxy mode by default for compatibility; standard
+mode must be explicitly selected. See [both NPM setup modes](HTTPS-INGRESS.md).
 
 The PostgreSQL 18 parent `/var/lib/postgresql` is a project-scoped persistent volume;
 its versioned PGDATA is `/var/lib/postgresql/18/docker`. Socket consumers disable
@@ -99,12 +109,21 @@ arguments, chat, Git, CI secrets or PR descriptions. Example schema (placeholder
 }
 ```
 
-Optional `proxySourceAddress` adds a private source-IP restriction; TLS and both
+In standard mode `proxySourceAddress` is required, while `npmTrustedCa` may be
+omitted. The NPM Advanced tab stays empty and generated NPM files contain comments
+only. In authenticated mode optional `proxySourceAddress` adds a private source-IP restriction; TLS and both
 hop secrets remain mandatory without it. The leaf must be current, match the
-private key, and cover both selected hostnames. NPM must independently verify its
-issuer/hostname when forwarding HTTPS. The image public QR origin must match the
+private key, and cover both selected hostnames. Generated NPM snippets verify its
+issuer/hostname when forwarding HTTPS; the owner-selected standard mode uses
+NPM's normal unverified upstream HTTPS. The image public QR origin must match the
 selected QR hostname. `vmAddress` must be private/loopback; wildcard publication is
 refused. All generated paths are new and never overwritten.
+
+For generated verified-backend setup, use the same public PEM certificate as
+NPM's trusted certificate at `npmTrustedCa`. That trust file is separate from
+NPM's public-facing SSL certificate selection, which continues to use the existing
+wildcard. Track backend expiry; renewal must replace the VM certificate/key and
+NPM's public trust copy together. Keep the key outside Git and NPM handoff files.
 
 ```bash
 npm run docker:prepare -- /private/settings.json /private/staged-launch
@@ -160,7 +179,7 @@ no PIN fallback or automatic username linking. Existing imports need their own
 approved reconciliation procedure. See [staff authentication and AD rollout](STAFF-AUTHENTICATION.md).
 
 Only after database/admin/data review, start `staff qr reconciler gateway` using
-`up -d --wait`, install the matching NPM snippets/CA, and complete HTTPS/domain,
+`up -d --wait`, configure matching NPM snippets using the selected setup mode, and complete HTTPS/domain,
 real AD login/logout, mobile QR/GPS, printed labels and reboot acceptance.
 Certificate/DNS/proxy setup and production activation remain owner-approved work.
 

@@ -28,6 +28,23 @@ test("offline container preparation isolates credentials and rejects unsafe conf
     assert.equal(JSON.parse(await readFile(path.join(output, "operator/database-plan/manifest.json"), "utf8")).status, "prepared");
   });
   await t.test("prepared paths cannot be overwritten", async () => { await assert.rejects(prepareContainers(fixture.file, output)); });
+  await t.test("standard NPM preparation needs only a trusted proxy address and no NPM trust file", async () => {
+    const standard = { ...fixture.settings, proxyMode: "standard", proxySourceAddress: "10.0.0.10" };
+    delete standard.npmTrustedCa;
+    await writeFile(fixture.file, JSON.stringify(standard));
+    const standardOutput = path.join(directory, "standard");
+    await prepareContainers(fixture.file, standardOutput);
+    const runtime = JSON.parse(await readFile(path.join(standardOutput, "staff-runtime.json"), "utf8"));
+    const gateway = await readFile(path.join(standardOutput, "vm.conf"), "utf8");
+    assert.ok(gateway.includes(runtime.LOGIN_PROXY_SECRET));
+    assert.ok(gateway.includes('if ($realip_remote_addr != "10.0.0.10")'));
+    assert.ok(!gateway.includes("ssl_reject_handshake"));
+    assert.ok(!(await readFile(path.join(standardOutput, "npm-staff.conf"), "utf8")).includes(runtime.LOGIN_PROXY_SECRET));
+    assert.equal(ldap.model.requests.length, 0);
+    await writeFile(fixture.file, JSON.stringify({ ...standard, proxySourceAddress: undefined }));
+    await assert.rejects(prepareContainers(fixture.file, path.join(directory, "no-trusted-proxy")));
+    await writeFile(fixture.file, JSON.stringify(fixture.settings));
+  });
   await t.test("public/wildcard publishing, unsafe paths and mutable tags are refused", async () => {
     for (const changes of [{ vmAddress: "0.0.0.0" }, { vmAddress: "8.8.8.8" }, { installDirectory: "/etc/assettracker\nINJECTED=yes" }, { gatewayPort: 443 }]) {
       await writeFile(fixture.file, JSON.stringify({ ...fixture.settings, ...changes }));

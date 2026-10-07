@@ -12,10 +12,12 @@ async function save(filename, content) { await writeFile(filename, content, { fl
 export async function prepareContainers(settingsFile, output) {
   await protectedOperatorPath(settingsFile); await protectedOperatorPath(path.dirname(output), true);
   const settings = JSON.parse(await readFile(settingsFile, "utf8"));
-  const required = ["imagesFile", "namespace", "staffHostname", "qrHostname", "vmAddress", "gatewayPort", "installDirectory", "directory", "adCaFile", "tlsCertificate", "tlsKey", "npmTrustedCa"];
+  const required = ["imagesFile", "namespace", "staffHostname", "qrHostname", "vmAddress", "gatewayPort", "installDirectory", "directory", "adCaFile", "tlsCertificate", "tlsKey"];
   if (!settings || Array.isArray(settings) || required.some(key => !Object.hasOwn(settings, key)) ||
-      Object.keys(settings).some(key => ![...required, "proxySourceAddress"].includes(key)) ||
-      !safePath(settings.installDirectory) || !safePath(settings.npmTrustedCa)) throw fail();
+      Object.keys(settings).some(key => ![...required, "proxySourceAddress", "proxyMode", "npmTrustedCa"].includes(key)) ||
+      !safePath(settings.installDirectory) ||
+      (settings.proxyMode !== "standard" && !safePath(settings.npmTrustedCa)) ||
+      (settings.npmTrustedCa !== undefined && !safePath(settings.npmTrustedCa))) throw fail();
   const pins = JSON.parse(await input(settings.imagesFile));
   const pinKeys = ["version", "revision", "publicQrUrl", "platform", "appImage", "postgresImage", "operatorImage", "gatewayImage"];
   if (Object.keys(pins).length !== pinKeys.length || pinKeys.some(key => !Object.hasOwn(pins, key)) || pins.version !== 1 ||
@@ -38,6 +40,7 @@ export async function prepareContainers(settingsFile, output) {
     vmAddress: settings.vmAddress, gatewayPort: 8443, staffPort: 5173, qrPort: 5174, backendNetwork: "compose",
     vmCertificate: "/etc/nginx/runtime/tls.pem", vmCertificateKey: "/etc/nginx/runtime/tls.key",
     vmQrInclude: "/etc/nginx/runtime/vm-qr-upstream.conf", npmTrustedCa: settings.npmTrustedCa,
+    ...(Object.hasOwn(settings, "proxyMode") ? { proxyMode: settings.proxyMode } : {}),
     ...(settings.proxySourceAddress ? { proxySourceAddress: settings.proxySourceAddress } : {}) }, output);
   if (!Number.isInteger(settings.gatewayPort) || settings.gatewayPort < 1024 || settings.gatewayPort > 65535) throw fail();
   await mkdir(output, { mode: 0o700 });

@@ -9,6 +9,16 @@ follow its runbook for activation and [datacenter moves](DATACENTER-MOVE.md).
 The owner chose separate staff/QR names, an existing Nginx Proxy Manager (NPM),
 and its existing wildcard certificate. Actual infrastructure values remain in
 protected operator notes. Both names returned NXDOMAIN at 2026-10-06 preflight.
+The owner subsequently selected a self-signed certificate generated on the VM for
+the private backend connection. NPM keeps the wildcard for public HTTPS. On
+October 7, 2026 the owner required ordinary Proxy Hosts with an empty Advanced
+tab and no NPM file transfers. Select `proxyMode: "standard"` with the explicit
+private NPM source address. The gateway accepts HTTPS without SNI, enforces the
+TCP peer allowlist and injects the application's credentials locally. NPM's normal
+self-signed backend connection does not verify the backend certificate; public
+wildcard validation and verified AD/LDAPS remain enabled. No owner private-key
+transfer is needed. The older authenticated mode remains supported for proxies
+that explicitly provide matching private headers.
 This tooling prepares files only: it installs nothing, requests no certificate,
 changes no DNS/firewall and starts no service. Review/merge and separately approved
 deployment remain necessary; the empty AD preview stays private and separate.
@@ -17,7 +27,7 @@ deployment remain necessary; the empty AD preview stays private and separate.
 
 ```text
 Browser -- HTTPS / existing wildcard --> NPM
-NPM -- verified HTTPS / separate ingress secrets --> private VM gateway
+NPM -- HTTPS / separate ingress secrets --> private VM gateway
 VM gateway -- loopback HTTP --> staff Node / QR Node
 staff Node <--> QR Node: loopback URLs and separate ADMIN_SHARED_SECRET
 ```
@@ -25,18 +35,26 @@ staff Node <--> QR Node: loopback URLs and separate ADMIN_SHARED_SECRET
 The VM gateway bridges the remote proxy to loopback-only Node servers. It binds
 an explicit private IPv4 address on port 8443 by default. Every route, including
 static files, requires its matching per-host secret; unknown TLS names are rejected.
-Optional `proxySourceAddress` also restricts the original TCP peer. Omission is
-supported; TLS and independent staff/QR secrets remain mandatory. Never publicly
+In standard mode, `proxySourceAddress` is mandatory and restricts the original
+TCP peer before any forwarding; only the gateway supplies app ingress secrets.
+In authenticated mode the source restriction is optional and the external proxy
+must provide the per-host secret. TLS and independent app secrets remain mandatory. Never publicly
 port-forward the gateway or Node ports. Restrict backend network reachability to
 NPM where practical; the source restriction can be filled in after staging.
 
-NPM forwards `$realip_remote_addr`, the original TCP peer. Its default configuration
+Authenticated proxy snippets forward `$realip_remote_addr`, the original TCP peer. NPM's default configuration
 trusts real-IP headers from private/CDN ranges; using the original address avoids
 authenticating a spoofed value under those inherited settings. This policy assumes
 NPM is the internet edge behind ordinary firewall NAT. If Cloudflare orange-cloud
 or another proxy precedes NPM, rate limits group visitors by that proxy's address,
 potentially rejecting legitimate visitors. Use **DNS-only records** for this
 topology, or separately validate an explicit trusted upstream chain first.
+
+Standard mode uses ordinary NPM `X-Forwarded-For` appending instead. The gateway
+trusts that header only from its configured TCP peer, selects the last appended
+address with `real_ip_recursive off`, and discards the remaining external identity/
+secret headers. This assumes the proxy's own client-IP configuration is correct;
+an additional trusted CDN or NAT that hides client addresses needs separate review.
 
 Both hops block staff `/api/service-assets`. QR exposes only GET `/api/asset` and
 POST `/api/requests`; listing/mutation/item/operation APIs and unknown `/api` routes
@@ -105,12 +123,34 @@ its database/backups and generated files contain secrets; protect them and never
 paste them into a PR/chat. The generated browser config contains only the public
 QR HTTPS destination. Certificate files/paths are not inspected during staging.
 
-## Configure during approved deployment
+## Owner-selected standard NPM setup
 
-1. Provide a VM TLS leaf certificate/key with SAN covering both approved names
-   and the issuer chain. A dedicated backend certificate avoids distributing the
-   public wildcard key; an approved covering wildcard leaf/key also works. Mount
-   its CA trust bundle at `npmTrustedCa` inside NPM. The AD CA export is not a TLS
+Create two Proxy Hosts using scheme **https**, the private VM address and gateway
+port **8443**. Select the existing wildcard certificate, enable **Force SSL** and
+leave caching/Websockets Support off. Use no Custom Locations and leave the
+Advanced tab empty. Save normally; no snippets or additional files are required.
+The VM gateway retains route/method limits, restricts the proxy source and supplies
+the private app credentials and checked client IPs in its forwarding locations.
+Point public DNS at the existing NPM entry point, then complete acceptance below.
+
+NPM's normal upstream uses `proxy_ssl_verify off`: backend traffic remains
+encrypted, but NPM does not authenticate the VM certificate/hostname. This is the
+owner-approved deployment choice, separate from browser wildcard validation and
+mandatory AD certificate validation. Earlier custom-header snippets are superseded
+for this rollout. No NPM shell access or file transfer is required.
+
+For native ingress preparation, add `"proxyMode": "standard"` and a validated
+private `"proxySourceAddress"` to settings. The generated VM default TLS server
+serves the backend certificate without requiring SNI, then rejects unknown HTTP
+hosts. Generated `npm-*.conf` files contain comments only in this mode.
+
+## Generated verified-backend alternative during approved deployment
+
+1. Use the locally generated self-signed VM TLS certificate/key with SAN covering
+   both approved names. Keep the key on the VM and mount only the public backend
+   certificate at `npmTrustedCa` inside NPM for explicit trust. The existing
+   wildcard stays selected for public SSL; this backend trust file is separate
+   from NPM's SSL Certificates UI. The AD CA export is not a TLS
    server leaf/private key. Keep upstream chain/hostname verification enabled.
 2. Install/supervise production VM Nginx and include `vm.conf` in `http`. Preserve
    the generated VM include path or regenerate against its intended final location.

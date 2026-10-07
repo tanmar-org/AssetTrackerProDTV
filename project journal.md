@@ -2746,3 +2746,205 @@ not a completed runtime stage. Offline configuration staging depends on a real
 matching TLS leaf/key and immutable local image IDs. The next step is building the owner-merged
 release and completing those inputs, then reviewing the concrete activation plan.
 This work changes no production DB, preview, DNS, AD or NPM configuration.
+
+## 2026-10-06 (America/Chicago) — Built release and initial data/TLS decisions
+
+Owner merged PR #40 at `8f1dd0a`; final-head `725d7bb` hosted run 37556404592
+passed all 376 tests, both builds/types/zero-warning lint and fixture cleanup.
+The owner ran the reviewed VM build. Its protected image manifest records all
+four immutable local image IDs for merged revision `8f1dd0a`, Linux amd64 and the
+selected public QR origin. The helper inspected each image before publishing;
+agent checks confirm manifest schema, revision, origin and private ownership/modes.
+Separate agent Docker API access still requires terminal sudo. Private .local
+parent directories were tightened from 0775 to 0755 to satisfy path guards.
+
+Owner selected the existing wildcard certificate for application HTTPS, including
+the private gateway, and will supply initial inventory through a spreadsheet.
+Neither decision requires another infrastructure choice. The wildcard leaf/full
+chain and matching private key are still absent from the protected VM staging
+directory; no internal certificate request is needed. AD keeps its independently
+verified domain-controller CA trust. NPM must verify the backend issuer/hostname.
+
+No spreadsheet has been supplied yet. Review its actual format before requesting
+reformatting, preserve text/leading-zero identifiers, preview invalid/duplicate/
+capacity-blocked rows and reconcile assignments/counts before an approved import.
+The existing Master Registry and West Texas import planners are documented in
+docs/IMPORTS-AND-EXPORTS.md; a workbook is not a complete users/history/QR database
+migration. No production import or account creation is authorized by these decisions.
+
+Protected settings/readiness and the operator handoff record the choices and built
+release outside Git. Both private preview health checks return HTTP 200; public
+names remain unresolved through the VM resolver. Next receive the wildcard
+certificate/key through a private transfer, validate both names and key matching,
+then generate/review the complete Docker/NPM files offline. The spreadsheet can
+be assessed when provided. This documentation update will be bundled with the next
+substantive PR; no standalone documentation PR or production activation.
+
+## 2026-10-07 (America/Chicago) — Self-signed backend and completed offline stage
+
+Owner explicitly chose a self-signed VM backend certificate. The public wildcard
+stays in NPM; no owner certificate/key transfer is needed. Generated a new
+RSA-3072/SHA-256 server certificate with both selected hostname SANs, serverAuth
+and 365-day validity, under protected storage outside Git. Its private key remains
+on the VM. Public metadata records expiry October 7, 2027 and the SHA-256
+fingerprint; future renewal must update the VM material and NPM public trust copy.
+
+OpenSSL checks confirm certificate/key matching, server purpose, validity and
+explicit self-trust for both hostnames. Negative checks reject an unrelated
+hostname and the ordinary public-system trust store. The existing reviewed Docker
+preparer completed offline using the actual built release and verified AD inputs.
+Its 25 staged files have correct private modes/ownership, independent DB role
+credentials, independent ingress secrets, AD credentials confined to staff and
+unchanged AD trust. `docker compose config --quiet` passes. The QR TLS policy is
+in its included upstream file, verified alongside the main include reference.
+
+A protected NPM handoff now contains the public backend trust certificate, both
+host snippets, the QR upstream include and installation notes; it contains no
+private key. Private readiness and verification records distinguish complete
+offline staging from activation. Reviewed the official OpenSSL req and Nginx
+proxy SSL trust documentation; no new runtime code or dependency changes.
+
+No production files installed, database initialized, account linked, data imported,
+NPM/DNS reconfigured or service started. Next install NPM's public trust/snippets
+and the prepared VM files during the reviewed rollout, then initialize/verify the
+database/admin and real HTTPS/AD/phone behavior. The owner's spreadsheet remains
+pending for mapping/reconciliation before import; backups/monitoring and actual
+deployment acceptance remain open. Documentation is held for the next substantive
+PR rather than opening a separate documentation-only PR.
+
+## 2026-10-07 (America/Chicago) — Prepared installation/database step
+
+Owner asked to continue. A clean detached worktree of the owner-merged `8f1dd0a`
+release now supplies the deployment tools/Compose file, separate from pending
+documentation edits on `Dev/production-docker-release-stage`. A protected operator
+command installs the fixed staged file allowlist and initializes only fresh paired
+PostgreSQL schemas through the already reviewed Docker operator commands.
+
+Preflight checks the exact clean release, all 25 staged file hashes, immutable
+image IDs and absence of an existing install, project containers or matching
+labelled/unlabelled volumes/networks. No existing state is adopted, overwritten or
+deleted. Failures preserve partial state. On success only PostgreSQL remains
+running, and a private nonsecret receipt distinguishes database initialization
+from web startup, administrator provisioning and spreadsheet import.
+
+Shell syntax, current staged checksums and Compose configuration checks pass.
+Agent noninteractive sudo still requires authentication, so the prepared command
+must run in the owner's VM terminal. It has not been executed; no production
+files, database or service state has changed. Next verify its receipt, provision
+and explicitly link the reviewed initial AD administrator, then enable the web
+services and complete the prepared NPM/real HTTPS acceptance steps. Spreadsheet
+mapping/import and operational backup/monitoring acceptance remain pending.
+
+## 2026-10-07 (America/Chicago) — Databases installed; administrator/startup ready
+
+Owner ran the prepared installer successfully. Terminal output confirms fixed
+protected files installed, persistent PostgreSQL healthy, operator volume seeded
+and fresh paired schemas initialized. The private 0600 installation receipt
+matches release `8f1dd0a` and records web applications stopped, no administrator
+and no inventory import. Agent sudo still requires terminal authentication; the
+owner transcript/receipt is distinguished from independent daemon inspection.
+
+Prepared a single protected administrator/startup command using the reviewed
+image functions. It creates the initial AD-only administrator and links only the
+newly returned application ID to the previously reviewed directory/objectGUID.
+Existing users block bootstrap; no PIN, directory password, username-based
+identity inference or replacement link is introduced. A private administrator
+receipt is saved before subsequent steps; failure preserves partial state.
+
+The next command verifies actual staff-container LDAPS routing/TLS without sending
+LDAP credentials, starts the private staff/QR/reconciler/gateway services, checks
+verified backend HTTPS, missing-hop denial and internal-route denial, then takes
+a first local read-only paired backup and records its basename. Private curl
+configuration carries hop credentials outside process arguments. Shell/Node syntax
+checks pass; the command has not run. No new code/image/dependency change or
+standalone documentation PR. NPM/DNS, real AD sign-in, mobile acceptance,
+spreadsheet import and scheduled encrypted off-server backups remain pending.
+
+## 2026-10-07 (America/Chicago) — Private Docker applications running
+
+Owner executed the prepared administrator/startup command successfully. Protected
+administrator/startup receipts match the reviewed release `8f1dd0a`: the initial
+AD-only administrator was created and explicitly linked to its reviewed directory
+and objectGUID, staff-container LDAPS routing/TLS passed, and database/staff/QR/
+reconciler/gateway reported healthy. The first local read-only paired baseline
+backup completed and its basename remains in protected operator notes. Bootstrap
+must not be rerun against the now-populated accounts/databases.
+
+Independent read-only VM-network curl checks verify staff health and QR page 200,
+missing authenticated hop 403 and private API route 404, with explicit backend
+certificate/hostname verification. Sandbox-only connection errors were resolved
+by scoped actual-VM network access; they were not application failures. Both
+public names remain unresolved through the VM resolver. No production AD password
+login, NPM routing/DNS change, spreadsheet import or scheduled/off-server backup
+is claimed. Existing preview services and unrelated checkouts remain untouched.
+
+Updated protected readiness/handoff notes and prepared a private five-file NPM
+transfer archive containing public backend trust, the QR include and two host
+snippets; no private TLS key is included. Reviewed NPM's official persistent
+`/data` custom-configuration documentation. Next install that handoff on the actual
+NPM machine, route both public hosts and DNS, then verify real browser AD login,
+logout and phone HTTPS/GPS. NPM host/console access is the only information needed
+for exact transfer commands. Documentation stays bundled for the next substantive
+PR; no application code/image/dependency change or separate documentation PR.
+
+## 2026-10-07 (America/Chicago) — NPM setup simplified to the web interface
+
+Owner rejected extra NPM-server setup. Explained that the file transfer was for
+backend certificate verification; owner then explicitly said to proceed with
+UI-only setup using encrypted HTTPS without verifying the self-signed backend.
+Prepared two private complete Advanced-tab snippets outside Git. They remove
+external CA/include references, inline the QR policy and set backend verification
+off. Independent hop credentials, overwritten client-IP headers, route/method/body
+limits, browser wildcard validation and verified AD/LDAPS remain unchanged. The
+reviewed repository generators and installed Docker files retain their defaults;
+only the protected NPM rollout snippets differ. Earlier file-transfer handoff is
+superseded for this rollout. No NPM SSH/source-IP/certificate request is needed.
+
+Nginx syntax and six read-only checks through temporary loopback proxies against
+the running backend pass: staff health/QR page 200, staff/QR private APIs 404 and
+QR listing/wrong-method lookup 405, with spoofed hop headers overwritten. Temporary
+proxy stopped and its secret-bearing config was removed. No AD password sign-in,
+production database writes, NPM/DNS changes or spreadsheet imports were performed.
+Protected validation/readiness and public setup/TODO notes record this exception
+without publishing credentials or infrastructure values. Next owner saves both
+hosts in NPM and configures DNS, then verifies actual browser sign-in/out and phone
+HTTPS. Documentation stays bundled with the next substantive PR.
+
+## 2026-10-07 (America/Chicago) — Ordinary NPM forwarding compatibility
+
+Owner requires normal Proxy Hosts with no Advanced snippets. Read-only diagnosis
+found both selected names reach NPM through the VM resolver but return 502; direct
+verified backend staff/QR checks return 200. The existing gateway rejects TLS
+without SNI and requires external custom hop headers, explaining why ordinary NPM
+forwarding is incompatible. NPM's official default proxy include appends the client
+address to X-Forwarded-For and sends the original HTTP Host; it needs no application
+specific configuration after this change.
+
+On `Dev/standard-npm-ingress`, added explicit `proxyMode: "standard"` requiring one
+validated private proxy TCP peer. Its default TLS server accepts no-SNI handshakes
+and rejects unknown HTTP hosts. Named hosts enforce the original TCP peer before
+forwarding, select the last appended forwarded client address with recursion off,
+inject independent app credentials locally and erase external private fields.
+Existing route/method/body/time bounds, AD validation, sessions and app rate budgets
+are preserved. Container preparation supports this mode without NPM trust files;
+older authenticated mode remains compatible. Rendering can explicitly reuse the
+existing independently validated app credentials for a gateway-only update.
+
+Local validation: all 133 staff/operator regressions and all 22 ingress checks pass,
+with zero failures/skips; lint passes with zero warnings. New real two-hop synthetic
+checks model normal NPM headers/no upstream SNI, prove both applications reached,
+reject untrusted peers carrying even valid secrets, discard forged forwarded
+prefixes/private headers, reject unknown hosts/private methods and retain QR body
+ceilings. No company AD or operational data is used in tests. Read-only public
+DNS/proxy checks are distinguished from internet-client acceptance.
+
+Prepared a protected gateway-only terminal update outside Git: check exact running
+gateway image and unchanged old policy, validate candidate using that same image,
+preserve prior policies, recreate only gateway, check normal NPM HTTPS/route denial
+and direct-peer rejection, and restore the old policy if activation fails. No app
+credentials/images, DB schemas/data, AD or persistent volumes change. It has not
+run; existing NPM 502 remains until the owner executes the VM-terminal command.
+Existing NPM host names/HTTPS upstream/port/wildcard settings suffice; Advanced
+stays empty. The known private proxy entry point is recorded only in protected
+operator files. Next owner reviews/merges this PR and runs the gateway update,
+then verifies real AD sign-in/out. Spreadsheet and backup/monitoring work remain.
