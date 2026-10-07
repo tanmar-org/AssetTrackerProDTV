@@ -30,7 +30,12 @@ test("database staging isolates six credentials and matching read-only backup se
     assert.equal(url.pathname, `/assettracker_synthetic_${app}`);
     assert.equal(url.searchParams.get("host"), "/run/postgresql");
     assert.match(url.password, /^[A-Za-z0-9_-]{43}$/); passwords.push(url.password);
-    if (kind === "backup") assert.ok((await readFile(path.join(output, "pgpass"), "utf8")).includes(url.password));
+    if (kind === "backup") {
+      const passwordFile = await readFile(path.join(output, "pgpass"), "utf8");
+      assert.ok(passwordFile.includes(`${url.searchParams.get("host")}:${url.port}:${url.pathname.slice(1)}:${url.username}:${url.password}`));
+      assert.ok(passwordFile.includes(`localhost:${url.port}:${url.pathname.slice(1)}:${url.username}:${url.password}`));
+      assert.equal(passwordFile.includes("*"), false);
+    }
   }
   assert.equal(new Set(passwords).size, 6);
   const original = await readFile(path.join(output, "tracker-runtime.json"), "utf8");

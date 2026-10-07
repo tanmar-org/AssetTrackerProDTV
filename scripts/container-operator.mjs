@@ -4,7 +4,8 @@ import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createDatabase } from "@tanmar/database";
 import { initializeDatabases, protectedOperatorPath } from "./database-provisioning.mjs";
-import { applications, backupDatabases, configuration, operatorCancellation, restoreDatabases } from "./postgresql-backups.mjs";
+import { isContainerBackupName } from "./container-backup-name.mjs";
+import { BackupError, applications, backupDatabases, configuration, operatorCancellation, restoreDatabases } from "./postgresql-backups.mjs";
 
 const root = "/operator", plan = `${root}/database-plan`, settings = `${root}/database-settings.json`;
 const seedFiles = ["database-settings.json", "identity-directory.json", "database-plan/manifest.json",
@@ -24,7 +25,9 @@ async function config(mode, signal) {
     for (const app of Object.keys(applications)) {
       const url = new URL((await json(`${plan}/${app}-owner.json`)).DATABASE_URL), socket = url.searchParams.get("host"), role = decodeURIComponent(url.username);
       services += `[${app}_restore]\nhost=${socket}\nport=5432\ndbname=${manifest.targets[app].database}\nuser=${role}\n\n`;
-      passfile += `${socket}:5432:${manifest.targets[app].database}:${role}:${decodeURIComponent(url.password)}\n`;
+      // Default Unix sockets use libpq's localhost password-file match.
+      const password = decodeURIComponent(url.password);
+      passfile += `${socket}:5432:${manifest.targets[app].database}:${role}:${password}\nlocalhost:5432:${manifest.targets[app].database}:${role}:${password}\n`;
       env[`${app.toUpperCase()}_RESTORE_SERVICE`] = `${app}_restore`;
       env[`${app.toUpperCase()}_RESTORE_RUNTIME_ROLE`] = manifest.targets[app].roles.runtime;
     }
@@ -73,7 +76,7 @@ try {
     } else if (command === "backup" && !args.length) {
       const destination = await backupDatabases(await config("backup", cancellation.signal), `${root}/backups`);
       console.log(path.basename(destination));
-    } else if (command === "restore" && args.length === 1 && /^backup-[A-Za-z0-9-]+$/.test(args[0])) {
+    } else if (command === "restore" && args.length === 1 && isContainerBackupName(args[0])) {
       if ((await json(`${plan}/manifest.json`)).status !== "restore-empty") throw new Error();
       await restoreDatabases(await config("restore", cancellation.signal), `${root}/incoming/${args[0]}`);
       // Restores grant runtime DML only. Restore SELECT-only backup access after
@@ -103,7 +106,7 @@ try {
       await childCommand("scripts/link-ad-identity.mjs", args, { ...await json(`${plan}/tracker-owner.json`), AD_DIRECTORY_ID: identity.directory });
     } else throw new Error();
   }
-} catch {
+} catch (error) {
   // The paired restore already contains its own failures. After it succeeds,
   // contain any later backup-grant/status failure too. Do not touch a concurrent
   // winner when this attempt failed before completing its own verified restore.
@@ -125,5 +128,7 @@ try {
     } catch { /* Interrupted/unavailable containment still requires offline DBA review. */ }
     finally { await administrator?.close(); }
   }
-  console.error("Container operator failed. Inspect protected configuration/state privately; keep recovery destinations offline."); process.exitCode = 1;
+  // BackupError contains only reviewed stage-specific diagnostics. Raw driver,
+  // JSON/TLS/filesystem errors may contain private values and remain suppressed.
+  console.error(error instanceof BackupError ? error.message : "Container operator failed. Inspect protected configuration/state privately; keep recovery destinations offline."); process.exitCode = 1;
 } finally { cancellation.close(); }

@@ -99,7 +99,11 @@ export async function prepareDatabases(settingsFile, output) {
         if (kind === "backup") {
           const socket = url.searchParams.get("host"), port = url.port || "5432";
           services += `[${app}_backup]\nhost=${socket}\nport=${port}\ndbname=${target.database}\nuser=${role}\n\n`;
-          passfile += `${socket}:${port}:${target.database}:${role}:${password}\n`;
+          // libpq matches "localhost" for its compiled default socket directory.
+          // Keep exact DB/user/port entries for both default and custom sockets;
+          // the protected service file still selects socket-only transport.
+          // https://www.postgresql.org/docs/18/libpq-pgpass.html
+          passfile += `${socket}:${port}:${target.database}:${role}:${password}\nlocalhost:${port}:${target.database}:${role}:${password}\n`;
         }
       }
     }

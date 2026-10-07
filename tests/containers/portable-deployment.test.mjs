@@ -9,6 +9,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import test from "node:test";
+import { isContainerBackupName } from "../../scripts/container-backup-name.mjs";
 import { prepareContainers } from "../../scripts/container-preparation.mjs";
 import { createLdapDirectory } from "../helpers/ldap-directory.mjs";
 import { containerSettings } from "../helpers/container-fixture.mjs";
@@ -193,7 +194,7 @@ test("immutable Compose deployment persists and restores into an independent sta
   });
   await check("quiesced source produces a complete paired read-only backup", async () => {
     await source.compose(["stop", "gateway", "reconciler", "staff", "qr"]); await source.fixture("pending");
-    backup = (await source.operator(["backup"])).trim(); assert.match(backup, /^backup-[A-Za-z0-9-]+$/);
+    backup = (await source.operator(["backup"])).trim(); assert.equal(isContainerBackupName(backup), true);
   });
   const destination = await stack("destination");
   await check("backup restores to independent fresh databases with sessions revoked and intents paused", async () => {
@@ -223,7 +224,7 @@ test("immutable Compose deployment persists and restores into an independent sta
     const fresh = await login(destination);
     const response = await request(destination, false, "/api/app-state", { headers: { cookie: fresh, ...sessionHeaders(fresh) } }); assert.equal(response.status, 200); assert.deepEqual(response.json().state, inventory());
     const drafts = await request(destination, false, "/api/drafts", { headers: { cookie: fresh, ...sessionHeaders(fresh) } }); assert.equal(drafts.status, 200); assert.equal(drafts.json().drafts.length, 1);
-    assert.match((await destination.operator(["backup"])).trim(), /^backup-/);
+    assert.equal(isContainerBackupName((await destination.operator(["backup"])).trim()), true);
     assert.deepEqual(JSON.parse(await destination.fixture("inspect")).operations, [{ phase: "blocked", error_code: "restore_review" }]);
   });
   await check("a late operator manifest failure contains restored runtime/backup logins", async () => {
