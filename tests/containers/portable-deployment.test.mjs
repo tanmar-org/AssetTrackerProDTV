@@ -43,10 +43,12 @@ test("immutable Compose deployment persists and restores into an independent sta
         console.error(await stack.compose(["logs", "--no-color", "--tail", "20"]));
       }
     }
-    // Delete only this test's two named stacks/private files. Never prune Docker
+    // Delete only this test's named synthetic stacks/private files. Never prune Docker
     // globally or use --volumes on an operator/production project.
     for (const stack of stacks.reverse()) {
-      await stack.compose(["down", "--volumes", "--remove-orphans"]);
+      // Include the normally disabled operator profile so its named private
+      // volume is removed too; this flag is test-only, never production cleanup.
+      await stack.compose(["--profile", "operator", "down", "--volumes", "--remove-orphans"]);
       await run("sudo", ["-n", "rm", "-rf", "--", stack.installed]);
     }
     await ldap.close(); await rm(directory, { recursive: true, force: true });

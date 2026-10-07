@@ -170,6 +170,8 @@ jobs:
           remaining="$(docker ps -aq --filter 'label=com.docker.compose.project' | xargs -r docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' | awk '/^assettracker_container_test_/ { count++ } END { print count+0 }')"
           printf 'Remaining synthetic containers: %s\n' "$remaining"
           test "$remaining" = "0"
-          test -z "$(docker volume ls -q --filter 'label=com.docker.compose.project' | awk '/^assettracker_container_test_/')"
+          remaining_volumes="$(docker volume ls -q --filter 'label=com.docker.compose.project' | awk '/^assettracker_container_test_/')"
+          printf 'Remaining synthetic named volumes: %s\n' "$remaining_volumes"
+          test -z "$remaining_volumes"
           git diff --check
           test -z "$(git status --porcelain)"

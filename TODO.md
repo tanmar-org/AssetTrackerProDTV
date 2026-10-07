@@ -401,8 +401,8 @@ approval; unresolved owner/operational items remain listed below.
   checks with zero skips/failures and zero remaining SQL fixtures. Source-IP
   restriction is optional, TLS/secrets mandatory. See [the runbook](docs/HTTPS-INGRESS.md).
 - [ ] HOST-03-INGRESS-ROLLOUT — Install the reviewed VM
-  leaf/key and trusted issuer bundle, configure actual NPM hosts and loopback web
-  services with matching credentials, set public DNS to the existing proxy entry
+  leaf/key and trusted issuer bundle, configure actual NPM hosts and private Compose
+  services/gateway with matching credentials, set public DNS to the existing proxy entry
   point and complete HTTPS/header/route/phone acceptance during approved deployment.
   Both names currently return NXDOMAIN. No production ingress is activated.
 - [x] HOST-04-PREPARE — Supply six reviewed systemd units/timer, distinct non-login
@@ -425,12 +425,16 @@ approval; unresolved owner/operational items remain listed below.
   See [database setup](docs/PRODUCTION-DATABASES.md). Staging is
   offline; initialization requires an approved deployment and new target names.
   No production database/import/administrator/service is created by this work.
-- [ ] HOST-04-DOCKER — Owner chose Docker Compose for portable production,
+- [x] HOST-04-DOCKER — Owner chose Docker Compose for portable production,
   superseding native systemd as the deployment plan. Prepare immutable images,
   isolated app/operator credentials, socket-only persistent PostgreSQL, private
-  TLS gateway and a verified two-stack move/restore drill. In progress on
-  `Dev/docker-portable-deployment`; see [Docker setup](docs/DOCKER-DEPLOYMENT.md)
-  and [datacenter moves](docs/DATACENTER-MOVE.md). No production activation.
+  TLS gateway and a verified two-stack move/restore drill, plus isolated recovery
+  failure containment. Implemented on `Dev/docker-portable-deployment` in
+  [PR #39](https://github.com/tanmar-org/AssetTrackerProDTV/pull/39); see [Docker setup](docs/DOCKER-DEPLOYMENT.md)
+  and [datacenter moves](docs/DATACENTER-MOVE.md). All 370 regression checks
+  passed at `5035ea9`; the final test disposal gate additionally exposed a
+  disabled-profile volume, corrected by selecting the operator profile in test
+  cleanup. Final-head CI status is recorded on the PR. No production activation.
 - [ ] MIG-01-LAUNCH **Owner decision** — Confirm empty first-launch inventory or
   authorized existing-record imports before the production database/cutover plan.
   Requested while preparing independent tooling; no choice assumed.
