@@ -1,0 +1,82 @@
+# Standard reverse-proxy mode needs no external custom headers or TLS SNI.
+# Trust only the configured proxy's TCP peer. Its normal X-Forwarded-For appends
+# the client last; recursive-off selects that last address, ignoring spoofed
+# prefixes. Keep the original peer available for the source check below.
+set_real_ip_from @@PROXY_SOURCE@@;
+real_ip_header X-Forwarded-For;
+real_ip_recursive off;
+
+server {
+    listen @@VM_LISTEN@@:@@VM_PORT@@ ssl default_server;
+    server_name _;
+    ssl_certificate @@VM_CERT@@;
+    ssl_certificate_key @@VM_KEY@@;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    # A normal HTTPS proxy can omit SNI. Accept TLS, then select the application
+    # by HTTP Host; unknown hosts still cannot reach either application.
+    return 421;
+}
+
+server {
+    listen @@VM_LISTEN@@:@@VM_PORT@@ ssl;
+    server_name @@STAFF_HOST@@;
+    ssl_certificate @@VM_CERT@@;
+    ssl_certificate_key @@VM_KEY@@;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    if ($realip_remote_addr != "@@PROXY_SOURCE@@") { return 403; }
+    if ($host != "@@STAFF_HOST@@") { return 421; }
+    client_max_body_size 17m;
+    client_body_timeout 15s;
+    client_header_timeout 15s;
+    send_timeout 30s;
+    access_log off;
+    location ~* ^/api/service-assets(?:/|$) { return 404; }
+    location / {
+        proxy_pass http://@@STAFF_UPSTREAM@@:@@STAFF_PORT@@;
+        proxy_set_header Host @@STAFF_HOST@@;
+        proxy_set_header X-Forwarded-Proto https;
+        # Credentials originate here, never in browser-supplied headers. The
+        # app still verifies this independent internal gateway credential.
+        proxy_set_header X-Login-Client-IP $remote_addr;
+        proxy_set_header X-Login-Proxy-Secret "@@LOGIN_SECRET@@";
+        proxy_set_header X-Request-Client-IP "";
+        proxy_set_header X-Request-Proxy-Secret "";
+        proxy_set_header X-Forwarded-For "";
+        proxy_set_header X-Real-IP "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_next_upstream off;
+        proxy_cache off;
+    }
+}
+
+server {
+    listen @@VM_LISTEN@@:@@VM_PORT@@ ssl;
+    server_name @@QR_HOST@@;
+    ssl_certificate @@VM_CERT@@;
+    ssl_certificate_key @@VM_KEY@@;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    if ($realip_remote_addr != "@@PROXY_SOURCE@@") { return 403; }
+    if ($host != "@@QR_HOST@@") { return 421; }
+    client_max_body_size 8k;
+    client_body_timeout 15s;
+    client_header_timeout 15s;
+    send_timeout 30s;
+    access_log off;
+    location = /api/asset {
+        if ($request_method != GET) { return 405; }
+        include @@VM_QR_UPSTREAM@@;
+    }
+    location = /api/requests {
+        if ($request_method != POST) { return 405; }
+        include @@VM_QR_UPSTREAM@@;
+    }
+    location ~* ^/api(?:/|$) { return 404; }
+    location / {
+        if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+        include @@VM_QR_UPSTREAM@@;
+    }
+}

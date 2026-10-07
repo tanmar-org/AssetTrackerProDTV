@@ -29,13 +29,19 @@ function privateAddress(value) {
   return value;
 }
 
-export async function renderIngress(settings, outputDirectory) {
+export async function renderIngress(settings, outputDirectory, existingSecrets) {
   if (!settings || typeof settings !== "object" || Array.isArray(settings)) invalid();
   const allowed = new Set(["staffHostname", "qrHostname", "vmAddress", "gatewayPort", "staffPort", "qrPort",
-    "vmCertificate", "vmCertificateKey", "npmTrustedCa", "npmQrInclude", "vmQrInclude", "proxySourceAddress", "backendNetwork"]);
+    "vmCertificate", "vmCertificateKey", "npmTrustedCa", "npmQrInclude", "vmQrInclude", "proxySourceAddress", "backendNetwork", "proxyMode"]);
   if (Object.keys(settings).some(key => !allowed.has(key))) invalid();
   const container = settings.backendNetwork === "compose";
   if (settings.backendNetwork !== undefined && !["loopback", "compose"].includes(settings.backendNetwork)) invalid();
+  const standard = settings.proxyMode === "standard";
+  if (settings.proxyMode !== undefined && !["authenticated", "standard"].includes(settings.proxyMode)) invalid();
+  // Normal reverse proxies do not carry our private hop credentials. This mode
+  // trusts one explicitly configured TCP peer and injects credentials locally.
+  // Never allow a missing source address to turn it into unauthenticated ingress.
+  if (standard && !settings.proxySourceAddress) invalid();
   if (Object.hasOwn(settings, "proxySourceAddress")) privateAddress(settings.proxySourceAddress);
   privateAddress(settings.vmAddress); // Host publishing still requires a private/loopback address.
   const staff = hostname(settings.staffHostname), qr = hostname(settings.qrHostname);
@@ -43,14 +49,22 @@ export async function renderIngress(settings, outputDirectory) {
   const staffPort = settings.staffPort ?? 5173, qrPort = settings.qrPort ?? 5174;
   const gatewayPort = settings.gatewayPort ?? 8443;
   if (new Set([staffPort, qrPort, gatewayPort]).size !== 3) invalid();
-  const loginSecret = randomBytes(32).toString("base64url");
-  const requestSecret = randomBytes(32).toString("base64url");
+  // An operator changing only the gateway may preserve the already installed
+  // app credentials. Normal preparation still generates new independent values.
+  if (existingSecrets !== undefined && (!existingSecrets || typeof existingSecrets !== "object" || Array.isArray(existingSecrets) ||
+      Object.keys(existingSecrets).length !== 2 ||
+      !/^[A-Za-z0-9_-]{43}$/.test(existingSecrets.loginSecret || "") ||
+      !/^[A-Za-z0-9_-]{43}$/.test(existingSecrets.requestSecret || "") ||
+      existingSecrets.loginSecret === existingSecrets.requestSecret)) invalid();
+  const loginSecret = existingSecrets?.loginSecret ?? randomBytes(32).toString("base64url");
+  const requestSecret = existingSecrets?.requestSecret ?? randomBytes(32).toString("base64url");
   const values = {
     STAFF_HOST: staff, QR_HOST: qr, VM_LISTEN: container ? "0.0.0.0" : privateAddress(settings.vmAddress),
     STAFF_UPSTREAM: container ? "staff" : "127.0.0.1", QR_UPSTREAM: container ? "qr" : "127.0.0.1",
     VM_PORT: port(gatewayPort), STAFF_PORT: port(staffPort), QR_PORT: port(qrPort),
     VM_CERT: filePath(settings.vmCertificate), VM_KEY: filePath(settings.vmCertificateKey),
-    NPM_CA: filePath(settings.npmTrustedCa),
+    NPM_CA: filePath(settings.npmTrustedCa ?? (standard ? "/unused/standard-proxy-ca.pem" : undefined)),
+    PROXY_SOURCE: settings.proxySourceAddress ?? "",
     NPM_QR_UPSTREAM: filePath(settings.npmQrInclude ?? "/data/nginx/custom/assettracker-qr-upstream.conf"),
     // Stage outside system directories while rendering the final gateway path.
     VM_QR_UPSTREAM: filePath(settings.vmQrInclude ?? path.join(outputDirectory, "vm-qr-upstream.conf")),
@@ -60,7 +74,12 @@ export async function renderIngress(settings, outputDirectory) {
   };
   const files = {};
   for (const name of ["npm-staff", "npm-qr", "npm-qr-upstream", "vm", "vm-qr-upstream"]) {
-    const source = await readFile(new URL(`${name}.conf.template`, templates), "utf8");
+    if (standard && name.startsWith("npm-")) {
+      files[`${name}.conf`] = "# Standard proxy mode: use normal HTTPS Proxy Host settings.\n# No Advanced configuration, include files or backend trust import is required.\n";
+      continue;
+    }
+    const template = standard ? `${name}-standard` : name;
+    const source = await readFile(new URL(`${template}.conf.template`, templates), "utf8");
     files[`${name}.conf`] = source.replace(/@@([A-Z_]+)@@/g, (_, key) => {
       if (!(key in values)) invalid();
       return values[key];

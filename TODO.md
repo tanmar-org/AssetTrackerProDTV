@@ -406,7 +406,17 @@ approval; unresolved owner/operational items remain listed below.
   leaf/key and trusted issuer bundle, configure actual NPM hosts and private Compose
   services/gateway with matching credentials, set public DNS to the existing proxy entry
   point and complete HTTPS/header/route/phone acceptance during approved deployment.
-  Both names currently return NXDOMAIN. No production ingress is activated.
+  Owner installed the protected Docker files and initialized both fresh schemas
+  on October 7, 2026. The private gateway is running; independent verified-TLS
+  checks return staff/QR 200, missing-hop 403 and private-route 404. Both names
+  remain unresolved through the VM resolver. Actual NPM/DNS and browser/phone
+  acceptance remain pending.
+  Both names subsequently resolve to NPM through the VM resolver, but normal
+  forwarding returns 502 while the private apps return 200. Owner requires empty
+  Advanced tabs. The standard-proxy implementation accepts no-SNI HTTPS, requires
+  the explicit trusted proxy TCP peer and supplies application credentials locally.
+  It preserves route/method/body limits and verified AD without NPM files/snippets.
+  Actual gateway update and browser/internet acceptance remain pending.
 - [x] HOST-04-PREPARE — Supply six reviewed systemd units/timer, distinct non-login
   UIDs, isolated JSON credentials, least-privilege startup checks, worker shutdown
   and private readiness monitoring. Native unit/gateway validation and real
@@ -443,13 +453,26 @@ approval; unresolved owner/operational items remain listed below.
   cover direct/sudo use, refusal before elevation and failed-build publication;
   the hosted container drill exercises the real sudo path. Implemented on
   `Dev/docker-sudo-release-build`; final hosted evidence is recorded on its PR.
-- [ ] MIG-01-LAUNCH **Owner decision** — Confirm empty first-launch inventory or
-  authorized existing-record imports before the production database/cutover plan.
-  Requested while preparing independent tooling; no choice assumed.
+- [x] MIG-01-LAUNCH **Owner decision** — Owner will provide inventory data in a
+  spreadsheet for the initial load. This selects the data source; no spreadsheet
+  has been received, mapped, reconciled or imported yet. Import work remains MIG-01.
+- [x] HOST-03-TLS-CHOICE **Owner decision** — Keep the existing wildcard
+  certificate in NPM for public staff/QR HTTPS; use a locally generated self-signed
+  certificate for the private VM gateway. No owner certificate/key transfer is
+  required. AD retains its verified LDAPS trust. A matching two-host certificate,
+  public NPM trust copy and complete private Docker stage now exist outside Git;
+  hostname/key checks, role/file isolation and Compose validation pass. NPM trust
+  installation is no longer needed for the owner's subsequently selected standard
+  NPM mode. Public routing and acceptance remain HOST-03-INGRESS-ROLLOUT.
 - [ ] HOST-04 — Provision production web and QR reconciliation services
   (`service:reconcile -- --watch`), least-privilege credentials, startup/
   restart supervision, health checks, monitoring, backup retention, and a documented
-  rollback process. VM tools alone do not constitute a production deployment.
+  rollback process. Owner started the reviewed Docker stack on October 7, 2026;
+  database/staff/QR/reconciler/gateway reported healthy, and the reviewed initial
+  AD administrator was created and explicitly linked. Real staff-container LDAPS
+  TLS and backend HTTPS checks pass; the first local paired baseline backup is
+  recorded outside Git. Actual public/browser acceptance, boot/restart acceptance,
+  scheduled encrypted off-server backups and monitoring/alerts remain open.
 - [ ] QR-01 — Complete printed-label/domain continuity, reprint historical labels
   carrying private URL metadata, confirm the contact-staff fallback policy, and
   test mobile HTTPS/GPS behavior. GPS stays required; automatic email is MAIL-01.
@@ -465,8 +488,11 @@ approval; unresolved owner/operational items remain listed below.
   retries/idempotency, and delivery status. Verify failure handling and full internal email content without exposing it to customers.
 - [ ] MAIL-02 **Requirements decision** — Confirm Monday report contents, recipients,
   America/Chicago schedule, and retry behavior; implement and test scheduling if needed.
-- [ ] MIG-01 — Obtain authorized production exports separately from source; migrate
-  both databases and reconcile counts, identifiers, stock, users, history, and requests.
+- [ ] MIG-01 — Obtain the owner's inventory spreadsheet outside source control;
+  inspect its sheets/columns, map identifiers and assignments, preview duplicate/
+  invalid/capacity-blocked rows and reconcile counts/leading-zero IDs before the
+  approved initial import. A spreadsheet supplies inventory, not both databases'
+  users/history/requests. Do not assume historical database records are included.
   Remove sample data, use new sessions, and plan original-domain/printed-label continuity
   plus rollback before changing live URLs.
   Browser sample initialization/automatic old-cache upload were removed under

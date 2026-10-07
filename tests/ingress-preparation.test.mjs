@@ -56,6 +56,24 @@ test("source-IP restriction is optional but uses a validated single private addr
   assert.ok(files["vm.conf"].includes("include /etc/assettracker/gateway/vm-qr-upstream.conf;"));
   await assert.rejects(renderIngress({ ...settings, vmQrInclude: "/etc/gateway.conf;return 200" }, "/private/output"));
 });
+test("standard proxy mode requires a trusted peer and preserves explicit existing app credentials", async () => {
+  const standard = { ...settings, proxyMode: "standard", proxySourceAddress: "10.0.0.10" };
+  delete standard.npmTrustedCa;
+  const secrets = { loginSecret: "L".repeat(43), requestSecret: "Q".repeat(43) };
+  const files = await renderIngress(standard, "/private/output", secrets);
+  assert.equal(files["staff-ingress.env"], `LOGIN_PROXY_SECRET=${secrets.loginSecret}\n`);
+  assert.equal(files["qr-ingress.env"], `REQUEST_PROXY_SECRET=${secrets.requestSecret}\n`);
+  for (const name of ["npm-staff.conf", "npm-qr.conf", "npm-qr-upstream.conf"])
+    assert.ok(!files[name].includes(secrets.loginSecret) && !files[name].includes(secrets.requestSecret));
+  assert.ok(!files["vm.conf"].includes("ssl_reject_handshake"));
+  assert.ok(!files["vm.conf"].includes("$http_x_login_proxy_secret"));
+  await assert.rejects(renderIngress({ ...standard, proxySourceAddress: undefined }, "/private/output"));
+  await assert.rejects(renderIngress({ ...standard, proxyMode: "typo" }, "/private/output"));
+  for (const invalid of [{ loginSecret: "short", requestSecret: secrets.requestSecret },
+    { loginSecret: secrets.loginSecret, requestSecret: secrets.loginSecret },
+    { ...secrets, extra: "unrecognized" }])
+    await assert.rejects(renderIngress(standard, "/private/output", invalid));
+});
 test("staging refuses readable settings, symlinks and output in another Git worktree", async t => {
   const { directory, input, output } = await fixture(t);
   await chmod(input, 0o644); await assert.rejects(prepareIngress(input, output), /mode 0600/);
