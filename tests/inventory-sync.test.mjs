@@ -60,7 +60,7 @@ test("policy/conflict rejection retains the browser draft and pauses automatic r
     assert.equal(app.context.cloudPendingStates.length, 1);
     assert.equal(app.context.cloudPendingStates[0].state.master[0].notes, "Retain this draft");
     assert.equal(app.context.cloudWriteBlocked, true);
-    assert.match(app.status.at(-1).detail, /Synthetic rejection.*Sync paused/);
+    assert.match(app.status.at(-1).detail, /Synthetic rejection.*Saving paused/);
     await app.context.flushCloudSave(); assert.equal(calls, 1);
     assert.equal(app.timers.some((timer) => timer.delay === 2500), false);
   }

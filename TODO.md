@@ -49,6 +49,13 @@ approval; unresolved owner/operational items remain listed below.
 
 ## Development foundation — first PR
 
+- [x] UI-01 — Use the owner's "Saved" wording for inventory save status.
+  Status/footer/Settings now use Loading, Saving, Saved and Save unavailable;
+  related import, recovery and activity wording no longer calls inventory storage
+  "cloud". Implemented on `Dev/saved-status`; JavaScript asset version 69 avoids
+  stale script caching. Save/revision/session logic is unchanged. Lint and existing
+  save/import/shared-device checks pass. Owner review/merge and rollout remain.
+
 - [x] DOC-01 — Add agent instructions with `Dev/` branches, agent pushes/PRs,
   owner-only final review/merging, human-review comments, and documentation upkeep.
 - [x] DOC-02 — Record architecture, service dependencies, source review, and
@@ -416,7 +423,24 @@ approval; unresolved owner/operational items remain listed below.
   Advanced tabs. The standard-proxy implementation accepts no-SNI HTTPS, requires
   the explicit trusted proxy TCP peer and supplies application credentials locally.
   It preserves route/method/body limits and verified AD without NPM files/snippets.
-  Actual gateway update and browser/internet acceptance remain pending.
+  Owner merged [PR #41](https://github.com/tanmar-org/AssetTrackerProDTV/pull/41)
+  at `5414d3f` and activated the gateway-only update; normal NPM HTTPS and route/
+  peer checks pass. A fresh read-only browser reaches the staff sign-in page
+  without script/resource errors. The owner's Safari cannot resolve the hostname;
+  both names remain NXDOMAIN in public DNS while internal VM DNS reaches NPM.
+  Public records/client DNS, real AD sign-in and phone acceptance remain pending.
+  Owner then confirmed successful corporate DNS wildcard lookup from the Mac and
+  the correct NPM host settings. Public NXDOMAIN alone does not explain that
+  internal test. Safari and Chrome both fail; awaiting the Mac HTTP/TLS check to
+  isolate system lookup/cache, routing/proxy or certificate behavior. Avoid
+  changing server topology or declaring a browser-specific cause without evidence.
+  Mac curl then failed with resolver code 6; owner confirmed DNS cache/resolver
+  refresh restored loading. Corporate wildcard and standard NPM settings work
+  internally. Actual production AD sign-in/logout/relogin and phone acceptance
+  remain pending; public DNS is separate future internet-client work.
+  Owner subsequently confirmed production AD sign-in, sign-out and sign-in again
+  on the deployed staff host. Internal loading/session acceptance is complete;
+  receiver-specific phone QR and external-client acceptance remain open.
 - [x] HOST-04-PREPARE — Supply six reviewed systemd units/timer, distinct non-login
   UIDs, isolated JSON credentials, least-privilege startup checks, worker shutdown
   and private readiness monitoring. Native unit/gateway validation and real
@@ -454,8 +478,9 @@ approval; unresolved owner/operational items remain listed below.
   the hosted container drill exercises the real sudo path. Implemented on
   `Dev/docker-sudo-release-build`; final hosted evidence is recorded on its PR.
 - [x] MIG-01-LAUNCH **Owner decision** — Owner will provide inventory data in a
-  spreadsheet for the initial load. This selects the data source; no spreadsheet
-  has been received, mapped, reconciled or imported yet. Import work remains MIG-01.
+  spreadsheet for the initial load. The source has now been received and reviewed
+  privately; prepared preview copies pass the actual bounded reader. Scope/data
+  decisions, field mapping, reconciliation and the approved load remain MIG-01.
 - [x] HOST-03-TLS-CHOICE **Owner decision** — Keep the existing wildcard
   certificate in NPM for public staff/QR HTTPS; use a locally generated self-signed
   certificate for the private VM gateway. No owner certificate/key transfer is
@@ -497,6 +522,13 @@ approval; unresolved owner/operational items remain listed below.
   plus rollback before changing live URLs.
   Browser sample initialization/automatic old-cache upload were removed under
   DATA-04; authorized exports, reconciliation, and cutover remain outstanding.
+  Source review is complete outside Git. Original oversized sheet dimensions
+  block parsing; values-only preview copies preserve mapped identifiers and pass
+  the actual worker/planner. Resolve regional versus complete-registry scope,
+  duplicate cross-account assignments and permanent-field disagreements, account
+  name/Office ambiguity, shared card/serial values and missing rent evidence before
+  Apply. Access-card status is not currently mapped. Private review artifacts
+  retain source rows and conflicting values; no live import has occurred.
 - [ ] QA-01 — Add meaningful API/permission/concurrency/import/backup tests; validate
   iPad/phone GPS and email flows, Brother label dimensions/cutting and actual scanning,
   staff workflows, production-like deployment, and owner acceptance before cutover.

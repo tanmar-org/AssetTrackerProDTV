@@ -135,6 +135,8 @@ function cloudState(){
   };
 }
 
+// User-facing status describes loading/saving to the shared inventory server.
+// Keep internal state names and hooks stable; this wording changes no save logic.
 function setCloudStatus(state,detail=""){
   const chip=$("cloudSyncButton");
   const footer=document.querySelector(".sidebar-footer");
@@ -146,17 +148,17 @@ function setCloudStatus(state,detail=""){
   if(state==="synced")chip.classList.add("synced");
   if(state==="saving"){chip.classList.add("saving");footer.classList.add("cloud-saving")}
   if(state==="error"){chip.classList.add("error");footer.classList.add("cloud-error");badge?.classList.add("error")}
-  const labels={connecting:"Connecting",saving:"Saving",synced:"Cloud synced",error:"Sync offline"};
-  const titles={connecting:"Connecting to cloud",saving:"Saving to cloud",synced:"Cloud Sync Ready",error:"Cloud sync offline"};
+  const labels={connecting:"Loading",saving:"Saving",synced:"Saved",error:"Save unavailable"};
+  const titles={connecting:"Loading inventory",saving:"Saving",synced:"Saved",error:"Save unavailable"};
   $("cloudSyncLabel").textContent=labels[state]||labels.connecting;
   $("cloudStatusTitle").textContent=titles[state]||titles.connecting;
   $("cloudStatusDetail").textContent=detail||({
-    connecting:"Checking shared data…",
-    saving:"Uploading latest changes…",
-    synced:"Shared records are current",
+    connecting:"Loading saved inventory…",
+    saving:"Saving latest changes…",
+    synced:"Inventory matches the saved server copy.",
     error:"Unsaved edits remain only in this open tab"
   }[state]);
-  if(badge)badge.textContent=state==="synced"?"Connected":state==="saving"?"Saving":state==="error"?"Offline":"Connecting";
+  if(badge)badge.textContent=labels[state]||labels.connecting;
   if($("cloudStorageDescription")&&detail)$("cloudStorageDescription").textContent=detail;
 }
 
@@ -225,7 +227,7 @@ function scheduleCloudSave(action="Data change"){
       if(cloudPendingStates.length>=32){
         cloudWriteBlocked=true;
         scheduleDraftCopy();
-        setCloudStatus("error","Sync paused: too many pending edits. Download an inventory snapshot before reloading; ask an administrator to reconcile it.");
+        setCloudStatus("error","Saving paused: too many pending edits. Download an inventory snapshot before reloading; ask an administrator to reconcile it.");
         return;
       }
       cloudPendingStates.push({state:structuredClone(cloudState()),action:currentCloudAction});
@@ -256,19 +258,19 @@ async function flushCloudSave(){
     });
     if(response.status>=400&&response.status<500){
       cloudWriteBlocked=true;
-      throw new Error(`${result.error||"Save rejected."} Sync paused. Open Settings → Review Paused Edits, or download a snapshot before leaving.`);
+      throw new Error(`${result.error||"Save rejected."} Saving paused. Open Settings → Review Paused Edits, or download a snapshot before leaving.`);
     }
-    if(!response.ok)throw new Error("Cloud is unavailable. This browser is holding the latest changes and will retry.");
+    if(!response.ok)throw new Error("Saving is unavailable. This browser is holding the latest changes and will retry.");
     cloudRevision=Number(result.revision)||cloudRevision;
     cloudBaseState=submitted;
     if(pending)cloudPendingStates.shift();
     cloudQueued=cloudQueued||cloudPendingStates.length>0;
     succeeded=true;
-    setCloudStatus("synced",`Shared records saved ${new Date(result.updatedAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}.`);
+    setCloudStatus("synced",`Saved at ${new Date(result.updatedAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}.`);
   }catch(error){
     if(!sessionActive(epoch))return;
     cloudQueued=true;
-    setCloudStatus("error",error.message||"Cloud is unavailable. This browser is holding the latest changes and will retry.");
+    setCloudStatus("error",error.message||"Saving is unavailable. This browser is holding the latest changes and will retry.");
   }finally{
     if(sessionActive(epoch)){
       cloudSaving=false;
@@ -300,7 +302,7 @@ async function initializeCloudSync(){
     if(!sessionActive(epoch))return;
     cloudReady=true;
     revealWorkspace();
-    setCloudStatus("synced",cloudRevision?"Shared records are current.":"Inventory is empty. An administrator can import or add records.");
+    setCloudStatus("synced",cloudRevision?"Saved inventory loaded.":"Inventory is empty. An administrator can import or add records.");
   }catch{
     if(!sessionActive(epoch))return;
     // A login alone does not make offline/unscoped browser data trustworthy.
@@ -2200,7 +2202,7 @@ function applyAccountImport(){
   if(applied)save("Import receivers to account");
   closeModal("accountImportModal");resetAccountImportModal();
   renderAccountDetail();renderAccounts();renderMaster();renderDashboard();
-  toast(`${applied} assigned, ${newMasterCount} added to Master Registry, ${skipped} skipped. ${applied?"Awaiting sync confirmation.":"No inventory changes."}`);
+  toast(`${applied} assigned, ${newMasterCount} added to Master Registry, ${skipped} skipped. ${applied?"Awaiting save confirmation.":"No inventory changes."}`);
 }
 
 $("importAccountReceiversButton").addEventListener("click",openAccountImportModal);
@@ -2627,7 +2629,7 @@ async function runPendingAudit(){
     resetAuditImport();
     $("auditStatusFilter").value="issues";
     showView("audit");
-    toast(`Audit complete. ${auditState.results.length} local accounts compared${cachedLocally?".":" and saved to cloud."}`);
+    toast(`Audit complete. ${auditState.results.length} local accounts compared${cachedLocally?".":". Awaiting save confirmation."}`);
   }catch(error){
     console.error("Audit run failed",error);
     button.disabled=false;button.textContent=originalText;
@@ -3444,7 +3446,7 @@ function applyDataImport(){
   closeModal("dataImportModal");resetDataImport();
   renderDashboard();renderAccounts();renderMaster();renderRentalStock();
   if(currentAccountId)renderAccountDetail();
-  toast(`${summary} ${changed?"Awaiting sync confirmation.":"No inventory changes."}`);
+  toast(`${summary} ${changed?"Awaiting save confirmation.":"No inventory changes."}`);
 }
 
 $("openMasterImport").onclick=openDataImport;
@@ -3479,7 +3481,7 @@ $("applyDataImport").onclick=applyDataImport;
 $("clearAllAppData").addEventListener("click",()=>{
   if(currentUser?.role!=="admin"){toast("Administrator access is required to clear inventory.");return;}
   const confirmed=confirm(
-    "Clear ALL app data?\n\nThis will remove every account, receiver, assignment, activation request, audit result, rental-stock batch, and test entry from the shared cloud records. You can restore it with Undo."
+    "Clear ALL app data?\n\nThis will remove every account, receiver, assignment, activation request, audit result, rental-stock batch, and test entry from the shared inventory. You can restore it with Undo."
   );
 
   if(!confirmed)return;
@@ -3557,7 +3559,7 @@ $("cloudSyncButton").addEventListener("click",async()=>{
   try{
     await readCloudState();
     if(cloudQueued)await flushCloudSave();
-    else setCloudStatus("synced","Shared records are current across connected devices.");
+    else setCloudStatus("synced","Inventory matches the saved server copy.");
   }catch{
     setCloudStatus("error","Connection unavailable. Keep this tab open and download unsaved edits before leaving.");
   }
@@ -3584,7 +3586,7 @@ function startSessionPolling(){
       await verifyActiveSession();
       if(!sessionActive(epoch)||cloudQueued||cloudSaving||cloudWriteBlocked)return;
       await readCloudState({quiet:true});
-      if(sessionActive(epoch)&&!cloudQueued&&!cloudSaving)setCloudStatus("synced","Shared records are current across connected devices.");
+      if(sessionActive(epoch)&&!cloudQueued&&!cloudSaving)setCloudStatus("synced","Inventory matches the saved server copy.");
     }catch{if(sessionActive(epoch))lockSession(true,"Unable to verify this session. Sign in again when connected; unsaved edits remain reserved for the same employee.");}
   },CLOUD_POLL_MS);
 }
@@ -3865,7 +3867,7 @@ async function loadRecovery(){
     $("recoveryList").innerHTML=result.snapshots.length?result.snapshots.map(item=>`
       <div class="recovery-row" data-recovery-id="${esc(item.id)}">
         <strong class="recovery-revision">Revision ${esc(item.revision)}</strong>
-        <span class="recovery-action">${esc(item.action||"Cloud snapshot")}</span>
+        <span class="recovery-action">${esc(item.action||"Inventory snapshot")}</span>
         <span class="recovery-meta">${esc(formatHistoryDate(item.created_at))} · ${esc(item.created_by||"Unknown")}</span>
         <button class="small-button" data-restore-recovery type="button">Restore</button>
       </div>`).join(""):`<div class="empty-state"><strong>No recovery points yet</strong><span>A recovery point is created before each new shared-data save.</span></div>`;
@@ -3880,7 +3882,7 @@ $("recoveryList").addEventListener("click",async event=>{
   const button=event.target.closest("[data-restore-recovery]");
   const row=event.target.closest("[data-recovery-id]");
   if(!button||!row)return;
-  if(!confirm("Restore this cloud recovery point? The current shared data will be preserved as a new recovery point first."))return;
+  if(!confirm("Restore this recovery point? The current shared data will be preserved as a new recovery point first."))return;
   button.disabled=true;
   try{
     const {response,result}=await staffRequest("/api/recovery",{
@@ -3892,7 +3894,7 @@ $("recoveryList").addEventListener("click",async event=>{
     await readCloudState();
     await loadRecovery();
     await loadActivity();
-    toast("Cloud recovery point restored.");
+    toast("Recovery point restored.");
   }catch(error){toast(error.message||"Unable to restore recovery point.")}
   finally{button.disabled=false;}
 });
@@ -3915,7 +3917,7 @@ function renderActivity(){
   $("activityList").innerHTML=activityPager.loading?'<div class="empty-state"><strong>Loading activity</strong></div>':activityPager.error?`<div class="empty-state"><strong>Activity unavailable</strong><span>${esc(activityPager.error)}</span></div>`:records.length?records.map(item=>`
       <div class="activity-row ${activityType(item.action)}">
         <strong class="activity-user">${esc(item.user_name||"Unknown")}</strong>
-        <span class="activity-action">${esc(item.action||"Data change")}${item.revision?`<small class="activity-revision">Cloud revision ${esc(item.revision)}</small>`:""}</span>
+        <span class="activity-action">${esc(item.action||"Data change")}${item.revision?`<small class="activity-revision">Inventory revision ${esc(item.revision)}</small>`:""}</span>
         <time class="activity-time" datetime="${esc(item.created_at)}">${esc(formatHistoryDate(item.created_at)||item.created_at)}</time>
       </div>`).join(""):`<div class="empty-state"><strong>No matching activity</strong><span>Adjust the search or filters to see other events.</span></div>`;
 }
@@ -3928,7 +3930,7 @@ $("activityNextButton").onclick=()=>loadActivity("next");
 function exportActivityCsv(){
   const records=filteredActivity();
   if(!records.length){toast("No matching activity to export.");return;}
-  const rows=[["Username","Type","Action","Cloud Revision","Date and Time"],...records.map(item=>[
+  const rows=[["Username","Type","Action","Inventory Revision","Date and Time"],...records.map(item=>[
     item.user_name||"Unknown",activityType(item.action),item.action||"Data change",item.revision||"",new Date(item.created_at).toLocaleString()
   ])];
   const date=new Date().toISOString().slice(0,10);

@@ -53,7 +53,7 @@
 
       <div class="sidebar-footer">
         <div class="status-dot" id="cloudStatusDot"></div>
-        <div><strong id="cloudStatusTitle">Connecting to cloud</strong><span id="cloudStatusDetail">Checking shared data…</span></div>
+        <div><strong id="cloudStatusTitle">Loading inventory</strong><span id="cloudStatusDetail">Loading saved inventory…</span></div>
       </div>
     </aside>
 
@@ -67,7 +67,7 @@
           </div>
         </div>
         <div class="topbar-actions">
-          <button class="cloud-sync-chip" id="cloudSyncButton" type="button" title="Check cloud sync status"><span class="cloud-sync-light"></span><span id="cloudSyncLabel">Connecting</span></button>
+          <button class="cloud-sync-chip" id="cloudSyncButton" type="button" title="Check save status"><span class="cloud-sync-light"></span><span id="cloudSyncLabel">Loading</span></button>
           <div class="undo-controls">
             <button class="secondary-button undo-button" id="undoButton" data-admin-only disabled title="Undo the last change">↶ Undo</button>
             <button class="icon-button undo-history-button" id="undoHistoryButton" data-admin-only disabled aria-label="Open undo history" title="Undo history">▾</button>
@@ -523,10 +523,10 @@
         <section class="panel storage-status-panel">
           <div>
             <p class="eyebrow">Shared storage</p>
-            <h3>TanMar Cloud Sync</h3>
-            <p id="cloudStorageDescription">Connecting this browser to shared TanMar receiver records. An administrator initializes inventory when shared storage is empty.</p>
+            <h3>Inventory storage</h3>
+            <p id="cloudStorageDescription">Loading saved TanMar receiver records. An administrator initializes inventory when storage is empty.</p>
           </div>
-          <span class="storage-status-badge cloud" id="cloudStorageBadge">Connecting</span>
+          <span class="storage-status-badge cloud" id="cloudStorageBadge">Loading</span>
         </section>
 
         <section class="panel recovery-panel" id="draftPanel">
@@ -549,12 +549,12 @@
 
         <section class="panel recovery-panel" id="recoveryPanel" data-admin-only>
           <div class="panel-header">
-            <div><p class="eyebrow">Data protection</p><h3>Cloud Recovery</h3></div>
+            <div><p class="eyebrow">Data protection</p><h3>Recovery points</h3></div>
             <button class="secondary-button" id="refreshRecoveryButton" type="button">↻ Refresh</button>
           </div>
           <p class="recovery-help">The app automatically keeps the 25 most recent shared-data versions. Restoring creates a safety copy of the current version first.</p>
           <div class="recovery-list" id="recoveryList">
-            <div class="empty-state"><strong>Loading recovery points</strong><span>Recent cloud versions will appear here.</span></div>
+            <div class="empty-state"><strong>Loading recovery points</strong><span>Recent saved inventory versions will appear here.</span></div>
           </div>
         </section>
 
@@ -981,6 +981,6 @@
   <script src="vendor/qrcode.js" integrity="sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k" crossorigin="anonymous"></script>
   <script src="vendor/jsbarcode.min.js" integrity="sha384-Kk5SjBOKprEnGfyBWfD2zROFd1Cu8kwOXxG2GIhYPcoDL2rBJS9P8Ud1ZMy4412a" crossorigin="anonymous"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=68"></script>
+  <script src="app.js?v=69"></script>
 </body>
 </html>
