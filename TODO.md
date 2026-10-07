@@ -201,7 +201,8 @@ approval; unresolved owner/operational items remain listed below.
   final hosted run 37528356444 passed all 303 checks and both builds/types/lint.
 - [ ] AUTH-01-ONBOARDING — Include explicit AD identity review in Settings user
   creation and existing-account linking, so administrators do not need a VM command
-  for each employee. Implemented on `Dev/ad-user-onboarding`: exact read-only LDAPS
+  for each employee. Implemented on `Dev/ad-user-onboarding` in
+  [PR #43](https://github.com/tanmar-org/AssetTrackerProDTV/pull/43): exact read-only LDAPS
   lookup, display-name/username review, five-minute session/config/target-bound
   proof and fresh GUID check; account/link/audit writes are atomic. Existing
   records/permissions are preserved; initial bootstrap and replacements remain

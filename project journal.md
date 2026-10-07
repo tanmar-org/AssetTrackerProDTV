@@ -3161,3 +3161,7 @@ staff image and verify adding a nominated staff member through Settings. That
 acceptance completes AUTH-01-ONBOARDING and makes additional/recovery-admin setup
 available without per-user VM commands. MIG-01 workbook scope/conflicts remain
 open independently; no inventory Apply has been approved.
+
+Opened [PR #43](https://github.com/tanmar-org/AssetTrackerProDTV/pull/43) against
+main from `Dev/ad-user-onboarding`; implementation commit `9937a8e`. Owner retains
+final review and merging. Local checks pass; hosted validation runs on the PR.
