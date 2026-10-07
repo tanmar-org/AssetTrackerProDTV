@@ -2709,3 +2709,40 @@ backend TLS/trust so existing NPM can reach the private gateway. Confirm launch
 inventory/import scope before database activation, then carry out an explicitly
 approved rollout with real AD/HTTPS/phone/reboot acceptance and encrypted scheduled
 off-server backups/alerts. This task does not activate that deployment.
+
+## 2026-10-06 (America/Chicago) — Operator Docker builds and rollout inputs
+
+Owner merged PR #39 at `418469c`. Final-head `c6b90cd` hosted run 37554932618
+completed successfully: all 370 tests (staff 125, QR 4, ingress 10, native services
+2, PostgreSQL/HTTP 162, Chromium 55, Docker 12), both builds/types/zero-warning
+lint, and zero remaining synthetic SQL fixtures, containers or named volumes.
+Final run metadata/logs are protected outside Git. No production stack is running.
+
+Preparing actual deployment inputs exposed a tooling gap: this VM requires
+interactive sudo for Docker, while the image builder invoked Docker directly.
+`Dev/docker-sudo-release-build` adds an explicit leading `--sudo` option, using
+shell-free `sudo -- docker` for fixed build/inspect/version commands. Git, npm,
+Node and protected output writes remain under the ordinary operator account.
+Daemon access is checked before output creation; failed builds do not publish
+image manifests. No Docker-group change, sudo policy change or password handling
+is introduced. The documented direct-daemon path remains available for other hosts.
+
+Six local synthetic CLI checks pass, including ownership/modes, direct access,
+sudo command routing, authorization denial, dirty/invalid input refusal and
+failed-build/revision mismatch containment. Root zero-warning lint and diff checks
+pass. Default CI includes these regressions; the actual two-stack container drill
+now builds using sudo. Final hosted status is recorded on the PR and saved
+privately before handoff, rather than inferred from this local tool-substitution
+test. Real interactive VM authentication is still an operator-terminal step.
+
+Read-only VM checks confirm the selected private address and an available backend
+8443 port. Neither selected public hostname resolves through the VM resolver.
+Actual hostnames/AD reader configuration remain protected outside Git. Launch
+inventory (empty versus authorized import) and backend certificate source remain
+owner decisions. A protected 0600 settings draft now combines the selected
+domains/private endpoint with the already verified AD reader and CA. Its separate
+readiness record explicitly marks missing images/TLS and no activation; it is
+not a completed runtime stage. Offline configuration staging depends on a real
+matching TLS leaf/key and immutable local image IDs. The next step is building the owner-merged
+release and completing those inputs, then reviewing the concrete activation plan.
+This work changes no production DB, preview, DNS, AD or NPM configuration.
