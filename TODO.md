@@ -21,7 +21,9 @@ decision is recorded explicitly. The owner reviews and merges all changes from
    Owner sign-out/relogin also pass, with the original session removed and a fresh
    AD session retaining admin access. Owner merged HTTPS ingress preparation in
    PR #36 at `b67f962` and service preparation in PR #37 at `90de7e5`. Next finish
-   guarded production database setup, then recovery-admin and real policy acceptance.
+   production Docker configuration, backend certificate trust and launch-data
+   decisions, then recovery-admin and real policy acceptance. Guarded fresh
+   database setup is merged in PR #38 and Docker packaging in PR #39.
    Owner selected both public names and confirmed an existing reverse proxy;
    public DNS is unresolved. Nginx Proxy Manager and an existing wildcard certificate
    are confirmed; source-IP restriction is optional per owner direction. Protected
@@ -431,10 +433,16 @@ approval; unresolved owner/operational items remain listed below.
   TLS gateway and a verified two-stack move/restore drill, plus isolated recovery
   failure containment. Implemented on `Dev/docker-portable-deployment` in
   [PR #39](https://github.com/tanmar-org/AssetTrackerProDTV/pull/39); see [Docker setup](docs/DOCKER-DEPLOYMENT.md)
-  and [datacenter moves](docs/DATACENTER-MOVE.md). All 370 regression checks
-  passed at `5035ea9`; the final test disposal gate additionally exposed a
-  disabled-profile volume, corrected by selecting the operator profile in test
-  cleanup. Final-head CI status is recorded on the PR. No production activation.
+  and [datacenter moves](docs/DATACENTER-MOVE.md). Owner merged it at `418469c`;
+  final-head `c6b90cd` hosted run 37554932618 passed all 370 regression checks,
+  builds/types/zero-warning lint and both SQL/container cleanup gates with zero
+  failures/skips. No production activation.
+- [x] HOST-04-DOCKER-BUILD — Allow explicit `docker:build -- --sudo` from the
+  operator's terminal, elevating only Docker and preserving user-owned private
+  image manifests. Verify authorization before creating output. CLI regressions
+  cover direct/sudo use, refusal before elevation and failed-build publication;
+  the hosted container drill exercises the real sudo path. Implemented on
+  `Dev/docker-sudo-release-build`; final hosted evidence is recorded on its PR.
 - [ ] MIG-01-LAUNCH **Owner decision** — Confirm empty first-launch inventory or
   authorized existing-record imports before the production database/cutover plan.
   Requested while preparing independent tooling; no choice assumed.

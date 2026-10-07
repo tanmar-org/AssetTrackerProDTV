@@ -43,7 +43,16 @@ just to avoid authentication: daemon access is equivalent to root access.
 install -d -m 700 /path/to/private-release
 # Use a fresh output directory; supply the real PUBLIC QR origin at rollout.
 npm run docker:build -- https://qr.example.com/ /path/to/private-release/images
+# On this VM, use this alternative from your interactive terminal instead:
+npm run docker:build -- --sudo https://qr.example.com/ /path/to/private-release/images
 ```
+
+`--sudo` must precede the two inputs and elevates only fixed Docker commands.
+Run npm as your ordinary account; sudo handles authentication in your terminal.
+Git, Node and private release-file writes retain your account's permissions.
+No password enters the helper, command arguments or saved configuration. The
+helper checks daemon access before creating the output directory. Do not run both
+alternatives against the same output: release output is deliberately never replaced.
 
 The helper refuses a dirty checkout and builds both apps from unchanged lockfiles,
 prunes build dependencies, labels the revision, and records the four exact local

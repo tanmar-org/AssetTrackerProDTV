@@ -65,9 +65,10 @@ test("immutable Compose deployment persists and restores into an independent sta
     await writeFile(full, "SYNTHETIC BUILD CONTEXT SECRET", { flag: "wx", mode: 0o600 }); createdCanaries.push(full);
   }
   // Build through the real allowlisted context; public configuration changes
-  // happen only in the builder, not in the preview/host checkout.
+  // happen only in the builder, not in the preview/host checkout. Exercise the
+  // VM's sudo mode too: only Docker is elevated; release files keep our UID.
   await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["scripts/build-container-images.mjs", "https://qr.example.test/", imageDirectory], { cwd: repository, stdio: "inherit" });
+    const child = spawn(process.execPath, ["scripts/build-container-images.mjs", "--sudo", "https://qr.example.test/", imageDirectory], { cwd: repository, stdio: "inherit" });
     child.once("error", reject); child.once("exit", code => { if (code === 0) resolve(); else reject(new Error("Synthetic container build failed")); });
   });
   const pins = JSON.parse(await readFile(path.join(imageDirectory, "images.json"), "utf8"));
