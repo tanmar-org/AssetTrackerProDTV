@@ -3165,3 +3165,84 @@ open independently; no inventory Apply has been approved.
 Opened [PR #43](https://github.com/tanmar-org/AssetTrackerProDTV/pull/43) against
 main from `Dev/ad-user-onboarding`; implementation commit `9937a8e`. Owner retains
 final review and merging. Local checks pass; hosted validation runs on the PR.
+
+
+## 2026-10-07 (America/Chicago) — AD onboarding merged; staff update prepared
+
+Owner merged [PR #43](https://github.com/tanmar-org/AssetTrackerProDTV/pull/43)
+at `148b623`. Final PR head `1690e32` passed both GitHub validation jobs in run
+`37664296130`, including the portable Docker drill. Fetched main, advanced the
+local Dev branch and created a clean detached release checkout at the merge.
+Docker/Compose inputs, lockfiles, shared database package and migrations are
+unchanged from deployed `81f7c1a`; only the staff container needs recreation.
+
+Prepared protected `ad-onboarding-update/apply-ad-onboarding.sh` under the existing
+private Docker preparation directory. It builds the merged app image, preserves
+installed credentials and other containers, saves old image settings, recreates
+staff, reloads existing gateway routing and checks both HTTPS sites, exact reviewed
+HTML/JavaScript/CSS and unauthenticated AD lookup denial. It restores the prior
+staff image/settings if activation checks fail. The prior installed-environment
+hash was derived from the reviewed unchanged stage and exact Saved activation
+image transformation; the root script checks it before replacement. Existing
+AD-mode signing material is validated without printing it. Bash/embedded Python
+syntax and the image-setting transformation pass; no build or activation was
+performed by these preparation checks.
+
+Read-only HTTPS confirms staff health and QR root are 200 and deployed staff is
+still JavaScript version 69. Docker inspection requires interactive sudo; the
+owner must run the single prepared terminal command, as for the previous update.
+Next verify the receipt and live version 70/68, then accept adding/linking one
+nominated employee through Settings with no per-user VM command. No production
+account, inventory or directory mutation occurred. Routine merge/preparation notes
+remain local for the next substantive PR, as the owner requested.
+
+
+## 2026-10-07 (America/Chicago) — Owner deployed onboarding; separate link dialog
+
+Owner ran the PR #43 Docker update and refreshed Settings. Its private receipt and
+independent read-only HTTPS checks confirm merged staff revision `148b623`, exact
+JavaScript version 70/CSS 68/HTML and healthy staff/QR sites. Updated private active
+release/readiness records, retaining exact other-running-image information. The
+owner had an existing unlinked administrator and found the row action confusing:
+it moved that user into the shared Add User form with a disabled Regular User
+selection, even though PATCH preserved the stored Administrator role.
+
+On `Dev/ad-link-dialog` from current main, implemented AUTH-01-LINK-UI. The row
+button opens a dedicated modal, starts exact AD lookup immediately and shows the
+saved application user, actual saved permission and active status. The admin
+reviews the AD person and confirms Link AD account there. If needed, the AD
+selector can be corrected and looked up again. Creation fields/drafts are retained
+and always submit POST; linking only submits PATCH with the existing user ID,
+reviewed AD username and confirmation proof, without name/role/active changes.
+Raw directory values remain text-only. Bootstrap/replacements and backend review,
+expiry, authorization, audit/session and unique-link checks are unchanged.
+
+The modal uses native background inertness plus keyboard cycling, Escape/cancel
+clearing and forced closure/scrubbing at session lock. Independent proof/target/
+generation state rejects late canceled/edited/reopened lookups and late responses
+after sign-out. While a link is being committed, controls prevent double submit or
+ordinary cancellation; session lock still immediately clears the dialog. Updated
+bounded mobile styling, meaningful comments and auth/development instructions;
+asset versions are JavaScript 71 and CSS 69. Validation/PR results follow below.
+
+A focused Chromium check found keyboard focus could reach browser chrome at a
+modal edge; explicit enabled-control cycling fixes it. The focused nine checks
+now pass, including preserved Administrator, unchanged creation draft, immediate
+lookup, corrected usernames, safe display text, Escape/session clearing, canceled
+and overlapping targets, pending-link lock behavior and narrow-screen layout.
+No real-directory lookup, sign-in, account mutation, inventory import or new
+Docker deployment was performed for this UI fix. Routine PR #43 merge/deployment
+notes are bundled here without a standalone documentation PR. Next owner reviews
+this correction, deploys its merged staff image and confirms the intended AD link
+and login; workbook scope/conflict decisions remain pending under MIG-01.
+
+Final local validation: zero-warning lint/vendor integrity and standalone TypeScript
+pass; all 137 root and 60 Chromium checks pass without failures/skips. Chromium
+serves the revised static assets through the existing compatible Next build;
+server routes, database schema and LDAPS/proof behavior are unchanged. Checked the
+final diff and retained the owner-only merge/deployment boundary. PR reference
+follows below; no separate documentation PR was created.
+
+Opened [PR #44](https://github.com/tanmar-org/AssetTrackerProDTV/pull/44) against
+main from `Dev/ad-link-dialog`, implementation commit `4e9a010`. Owner retains
+final review/merging; GitHub validation runs on the PR.

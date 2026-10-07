@@ -177,7 +177,10 @@ naming context and rejects missing, ambiguous or ineligible directory accounts.
 Display name is optional; the username is shown if it is unavailable.
 
 For an existing unlinked application account, click **Link AD account** on its
-row, enter/find/review the intended AD username, then confirm **Link AD account**.
+row. A separate dialog immediately looks up the saved application username and
+shows the existing permission/access status. Review the person found, then confirm
+**Link AD account** in that dialog. If the AD username differs, edit it and click
+**Find AD user** again. The Add User form and any new-user draft are unchanged.
 This retains its application ID, name, permissions and existing records/drafts.
 Inactive accounts stay inactive until an administrator explicitly reactivates
 access. Already linked accounts cannot be replaced through this flow. Rename,

@@ -49,7 +49,9 @@ AD mode, provisioning asks only for an app username; operator `auth:link-ad` use
 the owner URL/namespace in `.env.migrate` to map a reviewed GUID without replacing
 the application user. After bootstrap, administrators add or link staff through
 Settings: enter the exact AD username, Find AD user, review the match and confirm
-the application role/access. Identity replacements remain operator-only. See
+the application role/access. Existing-user row linking opens its own dialog,
+automatically looks up the saved username and shows the preserved permission.
+Identity replacements remain operator-only. See
 [AD configuration and linking](STAFF-AUTHENTICATION.md).
 Keep local development explicitly `AUTH_MODE=pin` when using PIN fixtures; incomplete
 AD settings without an explicit mode fail closed. Do not use company AD for tests.

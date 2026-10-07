@@ -206,8 +206,18 @@ approval; unresolved owner/operational items remain listed below.
   lookup, display-name/username review, five-minute session/config/target-bound
   proof and fresh GUID check; account/link/audit writes are atomic. Existing
   records/permissions are preserved; initial bootstrap and replacements remain
-  operator-only. Validation, owner PR review/merge and Docker rollout are tracked
-  in the journal. Completion requires deployed owner acceptance of this flow.
+  operator-only. Owner merged PR #43 at `148b623`; both final-head hosted jobs
+  passed. Owner activated the staff-only Docker update; its receipt and independent
+  HTTPS checks verify exact reviewed assets. Existing-user linking exposed a
+  confusing shared creation form/default permission; AUTH-01-LINK-UI addresses
+  that feedback. Completion requires the nominated user's link/sign-in acceptance.
+- [ ] AUTH-01-LINK-UI — Make the existing-user Link AD account row action open a
+  separate confirmation dialog, immediately find the saved AD username and clearly
+  show the preserved permission/access. Never put an existing administrator into
+  the creation form with a Regular User default. Implemented on `Dev/ad-link-dialog`
+  in [PR #44](https://github.com/tanmar-org/AssetTrackerProDTV/pull/44); local checks
+  pass. Owner merge/rollout acceptance remains. The server's
+  reviewed identity proof/authorization and linking API remain unchanged.
 - [x] AUTH-01-DOMAIN-SCOPE — Require critical AD DOMAIN_SCOPE on every identity/status
   search, preventing normal domain-root partition references without following
   referrals or relaxing rejection of unexpected references/unsupported controls.

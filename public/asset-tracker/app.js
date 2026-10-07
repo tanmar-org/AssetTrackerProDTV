@@ -53,7 +53,9 @@ let currentCloudAction="Data change";
 let activityRecords=[];
 // AD review proofs and link targets belong only to this admin's current tab.
 // Editing the selector, canceling, or locking discards any previous approval.
-let directoryUserConfirmation=null,directoryLinkTarget=null,directoryLookupGeneration=0,directoryUserBusy=false;
+let directoryUserConfirmation=null,directoryLookupGeneration=0,directoryUserBusy=false;
+// Existing-user linking has independent state, never repurposes the add-user form.
+let directoryLinkTarget=null,directoryLinkConfirmation=null,directoryLinkGeneration=0,directoryLinkBusy="";
 // Baseline is the last acknowledged server copy, never the latest unsaved UI.
 let cloudBaseState=null;
 let draftCopy=null,draftSavePromise=null,draftSaveTimer=null,draftGeneration=0,draftSavedGeneration=-1,draftReview=null,draftBusy=false;
@@ -483,7 +485,7 @@ $("savedDraftList").addEventListener("click",event=>{
     await loadSavedDrafts();
   });
 });
-const privateDomDefaults=[...document.querySelectorAll(".app-shell [id],.modal-backdrop [id],.profile-menu [id],.undo-history-panel [id]")]
+const privateDomDefaults=[...document.querySelectorAll(".app-shell [id],.modal-backdrop [id],.directory-link-dialog [id],.profile-menu [id],.undo-history-panel [id]")]
   .filter(node=>!node.querySelector("[id]")&&!node.matches("form,section,main,aside"))
   .map(node=>[node,node.innerHTML,node.getAttribute("title")]);
 
@@ -3654,7 +3656,7 @@ function scrubPrivateDom(){
   // Restore dynamic leaves/controls without replacing static parents or their
   // event listeners. This clears hidden dialogs, tables, labels and mail drafts.
   for(const [node,html,title] of privateDomDefaults){node.innerHTML=html;if(title===null)node.removeAttribute("title");else node.setAttribute("title",title);}
-  document.querySelectorAll(".app-shell input,.app-shell textarea,.modal-backdrop input,.modal-backdrop textarea").forEach(node=>{node.value=node.type==="file"?"":node.defaultValue;node.checked=node.defaultChecked;});
+  document.querySelectorAll(".app-shell input,.app-shell textarea,.modal-backdrop input,.modal-backdrop textarea,.directory-link-dialog input").forEach(node=>{node.value=node.type==="file"?"":node.defaultValue;node.checked=node.defaultChecked;});
   $("toast").hidden=true;$("toast").textContent="";
   $("profileButton").textContent="--";$("profileButton").title="Employee sign in";
 }
@@ -3668,7 +3670,7 @@ function lockSession(retainDraft=false,message=""){
       undo:structuredClone(undoHistory),pending:structuredClone(cloudPendingStates),cache:new Map(cacheEntries)};
   }else if(!retainDraft){lockedDraft=null;}
   sessionEpoch++;sessionContext="";currentUser=null;
-  directoryLinkTarget=null;directoryUserBusy=false;resetDirectoryUserReview();
+  closeDirectoryLinkDialog(true);directoryUserBusy=false;resetDirectoryUserReview();
   clearTimeout(cloudSaveTimer);clearInterval(cloudPollTimer);clearTimeout(draftSaveTimer);
   sessionRequests.forEach(controller=>controller.abort());sessionRequests.clear();
   importCancellations.forEach(cancel=>cancel());importCancellations.clear();
@@ -3741,7 +3743,7 @@ function configureAuthMode(mode){
   $("newUserName").maxLength=ad?64:40;$("newUserName").pattern=name.pattern;
   $("findDirectoryUser").hidden=!ad;
   $("userDirectoryNotice").hidden=!ad;
-  if(changed){credential.value="";newPin.value="";directoryLinkTarget=null;resetDirectoryUserReview();}
+  if(changed){credential.value="";newPin.value="";closeDirectoryLinkDialog(true);resetDirectoryUserReview();}
   updateDirectoryUserControls();
 }
 
@@ -3824,7 +3826,7 @@ async function loadUsers(){
     const {response,result}=await staffRequest("/api/users",{cache:"no-store"});
     if(!response.ok)throw new Error(result.error||"Unable to load users.");
     $("userList").innerHTML=result.users.map(user=>`
-      <div class="user-row ${user.active?"":"inactive"}" data-user-id="${esc(user.id)}">
+      <div class="user-row ${user.active?"":"inactive"}" data-user-id="${esc(user.id)}" data-user-name-saved="${esc(user.name)}" data-user-role-saved="${esc(user.role)}">
         <label><span>Username</span><input data-user-name maxlength="${authMode==="ad"?64:40}" pattern="${authMode==="ad"?"[A-Za-z0-9][A-Za-z0-9._-]{0,63}":"[A-Za-z][A-Za-z0-9]{1,39}"}" autocapitalize="none" spellcheck="false" value="${esc(user.name)}">
           ${authMode!=="ad"&&user.locked_until&&new Date(user.locked_until).getTime()>Date.now()
             ?`<small class="user-status locked">Locked until ${esc(formatHistoryDate(user.locked_until))}</small>`
@@ -3950,14 +3952,10 @@ function exportActivityCsv(){
 $("exportActivityButton").addEventListener("click",exportActivityCsv);
 
 function updateDirectoryUserControls(){
-  const ad=authMode==="ad",linking=Boolean(directoryLinkTarget);
+  const ad=authMode==="ad";
   $("createUserButton").disabled=directoryUserBusy||(ad&&!directoryUserConfirmation);
-  $("createUserButton").textContent=linking?"Link AD account":"Add User";
   $("findDirectoryUser").disabled=directoryUserBusy;
-  $("cancelDirectoryLink").hidden=!linking;
-  $("newUserRole").disabled=linking||directoryUserBusy;
-  $("directoryLinkTarget").hidden=!linking;
-  $("directoryLinkTarget").textContent=linking?`Link an AD identity to application user ${directoryLinkTarget.name}. Existing permissions and records are preserved.`:"";
+  $("newUserRole").disabled=directoryUserBusy;
 }
 function resetDirectoryUserReview(){
   directoryLookupGeneration++;directoryUserConfirmation=null;
@@ -3965,9 +3963,6 @@ function resetDirectoryUserReview(){
   updateDirectoryUserControls();
 }
 $("newUserName").addEventListener("input",resetDirectoryUserReview);
-$("cancelDirectoryLink").addEventListener("click",()=>{
-  directoryLinkTarget=null;$("userCreateForm").reset();resetDirectoryUserReview();
-});
 $("findDirectoryUser").addEventListener("click",async()=>{
   if(currentUser?.role!=="admin"||authMode!=="ad"||directoryUserBusy)return;
   const name=$("newUserName");if(!name.reportValidity())return;
@@ -3976,7 +3971,7 @@ $("findDirectoryUser").addEventListener("click",async()=>{
   $("directoryUserPreview").hidden=false;$("directoryUserPreview").textContent="Finding AD user…";
   try{
     const {response,result}=await staffRequest("/api/users/ad-lookup",{method:"POST",headers:{"content-type":"application/json"},
-      body:JSON.stringify({name:name.value.trim(),...(directoryLinkTarget?{userId:directoryLinkTarget.id}:{})})});
+      body:JSON.stringify({name:name.value.trim()})});
     if(!sessionActive(epoch)||generation!==directoryLookupGeneration)return;
     if(!response.ok)throw new Error(result.error||"Unable to find the AD user.");
     directoryUserConfirmation={name:result.username,proof:result.confirmation};
@@ -3993,22 +3988,106 @@ $("userCreateForm").addEventListener("submit",async event=>{
   event.preventDefault();
   if(currentUser?.role!=="admin"||directoryUserBusy)return;
   if(authMode==="ad"&&!directoryUserConfirmation){toast("Find and review the AD user first.");return;}
-  const epoch=sessionEpoch,target=directoryLinkTarget;
+  const epoch=sessionEpoch;
   directoryUserBusy=true;updateDirectoryUserControls();
   try{
     const {response,result}=await staffRequest("/api/users",{
-      method:target?"PATCH":"POST",
+      method:"POST",
       headers:{"content-type":"application/json"},
-      body:JSON.stringify(target?{id:target.id,adUsername:$("newUserName").value.trim(),directoryConfirmation:directoryUserConfirmation.proof}:
-        {name:$("newUserName").value.trim(),...(authMode==="ad"?{directoryConfirmation:directoryUserConfirmation.proof}:{pin:$("newUserPin").value}),role:$("newUserRole").value})
+      body:JSON.stringify({name:$("newUserName").value.trim(),...(authMode==="ad"?{directoryConfirmation:directoryUserConfirmation.proof}:{pin:$("newUserPin").value}),role:$("newUserRole").value})
     });
     if(!response.ok)throw new Error(result.error||"Unable to add user.");
-    directoryLinkTarget=null;event.target.reset();resetDirectoryUserReview();
+    event.target.reset();resetDirectoryUserReview();
     await loadUsers();
     await loadActivity();
-    toast(target?"AD account linked. Existing application permissions are preserved.":authMode==="ad"?"User added and linked to AD. They can sign in with their AD password.":"Authorized user added.");
+    toast(authMode==="ad"?"User added and linked to AD. They can sign in with their AD password.":"Authorized user added.");
   }catch(error){if(sessionActive(epoch)){resetDirectoryUserReview();toast(error.message||"Unable to add user.");}}
   finally{if(sessionActive(epoch)){directoryUserBusy=false;updateDirectoryUserControls();}}
+});
+
+// The row action starts an exact lookup immediately. Only explicit confirmation
+// sends PATCH for the saved app ID; editable role/name fields are never included.
+function updateDirectoryLinkControls(){
+  const committing=directoryLinkBusy==="link";
+  $("directoryLinkName").disabled=committing;
+  $("findDirectoryLinkUser").disabled=Boolean(directoryLinkBusy);
+  $("confirmDirectoryLink").disabled=Boolean(directoryLinkBusy)||!directoryLinkConfirmation;
+  $("directoryLinkDialog").querySelectorAll("[data-cancel-directory-link]").forEach(button=>button.disabled=committing);
+  if(committing)$("directoryLinkDialog").focus();
+}
+function resetDirectoryLinkReview(){
+  directoryLinkGeneration++;directoryLinkConfirmation=null;directoryLinkBusy="";
+  $("directoryLinkPreview").textContent="";updateDirectoryLinkControls();
+}
+function closeDirectoryLinkDialog(force=false){
+  if(directoryLinkBusy==="link"&&!force)return;
+  directoryLinkTarget=null;resetDirectoryLinkReview();
+  $("directoryLinkForm").reset();
+  for(const id of ["directoryLinkAccount","directoryLinkPermission","directoryLinkAccess"])$(id).textContent="";
+  if($("directoryLinkDialog").open)$("directoryLinkDialog").close();
+}
+function openDirectoryLinkDialog(row){
+  if(directoryLinkBusy==="link")return;
+  closeDirectoryLinkDialog();
+  // Show server-loaded values, not an unsaved role selection in the user row.
+  directoryLinkTarget={id:row.dataset.userId,name:row.dataset.userNameSaved,role:row.dataset.userRoleSaved,active:!row.classList.contains("inactive")};
+  $("directoryLinkAccount").textContent=`Application user: ${directoryLinkTarget.name}`;
+  $("directoryLinkPermission").textContent=`Permission: ${directoryLinkTarget.role==="admin"?"Administrator":"Regular User"} (preserved)`;
+  $("directoryLinkAccess").textContent=`Access: ${directoryLinkTarget.active?"Active":"Inactive"} (preserved)`;
+  $("directoryLinkName").value=directoryLinkTarget.name;
+  $("directoryLinkDialog").showModal();
+  void findDirectoryLinkUser();
+}
+async function findDirectoryLinkUser(){
+  if(currentUser?.role!=="admin"||authMode!=="ad"||!directoryLinkTarget||directoryLinkBusy)return;
+  const name=$("directoryLinkName");if(!name.reportValidity())return;
+  resetDirectoryLinkReview();const generation=directoryLinkGeneration,epoch=sessionEpoch,targetId=directoryLinkTarget.id;
+  directoryLinkBusy="lookup";updateDirectoryLinkControls();$("directoryLinkPreview").textContent="Finding AD user…";
+  try{
+    const {response,result}=await staffRequest("/api/users/ad-lookup",{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({name:name.value.trim(),userId:targetId})});
+    if(!sessionActive(epoch)||generation!==directoryLinkGeneration)return;
+    if(!response.ok)throw new Error(result.error||"Unable to find the AD user.");
+    directoryLinkConfirmation={name:result.username,proof:result.confirmation};
+    $("directoryLinkPreview").textContent=`Found: ${result.displayName||result.username} (${result.username}). Confirm this is the intended person. Review expires after five minutes.`;
+  }catch(error){
+    if(sessionActive(epoch)&&generation===directoryLinkGeneration)$("directoryLinkPreview").textContent=error.message||"Unable to find the AD user.";
+  }finally{
+    // Cancel/edit/reopen may start a newer lookup while this one finishes.
+    if(sessionActive(epoch)&&generation===directoryLinkGeneration){directoryLinkBusy="";updateDirectoryLinkControls();}
+  }
+}
+$("directoryLinkName").addEventListener("input",resetDirectoryLinkReview);
+$("findDirectoryLinkUser").addEventListener("click",findDirectoryLinkUser);
+$("directoryLinkDialog").querySelectorAll("[data-cancel-directory-link]").forEach(button=>button.addEventListener("click",()=>closeDirectoryLinkDialog()));
+$("directoryLinkDialog").addEventListener("cancel",event=>{event.preventDefault();closeDirectoryLinkDialog();});
+$("directoryLinkDialog").addEventListener("keydown",event=>{
+  if(event.key!=="Tab")return;
+  // Native modality makes the background inert; keep keyboard cycling within
+  // enabled review controls rather than moving into browser chrome at an edge.
+  const controls=[...$("directoryLinkDialog").querySelectorAll("input,button")].filter(node=>!node.disabled&&node.getClientRects().length);
+  const first=controls[0],last=controls.at(-1);
+  if(!first){event.preventDefault();return;}
+  if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+  else if(!event.shiftKey&&(document.activeElement===last||document.activeElement===$("directoryLinkDialog"))){event.preventDefault();first.focus();}
+});
+$("directoryLinkForm").addEventListener("submit",async event=>{
+  event.preventDefault();
+  if(currentUser?.role!=="admin"||!directoryLinkTarget||directoryLinkBusy||!directoryLinkConfirmation)return;
+  const epoch=sessionEpoch,generation=directoryLinkGeneration,targetId=directoryLinkTarget.id;
+  directoryLinkBusy="link";updateDirectoryLinkControls();
+  try{
+    const {response,result}=await staffRequest("/api/users",{method:"PATCH",headers:{"content-type":"application/json"},
+      body:JSON.stringify({id:targetId,adUsername:$("directoryLinkName").value.trim(),directoryConfirmation:directoryLinkConfirmation.proof})});
+    if(!sessionActive(epoch)||generation!==directoryLinkGeneration)return;
+    if(!response.ok)throw new Error(result.error||"Unable to link the AD account.");
+    closeDirectoryLinkDialog(true);await loadUsers();await loadActivity();
+    toast("AD account linked. Existing application permissions are preserved.");
+  }catch(error){
+    if(sessionActive(epoch)&&generation===directoryLinkGeneration){resetDirectoryLinkReview();$("directoryLinkPreview").textContent=error.message||"Unable to link the AD account. Find the user again.";}
+  }finally{
+    if(sessionActive(epoch)&&generation===directoryLinkGeneration){directoryLinkBusy="";updateDirectoryLinkControls();}
+  }
 });
 
 $("userList").addEventListener("click",async event=>{
@@ -4018,9 +4097,7 @@ $("userList").addEventListener("click",async event=>{
   const toggleButton=event.target.closest("[data-toggle-user]");
   const unlockButton=event.target.closest("[data-unlock-user]");
   if(event.target.closest("[data-link-user]")&&authMode==="ad"&&currentUser?.role==="admin"&&!directoryUserBusy){
-    directoryLinkTarget={id:row.dataset.userId,name:row.querySelector("[data-user-name]").value};
-    $("userCreateForm").reset();$("newUserName").value=directoryLinkTarget.name;
-    resetDirectoryUserReview();$("newUserName").focus();return;
+    openDirectoryLinkDialog(row);return;
   }
   if(!saveButton&&!toggleButton&&!unlockButton)return;
   try{
@@ -4071,7 +4148,7 @@ window.addEventListener("storage",event=>{
 });
 for(const type of ["click","submit","change","input"]){
   document.addEventListener(type,event=>{
-    if((!currentUser||!cloudReady)&&event.target.closest?.(".app-shell,.modal-backdrop,.profile-menu,.undo-history-panel")){
+    if((!currentUser||!cloudReady)&&event.target.closest?.(".app-shell,.modal-backdrop,.directory-link-dialog,.profile-menu,.undo-history-panel")){
       event.preventDefault();event.stopImmediatePropagation();
     }
   },true);
