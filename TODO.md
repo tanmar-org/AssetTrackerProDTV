@@ -214,8 +214,9 @@ approval; unresolved owner/operational items remain listed below.
 - [ ] AUTH-01-LINK-UI — Make the existing-user Link AD account row action open a
   separate confirmation dialog, immediately find the saved AD username and clearly
   show the preserved permission/access. Never put an existing administrator into
-  the creation form with a Regular User default. Implemented on `Dev/ad-link-dialog`;
-  tests and owner PR/rollout acceptance are tracked in the journal. The server's
+  the creation form with a Regular User default. Implemented on `Dev/ad-link-dialog`
+  in [PR #44](https://github.com/tanmar-org/AssetTrackerProDTV/pull/44); local checks
+  pass. Owner merge/rollout acceptance remains. The server's
   reviewed identity proof/authorization and linking API remain unchanged.
 - [x] AUTH-01-DOMAIN-SCOPE — Require critical AD DOMAIN_SCOPE on every identity/status
   search, preventing normal domain-root partition references without following

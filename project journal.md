@@ -3242,3 +3242,7 @@ serves the revised static assets through the existing compatible Next build;
 server routes, database schema and LDAPS/proof behavior are unchanged. Checked the
 final diff and retained the owner-only merge/deployment boundary. PR reference
 follows below; no separate documentation PR was created.
+
+Opened [PR #44](https://github.com/tanmar-org/AssetTrackerProDTV/pull/44) against
+main from `Dev/ad-link-dialog`, implementation commit `4e9a010`. Owner retains
+final review/merging; GitHub validation runs on the PR.
